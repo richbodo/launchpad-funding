@@ -65,3 +65,11 @@ FundFlow (one of the many names LLMs auto-generated for this app) is a real-time
 4. During a live session, log in via the session login page with your facilitator credentials
 5. Use the stage controls (Previous / Play-Pause / Next) to manage the session flow
 6. Use the stage selector dropdown to jump to any stage directly
+
+## License
+
+Copyright © 2026 Rich Bodo. All rights reserved.
+
+This software comes with **absolutely no warranty**. It is licensed under the **GNU General Public License (GPL)**. A copy of the license is included in this repository in the file [LICENSE.md](LICENSE.md).
+
+See the [GNU GPL](https://www.gnu.org/licenses/gpl-3.0.html) for full terms and conditions.
