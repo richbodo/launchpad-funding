@@ -207,11 +207,12 @@ export default function SessionPage() {
           )}
 
           {/* Investor actions */}
-          {user.role === 'investor' && currentStartup && (
+          {user.role === 'investor' && (
             <div className="flex items-center justify-center gap-3 mt-3">
               <Button
                 onClick={() => setInvestOpen(true)}
-                className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6"
+                disabled={currentStage?.type === 'intro' || currentStage?.type === 'outro'}
+                className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6 disabled:opacity-40"
               >
                 <DollarSign className="w-4 h-4 mr-1" />
                 Invest
