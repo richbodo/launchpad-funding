@@ -21,7 +21,7 @@ FundFlow (one of the many names LLMs auto-generated for this app) is a real-time
 
 ## Status
 
-**Front-end demo: Complete.** The UI, session flow, admin tools, and demo mode are fully functional.
+**Front-end demo: Complete.** The UI, session flow, admin tools, and demo mode are fully functional.  This was vibe-coded so far.
 
 ### Next Steps
 
