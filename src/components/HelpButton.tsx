@@ -1,6 +1,6 @@
 import { HelpCircle } from 'lucide-react';
 
-const HELP_URL = 'https://github.com/lovable-dev/pitch-pledge/blob/main/README.md';
+const HELP_URL = 'https://github.com/richbodo/launchpad-funding/blob/main/README.md';
 
 export default function HelpButton() {
   return (
