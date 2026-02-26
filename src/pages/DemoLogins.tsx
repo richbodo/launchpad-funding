@@ -93,7 +93,7 @@ export default function DemoLogins() {
         {/* Facilitators */}
         <Card className="mb-6">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Facilitators / Admins (all sessions)</CardTitle>
+            <CardTitle className="text-base">Facilitators (all sessions)</CardTitle>
             <p className="text-xs text-muted-foreground">Facilitators have full admin access — session management, participant setup, and live session controls. Use these credentials for both the session login and the admin dashboard.</p>
           </CardHeader>
           <CardContent>
