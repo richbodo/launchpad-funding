@@ -1,78 +1,79 @@
 
 
-## Facilitator Session Controls
+## Participant Management Overhaul
 
-The current session page has minimal facilitator controls — just Previous/Next buttons to cycle through startups, a hardcoded "Presentation" phase label, and a timer set to an arbitrary 5 minutes from page load. There's no concept of session stages (intro, per-startup presentation + Q&A, outro), no pause/play, and no stage-selection UI.
+There are several issues and enhancements requested. Here is what needs to happen:
 
-### Stage Model
+### Bug Fix: Plus Button Not Working
 
-The session is a linear sequence of stages, built dynamically from the participant list:
+The `addParticipant` function looks correct, but the `<Button onClick={addParticipant}>` at line 419 has `size="sm"` — need to verify it's not a form submission issue. The button itself appears wired correctly. I'll ensure the click handler works and there are no silent errors (e.g., missing required fields failing silently).
+
+Looking at `addParticipant` (line 178): it returns early if `!addEmail || !selectedSession` — likely the plus button works but silently fails if email is empty. The issue could also be that the `size="sm"` button inside the flex-wrap form isn't receiving clicks properly. I'll make sure the button type is explicit (`type="button"`) and add better validation feedback.
+
+### Database Migration
+
+Add two new nullable columns to `session_participants` for startup metadata:
+
+- `dd_room_link` (text, nullable) — due diligence room URL
+- `website_link` (text, nullable) — startup website URL
+
+### Changes to `src/pages/Admin.tsx`
+
+**1. Remove the "Order #" input from the add-participant form** — startups will no longer enter an order number when being added. Instead, new startups get auto-assigned the next available order number.
+
+**2. Replace the participant list with a proper table** using the existing `Table` UI components, with sortable columns:
+
+| Type | Name | Email | Order | Actions |
+|------|------|-------|-------|---------|
+| startup | AcmeCo | acme@co.com | [dropdown: 1] | [Metadata] [Remove] |
+| investor | Jane | jane@vc.com | — | [Remove] |
+
+- Columns have header click-to-sort on "Type" and "Name"
+- "Order" column shows a `<select>` dropdown for startups only, with options 1 through N (N = number of startups)
+- "Actions" column has a "Metadata" button for startups (opens a small dialog/popover to edit `dd_room_link` and `website_link`) and a remove button for all
+
+**3. Order reordering algorithm:**
+
+When a startup's order is changed from position A to position B:
+- Remove the startup from position A
+- Shift all startups between A and B to fill the gap
+- Insert the startup at position B
+- Concretely: if moving from 3→1, startups at positions 1 and 2 shift to 2 and 3. If moving from 1→3, startups at 2 and 3 shift to 1 and 2.
+- This is a standard "drag to reorder" algorithm: extract, shift, insert. All affected startup rows get a single batch of UPDATE calls.
+
+**4. Add a metadata dialog** — a small `Dialog` that opens when the "Metadata" button is clicked for a startup. Contains two input fields (DD Room Link, Website Link) and a Save button that updates the `session_participants` row.
+
+### Files
+
+**Database migration:**
+```sql
+ALTER TABLE public.session_participants
+  ADD COLUMN dd_room_link text,
+  ADD COLUMN website_link text;
+```
+
+**Modified:** `src/pages/Admin.tsx`
+- Remove `addOrder` state and the Order # input from the add-participant form
+- Auto-assign `presentation_order` to new startups (max existing order + 1)
+- Fix the plus button (add `type="button"`, add toast if email missing)
+- Replace participant list div with a `Table` component with sortable headers (Type, Name, Email, Order, Actions)
+- Add sort state (`sortBy: 'role' | 'name'`, `sortDir: 'asc' | 'desc'`)
+- Add order-change handler with the shift algorithm described above
+- Add a `MetadataDialog` inline component for editing `dd_room_link` and `website_link`
+
+**No other files need changes.** The `ParticipantRow` interface at the top of Admin.tsx will be extended with the two new fields.
+
+### Order Reordering Algorithm Detail
 
 ```text
-Stage 1: Introduction (5 min) — facilitator
-Stage 2: StartupA Presentation (5 min)
-Stage 3: StartupA Q&A (3 min)
-Stage 4: StartupB Presentation (5 min)
-Stage 5: StartupB Q&A (3 min)
-...
-Stage N: Outro (5 min) — facilitator
+startups sorted by current order: [S1=1, S2=2, S3=3, S4=4]
+
+User changes S3 from order 3 → order 1:
+  1. Remove S3 from array → [S1=1, S2=2, S4=4]
+  2. Insert S3 at index 0 → [S3, S1, S2, S4]
+  3. Reassign orders: S3=1, S1=2, S2=3, S4=4
+  4. Batch UPDATE all changed rows
 ```
 
-This will be computed client-side from the `startups` array. No database changes needed — the stage is local facilitator state (other participants see the effect via realtime startup index changes and phase labels).
-
-### Plan
-
-**1. Create `src/hooks/useSessionStages.ts`** — a custom hook that:
-- Takes the `startups` array as input
-- Computes the full ordered stage list (intro → per-startup presentation/Q&A pairs → outro), each with a label, duration in seconds, and type
-- Tracks `currentStageIndex`, `isPaused`, `remainingSeconds`
-- Exposes: `currentStage`, `stages`, `isPaused`, `remaining`, `next()`, `prev()`, `goToStage(index)`, `togglePause()`
-- Manages a `setInterval` countdown that respects pause state
-- Auto-advances to the next stage when the timer hits zero (or stops at outro end)
-
-**2. Create `src/components/StageSelector.tsx`** — a dialog/sheet component:
-- Shows a scrollable list of all stages with clear labels like "Stage 3 — AcmeCo Q&A (3 min)"
-- Highlights the current stage
-- Each row has a "Jump to Stage" button
-- Opens from a "Select Stage" button in the facilitator controls area
-
-**3. Update `src/components/SessionTimer.tsx`**:
-- Accept `isPaused` and `remainingSeconds` props (driven by the hook) instead of computing its own countdown
-- Display the phase name and formatted time as before
-
-**4. Update `src/pages/Session.tsx`**:
-- Use the new `useSessionStages` hook
-- Replace the hardcoded `currentPhase="Presentation"` and dummy `phaseEndTime` with values from the hook
-- Replace the current Previous/Next buttons with the new facilitator control bar:
-  - **Stage name label** displayed prominently above the buttons (e.g., "Stage 3 — AcmeCo Q&A")
-  - **Previous / Next** buttons (kept as-is, but wired to `prev()` / `next()` from the hook)
-  - **Pause/Play** toggle button
-  - **Select Stage** button that opens the `StageSelector` dialog
-- Sync `currentStartupIndex` with the hook's current stage (derive which startup is active from the stage type)
-- Non-facilitator users still see the timer and stage name but not the controls
-
-### Technical Details
-
-**`useSessionStages` hook shape:**
-```typescript
-interface Stage {
-  label: string;        // e.g. "AcmeCo Presentation"
-  fullLabel: string;    // e.g. "Stage 4 — AcmeCo Presentation"
-  type: 'intro' | 'presentation' | 'qa' | 'outro';
-  durationSeconds: number;
-  startupIndex?: number; // which startup this stage relates to
-}
-```
-
-The hook manages a `useRef` interval and `useState` for `currentStageIndex`, `remainingSeconds`, and `isPaused`. When `togglePause()` is called, it simply sets `isPaused` which causes the interval to skip decrementing. `goToStage(i)` sets the index and resets `remainingSeconds` to that stage's duration.
-
-**Files created:**
-- `src/hooks/useSessionStages.ts`
-- `src/components/StageSelector.tsx`
-
-**Files modified:**
-- `src/components/SessionTimer.tsx` — switch from self-managed countdown to prop-driven display
-- `src/pages/Session.tsx` — integrate hook, add facilitator control bar with stage name, pause/play, and stage selector
-
-**No database migration needed.** Stage state is local to the facilitator's browser. Other participants see the effect through the existing startup index and phase label rendering.
+This guarantees no gaps, no duplicates, and minimal DB writes.
 
