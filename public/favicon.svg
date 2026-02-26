@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" shape-rendering="geometricPrecision">
+  <!-- Square background -->
+  <rect width="48" height="48" fill="#111827" rx="4"/>
+
+  <!--
+    Layout: all three symbols share y=12 to y=36 (24px tall, centered in 48px).
+    Horizontal zones with 2px gaps between elements:
+      Dot zone:    x=1  – x=24  (circle r=12, cx=13)  right edge x=25
+      Dollar zone: x=27 – x=39  (center x=33)          right edge x=39
+      GT zone:     x=41 – x=47  (left x=41, tip x=47)
+  -->
+
+  <!-- ● DOT: r=12, spans x=1–25, y=12–36 -->
+  <circle cx="13" cy="24" r="12" fill="#EF4444"/>
+
+  <!-- $ DOLLAR SIGN: center x=33, spans y=12–36 -->
+  <!-- S-curve: upper bowl curves right, lower bowl curves left -->
+  <path d="
+    M 37,17.5
+    C 37,12.5  29,12.5  29,18
+    C 29,22.5  37,22.5  37,28
+    C 37,35.5  29,35.5  29,30.5
+  " fill="none" stroke="#F9FAFB" stroke-width="2.4" stroke-linecap="round"/>
+  <!-- Vertical bar: full height y=12–36 -->
+  <line x1="33" y1="12" x2="33" y2="36" stroke="#F9FAFB" stroke-width="2.4" stroke-linecap="round"/>
+
+  <!-- > GREATER-THAN: left tips at x=41 y=12/36, apex at x=47 y=24 -->
+  <polyline
+    points="41,12  47,24  41,36"
+    fill="none"
+    stroke="#F9FAFB"
+    stroke-width="2.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"/>
+</svg>
