@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface SessionRow {
@@ -38,6 +38,8 @@ export default function Admin() {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [chatArchives, setChatArchives] = useState<{ name: string; url: string }[]>([]);
+  const [archiving, setArchiving] = useState(false);
 
   // New session form
   const [newName, setNewName] = useState('');
@@ -93,7 +95,38 @@ export default function Admin() {
     if (data) setParticipants(data as ParticipantRow[]);
   };
 
-  // Auto-authenticate if already logged in as facilitator via session login
+  const fetchChatArchives = async (sessionId: string) => {
+    const { data } = await supabase.storage
+      .from('chat-archives')
+      .list(sessionId, { sortBy: { column: 'created_at', order: 'desc' } });
+    if (data) {
+      const files = data.map(f => {
+        const { data: urlData } = supabase.storage
+          .from('chat-archives')
+          .getPublicUrl(`${sessionId}/${f.name}`);
+        return { name: f.name, url: urlData.publicUrl };
+      });
+      setChatArchives(files);
+    } else {
+      setChatArchives([]);
+    }
+  };
+
+  const archiveChat = async (sessionId: string) => {
+    setArchiving(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('archive-chat', {
+        body: { session_id: sessionId },
+      });
+      if (error) throw error;
+      toast.success(data.message || 'Chat archived');
+      fetchChatArchives(sessionId);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to archive chat');
+    } finally {
+      setArchiving(false);
+    }
+  };
   useEffect(() => {
     if (sessionUser && sessionUser.role === 'facilitator' && !isAuthenticated) {
       setIsAuthenticated(true);
@@ -271,7 +304,7 @@ export default function Admin() {
                   <Card
                     key={s.id}
                     className="cursor-pointer hover:border-accent/50 transition-colors"
-                    onClick={() => { setSelectedSession(s); fetchParticipants(s.id); }}
+                    onClick={() => { setSelectedSession(s); fetchParticipants(s.id); fetchChatArchives(s.id); }}
                   >
                     <CardContent className="py-4 flex items-center justify-between">
                       <div>
@@ -407,6 +440,42 @@ export default function Admin() {
                         <p className="text-sm text-muted-foreground text-center py-4">No participants yet</p>
                       )}
                     </div>
+                  </CardContent>
+                </Card>
+
+                {/* Chat Archives */}
+                <Card className="mt-6">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="w-5 h-5" /> Chat Archives
+                    </CardTitle>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={archiving}
+                      onClick={() => archiveChat(selectedSession.id)}
+                    >
+                      <Archive className="w-4 h-4 mr-1" />
+                      {archiving ? 'Archiving...' : 'Archive & Clear Chat'}
+                    </Button>
+                  </CardHeader>
+                  <CardContent>
+                    {chatArchives.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No archived chats yet</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {chatArchives.map(file => (
+                          <div key={file.name} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50">
+                            <span className="text-sm truncate flex-1">{file.name}</span>
+                            <a href={file.url} target="_blank" rel="noopener noreferrer">
+                              <Button variant="ghost" size="sm">
+                                <Download className="w-4 h-4" />
+                              </Button>
+                            </a>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               </div>
