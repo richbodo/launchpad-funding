@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface SessionRow {
@@ -35,6 +35,7 @@ export default function Admin() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
+  const [showAdminPassword, setShowAdminPassword] = useState(false);
 
   // New session form
   const [newName, setNewName] = useState('');
@@ -50,15 +51,25 @@ export default function Admin() {
   const [addOrder, setAddOrder] = useState('');
 
   const handleAdminLogin = async () => {
-    // Sign in with Supabase auth for facilitator admin
-    const { error } = await supabase.auth.signInWithPassword({
-      email: adminEmail,
-      password: adminPassword,
-    });
-    if (error) {
+    // Look up facilitator in any session's participants
+    const { data: facilitators, error } = await supabase
+      .from('session_participants')
+      .select('*')
+      .eq('email', adminEmail.toLowerCase())
+      .eq('role', 'facilitator');
+
+    if (error || !facilitators || facilitators.length === 0) {
+      toast.error('No facilitator account found with this email');
+      return;
+    }
+
+    // Check password against any matching facilitator record
+    const match = facilitators.find(f => f.password_hash === adminPassword);
+    if (!match) {
       toast.error('Invalid credentials');
       return;
     }
+
     setIsAuthenticated(true);
     fetchSessions();
   };
@@ -81,19 +92,7 @@ export default function Admin() {
   };
 
   useEffect(() => {
-    // Check if already auth'd
-    supabase.auth.onAuthStateChange((event, session) => {
-      if (session) {
-        setIsAuthenticated(true);
-        fetchSessions();
-      }
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setIsAuthenticated(true);
-        fetchSessions();
-      }
-    });
+    // No auto-auth for admin — require explicit login each time
   }, []);
 
   const createSession = async () => {
@@ -101,14 +100,12 @@ export default function Admin() {
       toast.error('Please fill all fields');
       return;
     }
-    const { data: userData } = await supabase.auth.getUser();
     const { error } = await supabase.from('sessions').insert({
       name: newName,
       start_time: new Date(newStart).toISOString(),
       end_time: new Date(newEnd).toISOString(),
       timezone: newTimezone,
-      status: 'scheduled',
-      created_by: userData.user?.id,
+      status: 'scheduled' as const,
     });
     if (error) {
       toast.error('Failed to create session');
@@ -178,7 +175,17 @@ export default function Admin() {
               </div>
               <div>
                 <Label>Password</Label>
-                <Input value={adminPassword} onChange={e => setAdminPassword(e.target.value)} type="password" className="mt-1" />
+                <div className="relative mt-1">
+                  <Input value={adminPassword} onChange={e => setAdminPassword(e.target.value)} type={showAdminPassword ? 'text' : 'password'} className="pr-10" />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPassword(!showAdminPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    tabIndex={-1}
+                  >
+                    {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <Button onClick={handleAdminLogin} className="w-full bg-accent text-accent-foreground hover:bg-accent/90">
                 Sign In
@@ -204,7 +211,7 @@ export default function Admin() {
           </Button>
           <h1 className="text-lg font-bold">Session Admin</h1>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => { supabase.auth.signOut(); setIsAuthenticated(false); }}>
+        <Button variant="ghost" size="sm" onClick={() => { setIsAuthenticated(false); setAdminEmail(''); setAdminPassword(''); }}>
           Sign Out
         </Button>
       </div>
