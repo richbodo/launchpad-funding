@@ -7,8 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface SessionRow {
@@ -26,6 +28,8 @@ interface ParticipantRow {
   role: string;
   display_name: string | null;
   presentation_order: number | null;
+  dd_room_link: string | null;
+  website_link: string | null;
 }
 
 export default function Admin() {
@@ -53,10 +57,17 @@ export default function Admin() {
   const [addRole, setAddRole] = useState<string>('investor');
   const [addName, setAddName] = useState('');
   const [addPassword, setAddPassword] = useState('');
-  const [addOrder, setAddOrder] = useState('');
+
+  // Sort state
+  const [sortBy, setSortBy] = useState<'role' | 'display_name'>('role');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  // Metadata dialog
+  const [metaParticipant, setMetaParticipant] = useState<ParticipantRow | null>(null);
+  const [metaDDRoom, setMetaDDRoom] = useState('');
+  const [metaWebsite, setMetaWebsite] = useState('');
 
   const handleAdminLogin = async () => {
-    // Look up facilitator in any session's participants
     const { data: facilitators, error } = await supabase
       .from('session_participants')
       .select('*')
@@ -68,7 +79,6 @@ export default function Admin() {
       return;
     }
 
-    // Check password against any matching facilitator record
     const match = facilitators.find(f => f.password_hash === adminPassword);
     if (!match) {
       toast.error('Invalid credentials');
@@ -128,6 +138,7 @@ export default function Admin() {
       setArchiving(false);
     }
   };
+
   useEffect(() => {
     if (sessionUser && sessionUser.role === 'facilitator' && !isAuthenticated) {
       setIsAuthenticated(true);
@@ -176,14 +187,28 @@ export default function Admin() {
   };
 
   const addParticipant = async () => {
-    if (!addEmail || !selectedSession) return;
+    if (!addEmail) {
+      toast.error('Please enter an email address');
+      return;
+    }
+    if (!selectedSession) return;
+
+    // Auto-assign next presentation_order for startups
+    let nextOrder: number | null = null;
+    if (addRole === 'startup') {
+      const startupOrders = participants
+        .filter(p => p.role === 'startup' && p.presentation_order != null)
+        .map(p => p.presentation_order!);
+      nextOrder = startupOrders.length > 0 ? Math.max(...startupOrders) + 1 : 1;
+    }
+
     const { error } = await supabase.from('session_participants').insert([{
       session_id: selectedSession.id,
       email: addEmail.toLowerCase(),
       role: addRole as "facilitator" | "investor" | "startup",
       display_name: addName || null,
       password_hash: addRole === 'facilitator' ? addPassword : null,
-      presentation_order: addRole === 'startup' && addOrder ? parseInt(addOrder) : null,
+      presentation_order: nextOrder,
     }]);
     if (error) {
       toast.error(error.message);
@@ -193,7 +218,6 @@ export default function Admin() {
     setAddEmail('');
     setAddName('');
     setAddPassword('');
-    setAddOrder('');
     fetchParticipants(selectedSession.id);
   };
 
@@ -202,6 +226,79 @@ export default function Admin() {
     if (selectedSession) fetchParticipants(selectedSession.id);
     toast.success('Participant removed');
   };
+
+  // Reorder startup presentation_order
+  const changeStartupOrder = async (participantId: string, newOrder: number) => {
+    const startups = participants
+      .filter(p => p.role === 'startup')
+      .sort((a, b) => (a.presentation_order ?? 0) - (b.presentation_order ?? 0));
+
+    const movedStartup = startups.find(s => s.id === participantId);
+    if (!movedStartup) return;
+
+    const oldOrder = movedStartup.presentation_order ?? 0;
+    if (oldOrder === newOrder) return;
+
+    // Remove moved startup, insert at new position
+    const without = startups.filter(s => s.id !== participantId);
+    without.splice(newOrder - 1, 0, movedStartup);
+
+    // Batch update all with new sequential orders
+    const updates = without.map((s, i) => ({
+      id: s.id,
+      newOrder: i + 1,
+    }));
+
+    for (const u of updates) {
+      await supabase.from('session_participants')
+        .update({ presentation_order: u.newOrder })
+        .eq('id', u.id);
+    }
+
+    if (selectedSession) fetchParticipants(selectedSession.id);
+  };
+
+  // Save metadata
+  const saveMetadata = async () => {
+    if (!metaParticipant) return;
+    const { error } = await supabase.from('session_participants')
+      .update({
+        dd_room_link: metaDDRoom || null,
+        website_link: metaWebsite || null,
+      })
+      .eq('id', metaParticipant.id);
+    if (error) {
+      toast.error('Failed to save metadata');
+      return;
+    }
+    toast.success('Metadata saved');
+    setMetaParticipant(null);
+    if (selectedSession) fetchParticipants(selectedSession.id);
+  };
+
+  const openMetadataDialog = (p: ParticipantRow) => {
+    setMetaParticipant(p);
+    setMetaDDRoom(p.dd_room_link || '');
+    setMetaWebsite(p.website_link || '');
+  };
+
+  // Sorting
+  const toggleSort = (col: 'role' | 'display_name') => {
+    if (sortBy === col) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(col);
+      setSortDir('asc');
+    }
+  };
+
+  const sortedParticipants = [...participants].sort((a, b) => {
+    const aVal = (sortBy === 'display_name' ? (a.display_name || a.email) : a.role).toLowerCase();
+    const bVal = (sortBy === 'display_name' ? (b.display_name || b.email) : b.role).toLowerCase();
+    return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+  });
+
+  const startupCount = participants.filter(p => p.role === 'startup').length;
 
   if (!isAuthenticated) {
     return (
@@ -407,47 +504,85 @@ export default function Admin() {
                           className="w-32"
                         />
                       )}
-                      {addRole === 'startup' && (
-                        <Input
-                          value={addOrder}
-                          onChange={e => setAddOrder(e.target.value)}
-                          placeholder="Order #"
-                          type="number"
-                          className="w-20"
-                        />
-                      )}
-                      <Button onClick={addParticipant} size="sm" className="bg-accent text-accent-foreground">
+                      <Button type="button" onClick={addParticipant} size="sm" className="bg-accent text-accent-foreground">
                         <Plus className="w-4 h-4" />
                       </Button>
                     </div>
 
-                    {/* Participant list */}
-                    <div className="space-y-2">
-                      {participants.map(p => (
-                        <div key={p.id} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50">
-                          <div className="flex items-center gap-3">
-                            <span className={`text-xs px-2 py-0.5 rounded font-medium ${
-                              p.role === 'facilitator' ? 'bg-amber-500/10 text-amber-500' :
-                              p.role === 'startup' ? 'bg-accent/10 text-accent' :
-                              'bg-blue-500/10 text-blue-500'
-                            }`}>
-                              {p.role}
-                            </span>
-                            <span className="text-sm">{p.display_name || p.email}</span>
-                            <span className="text-xs text-muted-foreground">{p.email}</span>
-                            {p.presentation_order != null && (
-                              <span className="text-xs text-muted-foreground mono">#{p.presentation_order}</span>
-                            )}
-                          </div>
-                          <Button variant="ghost" size="sm" onClick={() => removeParticipant(p.id)}>
-                            <X className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ))}
-                      {participants.length === 0 && (
-                        <p className="text-sm text-muted-foreground text-center py-4">No participants yet</p>
-                      )}
-                    </div>
+                    {/* Participant table */}
+                    {participants.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">No participants yet</p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('role')}>
+                              <span className="flex items-center gap-1">
+                                Type <ArrowUpDown className="w-3 h-3" />
+                              </span>
+                            </TableHead>
+                            <TableHead className="cursor-pointer select-none" onClick={() => toggleSort('display_name')}>
+                              <span className="flex items-center gap-1">
+                                Name <ArrowUpDown className="w-3 h-3" />
+                              </span>
+                            </TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Order</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {sortedParticipants.map(p => (
+                            <TableRow key={p.id}>
+                              <TableCell>
+                                <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                  p.role === 'facilitator' ? 'bg-amber-500/10 text-amber-500' :
+                                  p.role === 'startup' ? 'bg-accent/10 text-accent' :
+                                  'bg-blue-500/10 text-blue-500'
+                                }`}>
+                                  {p.role}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-sm">{p.display_name || '—'}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{p.email}</TableCell>
+                              <TableCell>
+                                {p.role === 'startup' ? (
+                                  <select
+                                    value={p.presentation_order ?? 1}
+                                    onChange={e => changeStartupOrder(p.id, parseInt(e.target.value))}
+                                    className="h-8 rounded-md border border-input bg-background px-2 text-sm w-16"
+                                  >
+                                    {Array.from({ length: startupCount }, (_, i) => (
+                                      <option key={i + 1} value={i + 1}>{i + 1}</option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span className="text-muted-foreground text-sm">—</span>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <div className="flex items-center justify-end gap-1">
+                                  {p.role === 'startup' && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => openMetadataDialog(p)}
+                                      title="Edit metadata"
+                                    >
+                                      <Settings2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  )}
+                                  <Button variant="ghost" size="sm" onClick={() => removeParticipant(p.id)}>
+                                    <X className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -491,6 +626,39 @@ export default function Admin() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Metadata Dialog */}
+      <Dialog open={!!metaParticipant} onOpenChange={open => { if (!open) setMetaParticipant(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Startup Metadata — {metaParticipant?.display_name || metaParticipant?.email}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div>
+              <Label>DD Room Link</Label>
+              <Input
+                value={metaDDRoom}
+                onChange={e => setMetaDDRoom(e.target.value)}
+                placeholder="https://..."
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label>Website Link</Label>
+              <Input
+                value={metaWebsite}
+                onChange={e => setMetaWebsite(e.target.value)}
+                placeholder="https://..."
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMetaParticipant(null)}>Cancel</Button>
+            <Button onClick={saveMetadata} className="bg-accent text-accent-foreground hover:bg-accent/90">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
