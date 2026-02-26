@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { useSessionUser } from '@/lib/sessionContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -29,6 +30,7 @@ interface ParticipantRow {
 
 export default function Admin() {
   const navigate = useNavigate();
+  const { user: sessionUser } = useSessionUser();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
@@ -91,9 +93,14 @@ export default function Admin() {
     if (data) setParticipants(data as ParticipantRow[]);
   };
 
+  // Auto-authenticate if already logged in as facilitator via session login
   useEffect(() => {
-    // No auto-auth for admin — require explicit login each time
-  }, []);
+    if (sessionUser && sessionUser.role === 'facilitator' && !isAuthenticated) {
+      setIsAuthenticated(true);
+      setAdminEmail(sessionUser.email);
+      fetchSessions();
+    }
+  }, [sessionUser, isAuthenticated]);
 
   const createSession = async () => {
     if (!newName || !newStart || !newEnd) {

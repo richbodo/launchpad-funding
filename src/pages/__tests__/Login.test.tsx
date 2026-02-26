@@ -131,13 +131,13 @@ describe('Login Page', () => {
     await waitFor(() => expect(mockNavigate).not.toHaveBeenCalled());
   });
 
-  it('accepts correct facilitator password and navigates to admin', async () => {
+  it('accepts correct facilitator password and navigates to session', async () => {
     setupFacilitatorMock('demo123');
     await enterEmailAndClickRole('Facilitator');
     await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'demo123' } });
     fireEvent.click(screen.getByText('Continue'));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/admin'));
+    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/session/session-1'));
   });
 
   it('toggles password visibility with eye icon', async () => {
