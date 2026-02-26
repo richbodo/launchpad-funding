@@ -131,6 +131,7 @@ export type Database = {
       session_participants: {
         Row: {
           created_at: string
+          dd_room_link: string | null
           display_name: string | null
           email: string
           id: string
@@ -140,9 +141,11 @@ export type Database = {
           presentation_order: number | null
           role: Database["public"]["Enums"]["participant_role"]
           session_id: string
+          website_link: string | null
         }
         Insert: {
           created_at?: string
+          dd_room_link?: string | null
           display_name?: string | null
           email: string
           id?: string
@@ -152,9 +155,11 @@ export type Database = {
           presentation_order?: number | null
           role: Database["public"]["Enums"]["participant_role"]
           session_id: string
+          website_link?: string | null
         }
         Update: {
           created_at?: string
+          dd_room_link?: string | null
           display_name?: string | null
           email?: string
           id?: string
@@ -164,6 +169,7 @@ export type Database = {
           presentation_order?: number | null
           role?: Database["public"]["Enums"]["participant_role"]
           session_id?: string
+          website_link?: string | null
         }
         Relationships: [
           {
