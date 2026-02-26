@@ -92,7 +92,7 @@ export default function Login() {
       }
 
       // For investors/startups, log in directly
-      await completeLogin(participant);
+      await completeLogin(participant, selectedRole);
     } catch (err) {
       toast.error('Login failed. Please try again.');
     }
@@ -111,14 +111,16 @@ export default function Login() {
         setLoading(false);
         return;
       }
-      await completeLogin(pendingParticipant);
+      await completeLogin(pendingParticipant, role!);
     } catch (err) {
       toast.error('Login failed. Please try again.');
     }
     setLoading(false);
   };
 
-  const completeLogin = async (participant: any) => {
+  const completeLogin = async (participant: any, loginRole?: UserRole) => {
+    const resolvedRole = loginRole || role!;
+
     await supabase
       .from('session_participants')
       .update({ is_logged_in: true, logged_in_at: new Date().toISOString() })
@@ -127,13 +129,13 @@ export default function Login() {
     await supabase.from('session_logs').insert({
       session_id: selectedSession,
       event_type: 'login',
-      event_data: { email, role },
+      event_data: { email, role: resolvedRole },
       actor_email: email,
     });
 
     setUser({
       email: email.toLowerCase(),
-      role: role!,
+      role: resolvedRole,
       displayName: participant.display_name || email.split('@')[0],
       sessionId: selectedSession,
     });
