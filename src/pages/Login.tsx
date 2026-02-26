@@ -5,8 +5,8 @@ import { useSessionUser, UserRole } from '@/lib/sessionContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { motion } from 'framer-motion';
-import { Rocket, Users, Briefcase, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Rocket, Users, Briefcase, ArrowRight, TrendingUp, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface ActiveSession {
@@ -15,6 +15,8 @@ interface ActiveSession {
   start_time: string;
   end_time: string;
 }
+
+type Step = 'login' | 'facilitator-password';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -25,6 +27,8 @@ export default function Login() {
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState<Step>('login');
+  const [pendingParticipant, setPendingParticipant] = useState<any>(null);
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -36,7 +40,6 @@ export default function Login() {
         .gte('end_time', now)
         .eq('status', 'live');
 
-      // Also fetch scheduled sessions within 15 min of start
       const soon = new Date(Date.now() + 15 * 60 * 1000).toISOString();
       const { data: upcoming } = await supabase
         .from('sessions')
@@ -52,7 +55,7 @@ export default function Login() {
     fetchSessions();
   }, []);
 
-  const handleLogin = async () => {
+  const handleEmailSubmit = async () => {
     if (!email || !role || !selectedSession) {
       toast.error('Please fill in all fields');
       return;
@@ -60,7 +63,6 @@ export default function Login() {
     setLoading(true);
 
     try {
-      // Check if participant exists in this session
       const { data: participant, error } = await supabase
         .from('session_participants')
         .select('*')
@@ -75,54 +77,72 @@ export default function Login() {
         return;
       }
 
-      // For facilitators, check password
-      if (role === 'facilitator') {
-        if (!password) {
-          toast.error('Password required for facilitators');
-          setLoading(false);
-          return;
-        }
-        // Simple password check (stored as plain text for v1)
-        if (participant.password_hash !== password) {
-          toast.error('Incorrect password');
-          setLoading(false);
-          return;
-        }
-      }
-
-      // Check if already logged in
       if (participant.is_logged_in) {
         toast.error('This email is already logged in to this session.');
         setLoading(false);
         return;
       }
 
-      // Mark as logged in
-      await supabase
-        .from('session_participants')
-        .update({ is_logged_in: true, logged_in_at: new Date().toISOString() })
-        .eq('id', participant.id);
+      // Facilitators need password on next step
+      if (role === 'facilitator') {
+        setPendingParticipant(participant);
+        setStep('facilitator-password');
+        setLoading(false);
+        return;
+      }
 
-      // Log the login
-      await supabase.from('session_logs').insert({
-        session_id: selectedSession,
-        event_type: 'login',
-        event_data: { email, role },
-        actor_email: email,
-      });
-
-      setUser({
-        email: email.toLowerCase(),
-        role,
-        displayName: participant.display_name || email.split('@')[0],
-        sessionId: selectedSession,
-      });
-
-      navigate(`/session/${selectedSession}`);
+      // For investors/startups, log in directly
+      await completeLogin(participant);
     } catch (err) {
       toast.error('Login failed. Please try again.');
     }
     setLoading(false);
+  };
+
+  const handlePasswordSubmit = async () => {
+    if (!password) {
+      toast.error('Password is required');
+      return;
+    }
+    setLoading(true);
+    try {
+      if (pendingParticipant.password_hash !== password) {
+        toast.error('Incorrect password');
+        setLoading(false);
+        return;
+      }
+      await completeLogin(pendingParticipant);
+    } catch (err) {
+      toast.error('Login failed. Please try again.');
+    }
+    setLoading(false);
+  };
+
+  const completeLogin = async (participant: any) => {
+    await supabase
+      .from('session_participants')
+      .update({ is_logged_in: true, logged_in_at: new Date().toISOString() })
+      .eq('id', participant.id);
+
+    await supabase.from('session_logs').insert({
+      session_id: selectedSession,
+      event_type: 'login',
+      event_data: { email, role },
+      actor_email: email,
+    });
+
+    setUser({
+      email: email.toLowerCase(),
+      role: role!,
+      displayName: participant.display_name || email.split('@')[0],
+      sessionId: selectedSession,
+    });
+
+    if (role === 'facilitator') {
+      navigate('/admin');
+    } else {
+      navigate(`/session/${selectedSession}`);
+    }
   };
 
   const roles: { value: UserRole; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -148,75 +168,109 @@ export default function Login() {
         </div>
 
         <div className="bg-card border border-border rounded-xl p-6 space-y-5">
-          {/* Session selection */}
-          {activeSessions.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No active sessions right now.</p>
-              <Button variant="outline" className="mt-4" onClick={() => navigate('/admin')}>
-                Facilitator Admin
-              </Button>
-            </div>
-          ) : (
-            <>
-              {activeSessions.length > 1 && (
-                <div>
-                  <Label>Session</Label>
-                  <select
-                    value={selectedSession}
-                    onChange={(e) => setSelectedSession(e.target.value)}
-                    className="w-full mt-1.5 h-10 rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="">Select a session...</option>
-                    {activeSessions.map(s => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+          <AnimatePresence mode="wait">
+            {step === 'login' ? (
+              <motion.div
+                key="login"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+                className="space-y-5"
+              >
+                {activeSessions.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-muted-foreground">No active sessions right now.</p>
+                    <Button variant="outline" className="mt-4" onClick={() => navigate('/admin')}>
+                      Facilitator Admin
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    {activeSessions.length > 1 && (
+                      <div>
+                        <Label>Session</Label>
+                        <select
+                          value={selectedSession}
+                          onChange={(e) => setSelectedSession(e.target.value)}
+                          className="w-full mt-1.5 h-10 rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                          <option value="">Select a session...</option>
+                          {activeSessions.map(s => (
+                            <option key={s.id} value={s.id}>{s.name}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
 
-              {activeSessions.length === 1 && (
-                <div className="text-center pb-2">
-                  <p className="text-sm text-muted-foreground">Joining</p>
-                  <p className="font-semibold text-lg">{activeSessions[0].name}</p>
-                </div>
-              )}
+                    {activeSessions.length === 1 && (
+                      <div className="text-center pb-2">
+                        <p className="text-sm text-muted-foreground">Joining</p>
+                        <p className="font-semibold text-lg">{activeSessions[0].name}</p>
+                      </div>
+                    )}
 
-              {/* Role selection */}
-              <div>
-                <Label className="mb-2 block">I am a...</Label>
-                <div className="grid grid-cols-3 gap-2">
-                  {roles.map(r => (
-                    <button
-                      key={r.value}
-                      onClick={() => setRole(r.value)}
-                      className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center ${
-                        role === r.value
-                          ? 'border-accent bg-accent/5'
-                          : 'border-border hover:border-muted-foreground/30'
-                      }`}
+                    {/* Role selection */}
+                    <div>
+                      <Label className="mb-2 block">I am a...</Label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {roles.map(r => (
+                          <button
+                            key={r.value}
+                            onClick={() => setRole(r.value)}
+                            className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center ${
+                              role === r.value
+                                ? 'border-accent bg-accent/5'
+                                : 'border-border hover:border-muted-foreground/30'
+                            }`}
+                          >
+                            <span className={role === r.value ? 'text-accent' : 'text-muted-foreground'}>{r.icon}</span>
+                            <span className="text-xs font-medium">{r.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <div>
+                      <Label htmlFor="email">Email Address</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@company.com"
+                        className="mt-1.5"
+                      />
+                    </div>
+
+                    {/* Submit */}
+                    <Button
+                      onClick={handleEmailSubmit}
+                      disabled={loading || !email || !role}
+                      className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-11 text-base font-semibold"
                     >
-                      <span className={role === r.value ? 'text-accent' : 'text-muted-foreground'}>{r.icon}</span>
-                      <span className="text-xs font-medium">{r.label}</span>
-                    </button>
-                  ))}
+                      {loading ? 'Checking...' : 'Join Session'}
+                      <ArrowRight className="w-4 h-4 ml-2" />
+                    </Button>
+                  </>
+                )}
+              </motion.div>
+            ) : (
+              <motion.div
+                key="password"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="space-y-5"
+              >
+                <div className="text-center pb-2">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-accent/10 mb-3">
+                    <Lock className="w-6 h-6 text-accent" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Facilitator access</p>
+                  <p className="font-semibold">{email}</p>
                 </div>
-              </div>
 
-              {/* Email */}
-              <div>
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@company.com"
-                  className="mt-1.5"
-                />
-              </div>
-
-              {/* Password (facilitators only) */}
-              {role === 'facilitator' && (
                 <div>
                   <Label htmlFor="password">Password</Label>
                   <Input
@@ -226,21 +280,30 @@ export default function Login() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     className="mt-1.5"
+                    autoFocus
                   />
                 </div>
-              )}
 
-              {/* Submit */}
-              <Button
-                onClick={handleLogin}
-                disabled={loading || !email || !role}
-                className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-11 text-base font-semibold"
-              >
-                {loading ? 'Joining...' : 'Join Session'}
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </>
-          )}
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => { setStep('login'); setPassword(''); setPendingParticipant(null); }}
+                    className="flex-1"
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    onClick={handlePasswordSubmit}
+                    disabled={loading || !password}
+                    className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
+                  >
+                    {loading ? 'Verifying...' : 'Continue'}
+                    <ArrowRight className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         <p className="text-center text-xs text-muted-foreground mt-4">
@@ -252,6 +315,3 @@ export default function Login() {
     </div>
   );
 }
-
-// Need this import
-import { TrendingUp } from 'lucide-react';
