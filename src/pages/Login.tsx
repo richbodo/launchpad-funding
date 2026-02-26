@@ -35,24 +35,34 @@ export default function Login() {
   useEffect(() => {
     const fetchSessions = async () => {
       const now = new Date().toISOString();
+      // Find any live session
       const { data } = await supabase
         .from('sessions')
         .select('id, name, start_time, end_time')
-        .lte('start_time', now)
-        .gte('end_time', now)
-        .eq('status', 'live');
+        .eq('status', 'live')
+        .order('start_time', { ascending: true })
+        .limit(1);
 
-      const soon = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+      if (data && data.length > 0) {
+        setActiveSessions(data);
+        setSelectedSession(data[0].id);
+        return;
+      }
+
+      // Fallback: next scheduled session
       const { data: upcoming } = await supabase
         .from('sessions')
         .select('id, name, start_time, end_time')
-        .lte('start_time', soon)
-        .gte('end_time', now)
-        .eq('status', 'scheduled');
+        .eq('status', 'scheduled')
+        .order('start_time', { ascending: true })
+        .limit(1);
 
-      const all = [...(data || []), ...(upcoming || [])];
-      setActiveSessions(all);
-      if (all.length === 1) setSelectedSession(all[0].id);
+      if (upcoming && upcoming.length > 0) {
+        setActiveSessions(upcoming);
+        setSelectedSession(upcoming[0].id);
+      } else {
+        setActiveSessions([]);
+      }
     };
     fetchSessions();
   }, []);
@@ -187,22 +197,6 @@ export default function Login() {
                   </div>
                 ) : (
                   <>
-                    {activeSessions.length > 1 && (
-                      <div>
-                        <Label>Session</Label>
-                        <select
-                          value={selectedSession}
-                          onChange={(e) => setSelectedSession(e.target.value)}
-                          className="w-full mt-1.5 h-10 rounded-md border border-input bg-background px-3 text-sm"
-                        >
-                          <option value="">Select a session...</option>
-                          {activeSessions.map(s => (
-                            <option key={s.id} value={s.id}>{s.name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-
                     {activeSessions.length === 1 && (
                       <div className="text-center pb-2">
                         <p className="text-sm text-muted-foreground">Joining</p>
