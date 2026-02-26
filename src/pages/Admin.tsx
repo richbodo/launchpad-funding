@@ -43,8 +43,9 @@ export default function Admin() {
 
   // New session form
   const [newName, setNewName] = useState('');
-  const [newStart, setNewStart] = useState('');
-  const [newEnd, setNewEnd] = useState('');
+  const [newDate, setNewDate] = useState('');
+  const [newStartTime, setNewStartTime] = useState('09:00');
+  const [newEndTime, setNewEndTime] = useState('11:00');
   const [newTimezone, setNewTimezone] = useState('America/New_York');
 
   // Add participant form
@@ -136,14 +137,16 @@ export default function Admin() {
   }, [sessionUser, isAuthenticated]);
 
   const createSession = async () => {
-    if (!newName || !newStart || !newEnd) {
+    if (!newName || !newDate || !newStartTime || !newEndTime) {
       toast.error('Please fill all fields');
       return;
     }
+    const startISO = new Date(`${newDate}T${newStartTime}`).toISOString();
+    const endISO = new Date(`${newDate}T${newEndTime}`).toISOString();
     const { error } = await supabase.from('sessions').insert({
       name: newName,
-      start_time: new Date(newStart).toISOString(),
-      end_time: new Date(newEnd).toISOString(),
+      start_time: startISO,
+      end_time: endISO,
       timezone: newTimezone,
       status: 'scheduled' as const,
     });
@@ -153,8 +156,9 @@ export default function Admin() {
     }
     toast.success('Session created!');
     setNewName('');
-    setNewStart('');
-    setNewEnd('');
+    setNewDate('');
+    setNewStartTime('09:00');
+    setNewEndTime('11:00');
     fetchSessions();
   };
 
@@ -273,14 +277,18 @@ export default function Admin() {
                   <Label>Session Name</Label>
                   <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Q1 Demo Day" className="mt-1" />
                 </div>
+                <div>
+                  <Label>Date</Label>
+                  <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="mt-1" />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label>Start Time</Label>
-                    <Input type="datetime-local" value={newStart} onChange={e => setNewStart(e.target.value)} className="mt-1" />
+                    <Input type="time" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} className="mt-1" />
                   </div>
                   <div>
                     <Label>End Time</Label>
-                    <Input type="datetime-local" value={newEnd} onChange={e => setNewEnd(e.target.value)} className="mt-1" />
+                    <Input type="time" value={newEndTime} onChange={e => setNewEndTime(e.target.value)} className="mt-1" />
                   </div>
                 </div>
                 <div>
