@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Session from "./pages/Session";
 import Admin from "./pages/Admin";
+import DemoLogins from "./pages/DemoLogins";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/session/:id" element={<Session />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/demo-logins" element={<DemoLogins />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
