@@ -11,6 +11,7 @@ import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
 import { Button } from '@/components/ui/button';
 import { DollarSign, ExternalLink, LogOut, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
+import DemoModeBanner from '@/components/DemoModeBanner';
 
 interface Startup {
   email: string;
@@ -117,6 +118,7 @@ export default function SessionPage() {
 
   return (
     <div className="h-screen flex flex-col bg-background">
+      <DemoModeBanner />
       {/* Funding meter */}
       <FundingMeter
         totalFunded={totalFunded}

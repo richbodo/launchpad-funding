@@ -14,6 +14,7 @@ import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
+import DemoModeBanner from '@/components/DemoModeBanner';
 
 interface SessionRow {
   id: string;
@@ -224,6 +225,20 @@ export default function Admin() {
     }
     const startISO = new Date(`${newDate}T${newStartTime}`).toISOString();
     const endISO = new Date(`${newDate}T${newEndTime}`).toISOString();
+
+    // Check for overlapping sessions
+    const { data: overlapping } = await supabase
+      .from('sessions')
+      .select('id, name')
+      .lt('start_time', endISO)
+      .gt('end_time', startISO)
+      .neq('status', 'completed');
+
+    if (overlapping && overlapping.length > 0) {
+      toast.error(`Time conflict with "${overlapping[0].name}". Only one session can be active at a time.`);
+      return;
+    }
+
     const { error } = await supabase.from('sessions').insert({
       name: newName,
       start_time: startISO,
@@ -372,7 +387,9 @@ export default function Admin() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="min-h-screen flex flex-col bg-background">
+        <DemoModeBanner />
+        <div className="flex-1 flex items-center justify-center p-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold">Admin Login</h1>
@@ -409,12 +426,14 @@ export default function Admin() {
             </button>
           </p>
         </motion.div>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-background">
+      <DemoModeBanner />
       <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>

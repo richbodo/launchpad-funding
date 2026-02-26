@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Rocket, Users, Briefcase, ArrowRight, TrendingUp, Lock, Eye, EyeOff } from 'lucide-react';
 import { toast } from 'sonner';
+import DemoModeBanner from '@/components/DemoModeBanner';
 
 interface ActiveSession {
   id: string;
@@ -150,7 +151,9 @@ export default function Login() {
   ];
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <div className="min-h-screen flex flex-col bg-background">
+      <DemoModeBanner />
+      <div className="flex-1 flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -311,6 +314,7 @@ export default function Login() {
           </button>
         </p>
       </motion.div>
+      </div>
     </div>
   );
 }
