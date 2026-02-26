@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ListOrdered, ChevronRight } from 'lucide-react';
@@ -19,8 +20,15 @@ const DURATION_LABELS: Record<string, string> = {
 };
 
 export default function StageSelector({ stages, currentStageIndex, onSelectStage }: StageSelectorProps) {
+  const [open, setOpen] = useState(false);
+
+  const handleSelect = (index: number) => {
+    onSelectStage(index);
+    setOpen(false);
+  };
+
   return (
-    <Dialog>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
           <ListOrdered className="w-4 h-4 mr-1" />
@@ -38,7 +46,7 @@ export default function StageSelector({ stages, currentStageIndex, onSelectStage
               return (
                 <button
                   key={i}
-                  onClick={() => onSelectStage(i)}
+                  onClick={() => handleSelect(i)}
                   className={cn(
                     'flex items-center justify-between w-full rounded-md px-3 py-2.5 text-left text-sm transition-colors',
                     isCurrent
