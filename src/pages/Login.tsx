@@ -138,11 +138,7 @@ export default function Login() {
       sessionId: selectedSession,
     });
 
-    if (role === 'facilitator') {
-      navigate('/admin');
-    } else {
-      navigate(`/session/${selectedSession}`);
-    }
+    navigate(`/session/${selectedSession}`);
   };
 
   const roles: { value: UserRole; label: string; icon: React.ReactNode; desc: string }[] = [
