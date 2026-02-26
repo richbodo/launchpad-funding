@@ -79,8 +79,8 @@ Deno.serve(async (req) => {
 
     // Shared facilitators
     const facilitators = [
-      { email: "facilitator@demo.com", display_name: "Demo Facilitator", password_hash: "demo123", role: "facilitator" as const },
-      { email: "admin@demo.com", display_name: "Demo Admin", password_hash: "demo123", role: "facilitator" as const },
+      { email: "facilitator@demo.com", display_name: "Facilitator 1", password_hash: "demo123", role: "facilitator" as const },
+      { email: "admin@demo.com", display_name: "Facilitator 2", password_hash: "demo123", role: "facilitator" as const },
     ];
 
     // Session A participants
