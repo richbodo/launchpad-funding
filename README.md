@@ -2,7 +2,7 @@
 
 ## Summary
 
-FundFlow (aka Pitch Pledge) is a real-time, browser-based funding and pitch session platform designed for demo-day-style events where startups present to investors. A facilitator manages live sessions, controls the presentation flow, and oversees chat and investments while investors watch startup pitches and pledge funds in real time. The application features a demo mode with seeded data for quick evaluation, role-based login (no traditional auth required for investors/startups), and a clean, responsive UI built with React, Vite, Tailwind CSS, and Lovable Cloud.
+FundFlow (one of the many names LLMs auto-generated for this app) is a real-time, browser-based funding and pitch session platform designed for demo-day-style events where startups present to investors. A facilitator manages live sessions, controls the presentation flow, and oversees chat and investments while investors watch startup pitches and pledge funds in real time. The application features a demo mode with seeded data for quick evaluation, role-based login (no traditional auth required for investors/startups), and a clean, responsive UI built with React, Vite, Tailwind CSS, and Lovable Cloud.
 
 ## Features
 
@@ -25,8 +25,10 @@ FundFlow (aka Pitch Pledge) is a real-time, browser-based funding and pitch sess
 
 ### Next Steps
 
-- **Video conferencing integration** — Plug in a video provider (e.g., Daily, Twilio, or LiveKit) to replace the placeholder video panes with real streams
-- **Test suite** — Build comprehensive unit, integration, and end-to-end tests covering login flows, session lifecycle, investment logic, chat, and admin operations
+- **Email and Calendar Integration** - this is how the app is going to notify folks - just adding an email to a session auto-white lists and automates notifications and calendaring. 
+- **Video conferencing integration** — Plug in a video provider (e.g., Daily, Twilio, or LiveKit) to replace the placeholder video panes with real streams.
+- **Test suite** — Build comprehensive unit, integration, and end-to-end tests covering login flows, session lifecycle, investment logic, chat, and admin operations.
+
 
 ## How to Use
 
