@@ -10,6 +10,7 @@ import Session from "./pages/Session";
 import Admin from "./pages/Admin";
 import DemoLogins from "./pages/DemoLogins";
 import NotFound from "./pages/NotFound";
+import HelpButton from "./components/HelpButton";
 
 const queryClient = new QueryClient();
 
@@ -19,6 +20,7 @@ const App = () => (
       <SessionProvider>
         <Toaster />
         <Sonner />
+        <HelpButton />
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
