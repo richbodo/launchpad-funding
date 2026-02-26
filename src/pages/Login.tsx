@@ -78,10 +78,9 @@ export default function Login() {
         return;
       }
 
+      // If already logged in, auto-resume instead of blocking
       if (participant.is_logged_in) {
-        toast.error('This email is already logged in to this session.');
-        setLoading(false);
-        return;
+        toast.info('Resuming your existing session...');
       }
 
       // Facilitators need password on next step
