@@ -13,6 +13,7 @@ interface Session {
   name: string;
   status: string;
   start_time: string;
+  end_time: string;
 }
 
 interface Participant {
@@ -33,7 +34,7 @@ export default function DemoLogins() {
     const fetchData = async () => {
       const { data: sessData } = await supabase
         .from('sessions')
-        .select('id, name, status, start_time')
+        .select('id, name, status, start_time, end_time')
         .like('name', '[DEMO]%')
         .order('start_time', { ascending: true });
 
@@ -135,6 +136,9 @@ export default function DemoLogins() {
                     {session.status}
                   </span>
                 </CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  {new Date(session.start_time).toLocaleString()} — {new Date(session.end_time).toLocaleString()}
+                </p>
               </CardHeader>
               <CardContent className="space-y-4">
                 {startups.length > 0 && (
