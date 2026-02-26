@@ -1,35 +1,78 @@
 
 
-## What's happening
+## Facilitator Session Controls
 
-The `is_logged_in` flag on `session_participants` is set to `true` in the database from your previous login attempt. Since there's no logout or session-clearing logic, the flag stays `true` permanently — so every subsequent login attempt gets blocked.
+The current session page has minimal facilitator controls — just Previous/Next buttons to cycle through startups, a hardcoded "Presentation" phase label, and a timer set to an arbitrary 5 minutes from page load. There's no concept of session stages (intro, per-startup presentation + Q&A, outro), no pause/play, and no stage-selection UI.
 
-This is **not** a cookie issue. It's a database state issue: the `is_logged_in` column for `admin@fundflow.com` is stuck at `true`.
+### Stage Model
 
-## Recommendation
+The session is a linear sequence of stages, built dynamically from the participant list:
 
-We should handle this in application logic rather than asking you to manually clear anything. Here's the plan:
+```text
+Stage 1: Introduction (5 min) — facilitator
+Stage 2: StartupA Presentation (5 min)
+Stage 3: StartupA Q&A (3 min)
+Stage 4: StartupB Presentation (5 min)
+Stage 5: StartupB Q&A (3 min)
+...
+Stage N: Outro (5 min) — facilitator
+```
 
-### 1. Add a logout flow that resets `is_logged_in`
-- When a user navigates away or explicitly logs out (via the `logout()` function in `sessionContext`), update `session_participants.is_logged_in = false` in the database.
-- Hook this into `window.onbeforeunload` as a best-effort cleanup for tab/browser closes.
+This will be computed client-side from the `startups` array. No database changes needed — the stage is local facilitator state (other participants see the effect via realtime startup index changes and phase labels).
 
-### 2. Replace the hard block with a "resume session" option
-- Instead of showing an error when `is_logged_in` is `true`, offer the user a choice: **"You're already logged in. Resume your session?"**
-- If they confirm, proceed with login normally (re-set the context and navigate to the session).
-- This handles the common case of page refreshes, accidental closes, or stale state gracefully.
+### Plan
 
-### 3. Add a facilitator "kick / reset" ability (optional, later)
-- On the Admin page, allow facilitators to reset the `is_logged_in` flag for any participant — useful if someone gets stuck.
+**1. Create `src/hooks/useSessionStages.ts`** — a custom hook that:
+- Takes the `startups` array as input
+- Computes the full ordered stage list (intro → per-startup presentation/Q&A pairs → outro), each with a label, duration in seconds, and type
+- Tracks `currentStageIndex`, `isPaused`, `remainingSeconds`
+- Exposes: `currentStage`, `stages`, `isPaused`, `remaining`, `next()`, `prev()`, `goToStage(index)`, `togglePause()`
+- Manages a `setInterval` countdown that respects pause state
+- Auto-advances to the next stage when the timer hits zero (or stops at outro end)
 
-### Technical details
+**2. Create `src/components/StageSelector.tsx`** — a dialog/sheet component:
+- Shows a scrollable list of all stages with clear labels like "Stage 3 — AcmeCo Q&A (3 min)"
+- Highlights the current stage
+- Each row has a "Jump to Stage" button
+- Opens from a "Select Stage" button in the facilitator controls area
 
-**Files to modify:**
-- **`src/lib/sessionContext.tsx`** — Update `logout()` to call `supabase.from('session_participants').update({ is_logged_in: false })` before clearing local state. Add a `useEffect` cleanup with `beforeunload`.
-- **`src/pages/Login.tsx`** — Replace the `is_logged_in` error toast (lines 81-85) with a confirmation dialog or auto-resume logic.
-- **`src/pages/Session.tsx`** — Ensure navigating away or unmounting triggers the logout/cleanup.
+**3. Update `src/components/SessionTimer.tsx`**:
+- Accept `isPaused` and `remainingSeconds` props (driven by the hook) instead of computing its own countdown
+- Display the phase name and formatted time as before
 
-**No database migration needed** — the `is_logged_in` and `logged_in_at` columns already exist.
+**4. Update `src/pages/Session.tsx`**:
+- Use the new `useSessionStages` hook
+- Replace the hardcoded `currentPhase="Presentation"` and dummy `phaseEndTime` with values from the hook
+- Replace the current Previous/Next buttons with the new facilitator control bar:
+  - **Stage name label** displayed prominently above the buttons (e.g., "Stage 3 — AcmeCo Q&A")
+  - **Previous / Next** buttons (kept as-is, but wired to `prev()` / `next()` from the hook)
+  - **Pause/Play** toggle button
+  - **Select Stage** button that opens the `StageSelector` dialog
+- Sync `currentStartupIndex` with the hook's current stage (derive which startup is active from the stage type)
+- Non-facilitator users still see the timer and stage name but not the controls
 
-**Immediate fix included** — as part of this change, the stale `is_logged_in = true` record for `admin@fundflow.com` will be reset so you can test right away.
+### Technical Details
+
+**`useSessionStages` hook shape:**
+```typescript
+interface Stage {
+  label: string;        // e.g. "AcmeCo Presentation"
+  fullLabel: string;    // e.g. "Stage 4 — AcmeCo Presentation"
+  type: 'intro' | 'presentation' | 'qa' | 'outro';
+  durationSeconds: number;
+  startupIndex?: number; // which startup this stage relates to
+}
+```
+
+The hook manages a `useRef` interval and `useState` for `currentStageIndex`, `remainingSeconds`, and `isPaused`. When `togglePause()` is called, it simply sets `isPaused` which causes the interval to skip decrementing. `goToStage(i)` sets the index and resets `remainingSeconds` to that stage's duration.
+
+**Files created:**
+- `src/hooks/useSessionStages.ts`
+- `src/components/StageSelector.tsx`
+
+**Files modified:**
+- `src/components/SessionTimer.tsx` — switch from self-managed countdown to prop-driven display
+- `src/pages/Session.tsx` — integrate hook, add facilitator control bar with stage name, pause/play, and stage selector
+
+**No database migration needed.** Stage state is local to the facilitator's browser. Other participants see the effect through the existing startup index and phase label rendering.
 
