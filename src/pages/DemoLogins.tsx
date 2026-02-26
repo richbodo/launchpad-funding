@@ -87,13 +87,14 @@ export default function DemoLogins() {
 
         <h1 className="text-2xl font-bold mb-2">Demo Login Credentials</h1>
         <p className="text-muted-foreground mb-6">
-          Facilitators use the same credentials across all sessions. Startups and investors don't need passwords — just enter the email and select the role.
+          Facilitators manage sessions and administer the application. Startups and investors don't need passwords — just enter the email and select the role.
         </p>
 
         {/* Facilitators */}
         <Card className="mb-6">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base">Facilitators (all sessions)</CardTitle>
+            <CardTitle className="text-base">Facilitators / Admins (all sessions)</CardTitle>
+            <p className="text-xs text-muted-foreground">Facilitators have full admin access — session management, participant setup, and live session controls. Use these credentials for both the session login and the admin dashboard.</p>
           </CardHeader>
           <CardContent>
             <Table>

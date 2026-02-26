@@ -392,8 +392,8 @@ export default function Admin() {
         <div className="flex-1 flex items-center justify-center p-4">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
           <div className="text-center mb-6">
-            <h1 className="text-2xl font-bold">Admin Login</h1>
-            <p className="text-muted-foreground mt-1">Facilitator access only</p>
+            <h1 className="text-2xl font-bold">Facilitator Login</h1>
+            <p className="text-muted-foreground mt-1">Facilitators manage sessions and administer the app</p>
           </div>
           <Card>
             <CardContent className="pt-6 space-y-4">
