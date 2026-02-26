@@ -10,7 +10,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2 } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Badge } from '@/components/ui/badge';
 import { motion } from 'framer-motion';
 
 interface SessionRow {
@@ -44,6 +46,10 @@ export default function Admin() {
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [chatArchives, setChatArchives] = useState<{ name: string; url: string }[]>([]);
   const [archiving, setArchiving] = useState(false);
+
+  // Demo mode
+  const [demoMode, setDemoMode] = useState<boolean | null>(null);
+  const [seedingDemo, setSeedingDemo] = useState(false);
 
   // New session form
   const [newName, setNewName] = useState('');
@@ -139,6 +145,66 @@ export default function Admin() {
     }
   };
 
+  const fetchDemoMode = async () => {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'mode')
+      .single();
+    setDemoMode(data?.value === 'demo');
+  };
+
+  const toggleDemoMode = async (enabled: boolean) => {
+    setSeedingDemo(true);
+    try {
+      await supabase
+        .from('app_settings')
+        .update({ value: enabled ? 'demo' : 'production', updated_at: new Date().toISOString() })
+        .eq('key', 'mode');
+
+      if (enabled) {
+        const { data, error } = await supabase.functions.invoke('seed-demo-data');
+        if (error) throw error;
+        toast.success(`Demo data seeded: ${data?.summary?.sessions_created} sessions, ${data?.summary?.participants_created} participants`);
+      } else {
+        // Clean up demo sessions
+        const { data: demoSessions } = await supabase
+          .from('sessions')
+          .select('id')
+          .like('name', '[DEMO]%');
+        if (demoSessions && demoSessions.length > 0) {
+          const ids = demoSessions.map(s => s.id);
+          await supabase.from('chat_messages').delete().in('session_id', ids);
+          await supabase.from('investments').delete().in('session_id', ids);
+          await supabase.from('session_logs').delete().in('session_id', ids);
+          await supabase.from('session_participants').delete().in('session_id', ids);
+          await supabase.from('sessions').delete().like('name', '[DEMO]%');
+        }
+        toast.success('Demo mode disabled, demo data cleaned up');
+      }
+      setDemoMode(enabled);
+      fetchSessions();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to toggle demo mode');
+    } finally {
+      setSeedingDemo(false);
+    }
+  };
+
+  const refreshDemoData = async () => {
+    setSeedingDemo(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('seed-demo-data');
+      if (error) throw error;
+      toast.success(`Demo data refreshed: ${data?.summary?.sessions_created} sessions`);
+      fetchSessions();
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to refresh demo data');
+    } finally {
+      setSeedingDemo(false);
+    }
+  };
+
   useEffect(() => {
     if (sessionUser && sessionUser.role === 'facilitator' && !isAuthenticated) {
       setIsAuthenticated(true);
@@ -146,6 +212,10 @@ export default function Admin() {
       fetchSessions();
     }
   }, [sessionUser, isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) fetchDemoMode();
+  }, [isAuthenticated]);
 
   const createSession = async () => {
     if (!newName || !newDate || !newStartTime || !newEndTime) {
@@ -362,6 +432,7 @@ export default function Admin() {
           <TabsList className="mb-6">
             <TabsTrigger value="sessions"><Calendar className="w-4 h-4 mr-1" /> Sessions</TabsTrigger>
             <TabsTrigger value="create"><Plus className="w-4 h-4 mr-1" /> New Session</TabsTrigger>
+            <TabsTrigger value="settings"><Settings className="w-4 h-4 mr-1" /> Settings</TabsTrigger>
           </TabsList>
 
           <TabsContent value="create">
@@ -623,6 +694,61 @@ export default function Admin() {
                 </Card>
               </div>
             )}
+          </TabsContent>
+
+          {/* Settings Tab */}
+          <TabsContent value="settings">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="w-5 h-5" /> App Settings
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-base font-medium">Demo Mode</Label>
+                      {demoMode !== null && (
+                        <Badge variant={demoMode ? 'default' : 'secondary'}>
+                          {demoMode ? 'Active' : 'Off'}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Seeds fixture sessions with test participants. Sessions stay active relative to the current time.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={demoMode ?? false}
+                    onCheckedChange={toggleDemoMode}
+                    disabled={seedingDemo || demoMode === null}
+                  />
+                </div>
+
+                {demoMode && (
+                  <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
+                    <p className="text-sm text-muted-foreground flex-1">
+                      Demo sessions get stale timestamps over time. Click refresh to re-seed with current times.
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={refreshDemoData}
+                      disabled={seedingDemo}
+                    >
+                      <RefreshCw className={`w-4 h-4 mr-1 ${seedingDemo ? 'animate-spin' : ''}`} />
+                      {seedingDemo ? 'Seeding...' : 'Refresh Demo Data'}
+                    </Button>
+                  </div>
+                )}
+
+                <div className="text-xs text-muted-foreground space-y-1">
+                  <p><strong>Demo credentials:</strong> facilitator@demo.com / demo123</p>
+                  <p>Demo sessions are prefixed with [DEMO] and automatically cleaned up when switching to production.</p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
