@@ -51,15 +51,20 @@ Deno.serve(async (req) => {
     const alphaStart = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
     const alphaEnd = new Date(now.getTime() + 2 * 60 * 60 * 1000).toISOString();
 
-    // Session B: COMPLETED, yesterday (for archive testing)
+    // Session B: COMPLETED, yesterday
     const betaStart = new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString();
     const betaEnd = new Date(now.getTime() - 22 * 60 * 60 * 1000).toISOString();
+
+    // Session C: COMPLETED, 2 days ago
+    const gammaStart = new Date(now.getTime() - 49 * 60 * 60 * 1000).toISOString();
+    const gammaEnd = new Date(now.getTime() - 46 * 60 * 60 * 1000).toISOString();
 
     const { data: sessionsData, error: sessErr } = await supabase
       .from("sessions")
       .insert([
         { name: "[DEMO] Demo Day Alpha", start_time: alphaStart, end_time: alphaEnd, status: "live", timezone: "America/New_York" },
         { name: "[DEMO] Demo Day Beta", start_time: betaStart, end_time: betaEnd, status: "completed", timezone: "America/New_York" },
+        { name: "[DEMO] Demo Day Gamma", start_time: gammaStart, end_time: gammaEnd, status: "completed", timezone: "America/New_York" },
       ])
       .select();
 
@@ -70,7 +75,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const [alpha, beta] = sessionsData!;
+    const [alpha, beta, gamma] = sessionsData!;
 
     // Shared facilitators
     const facilitators = [
@@ -90,7 +95,7 @@ Deno.serve(async (req) => {
       { session_id: alpha.id, email: "dave@investor.com", display_name: "Dave Wilson", role: "investor" as const },
     ];
 
-    // Session B (completed) participants
+    // Session B (completed yesterday) participants
     const betaParticipants = [
       ...facilitators.map(f => ({ ...f, session_id: beta.id })),
       { session_id: beta.id, email: "cloud@demo.com", display_name: "CloudSync", role: "startup" as const, presentation_order: 1, website_link: "https://cloudsync.dev", dd_room_link: "https://drive.google.com/cloudsync" },
@@ -100,7 +105,18 @@ Deno.serve(async (req) => {
       { session_id: beta.id, email: "frank@investor.com", display_name: "Frank Liu", role: "investor" as const },
     ];
 
-    const allParticipants = [...alphaParticipants, ...betaParticipants];
+    // Session C (completed 2 days ago) participants
+    const gammaParticipants = [
+      ...facilitators.map(f => ({ ...f, session_id: gamma.id })),
+      { session_id: gamma.id, email: "solar@demo.com", display_name: "SolarWave", role: "startup" as const, presentation_order: 1, website_link: "https://solarwave.energy", dd_room_link: "https://drive.google.com/solarwave" },
+      { session_id: gamma.id, email: "finly@demo.com", display_name: "Finly", role: "startup" as const, presentation_order: 2, website_link: "https://finly.io", dd_room_link: "https://drive.google.com/finly" },
+      { session_id: gamma.id, email: "mediq@demo.com", display_name: "MediQ", role: "startup" as const, presentation_order: 3, website_link: "https://mediq.health", dd_room_link: "https://drive.google.com/mediq" },
+      { session_id: gamma.id, email: "ivan@investor.com", display_name: "Ivan Petrov", role: "investor" as const },
+      { session_id: gamma.id, email: "julia@investor.com", display_name: "Julia Santos", role: "investor" as const },
+      { session_id: gamma.id, email: "kyle@investor.com", display_name: "Kyle Brown", role: "investor" as const },
+    ];
+
+    const allParticipants = [...alphaParticipants, ...betaParticipants, ...gammaParticipants];
 
     const { error: partErr } = await supabase
       .from("session_participants")
@@ -117,11 +133,12 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         summary: {
-          sessions_created: 2,
+          sessions_created: 3,
           participants_created: allParticipants.length,
           sessions: [
             { name: alpha.name, status: "live", id: alpha.id },
             { name: beta.name, status: "completed", id: beta.id },
+            { name: gamma.name, status: "completed", id: gamma.id },
           ],
         },
       }),
