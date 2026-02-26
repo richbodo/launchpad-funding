@@ -2,11 +2,12 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser, UserRole } from '@/lib/sessionContext';
+import { useDemoMode } from '@/hooks/useDemoMode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Rocket, Users, Briefcase, ArrowRight, TrendingUp, Lock, Eye, EyeOff } from 'lucide-react';
+import { Rocket, Users, Briefcase, ArrowRight, TrendingUp, Lock, Eye, EyeOff, Shuffle } from 'lucide-react';
 import { toast } from 'sonner';
 import DemoModeBanner from '@/components/DemoModeBanner';
 
@@ -22,6 +23,7 @@ type Step = 'login' | 'facilitator-password';
 export default function Login() {
   const navigate = useNavigate();
   const { setUser } = useSessionUser();
+  const { isDemoMode } = useDemoMode();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,6 +33,64 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<Step>('login');
   const [pendingParticipant, setPendingParticipant] = useState<any>(null);
+
+  const handleRandomize = async (targetRole: UserRole) => {
+    if (!selectedSession) return;
+    setLoading(true);
+    try {
+      const { data: available } = await supabase
+        .from('session_participants')
+        .select('*')
+        .eq('session_id', selectedSession)
+        .eq('role', targetRole)
+        .eq('is_logged_in', false);
+
+      if (!available || available.length === 0) {
+        toast.error(`No available ${targetRole}s to log in as.`);
+        setLoading(false);
+        return;
+      }
+
+      const pick = available[Math.floor(Math.random() * available.length)];
+      setEmail(pick.email);
+      setRole(targetRole);
+
+      if (targetRole === 'facilitator') {
+        setPendingParticipant(pick);
+        setStep('facilitator-password');
+        setLoading(false);
+        return;
+      }
+
+      await completeLoginWith(pick, targetRole);
+    } catch {
+      toast.error('Randomize failed.');
+    }
+    setLoading(false);
+  };
+
+  const completeLoginWith = async (participant: any, loginRole: UserRole) => {
+    await supabase
+      .from('session_participants')
+      .update({ is_logged_in: true, logged_in_at: new Date().toISOString() })
+      .eq('id', participant.id);
+
+    await supabase.from('session_logs').insert({
+      session_id: selectedSession,
+      event_type: 'login',
+      event_data: { email: participant.email, role: loginRole },
+      actor_email: participant.email,
+    });
+
+    setUser({
+      email: participant.email,
+      role: loginRole,
+      displayName: participant.display_name || participant.email.split('@')[0],
+      sessionId: selectedSession,
+    });
+
+    navigate(`/session/${selectedSession}`);
+  };
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -222,19 +282,30 @@ export default function Login() {
                       <Label className="mb-2 block">Join session as...</Label>
                       <div className="grid grid-cols-3 gap-2">
                         {roles.map(r => (
-                          <button
-                            key={r.value}
-                            disabled={loading || !email}
-                            onClick={() => { setRole(r.value); handleEmailSubmitWithRole(r.value); }}
-                            className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center disabled:opacity-40 disabled:cursor-not-allowed ${
-                              role === r.value
-                                ? 'border-accent bg-accent/5'
-                                : 'border-border hover:border-muted-foreground/30'
-                            }`}
-                          >
-                            <span className={role === r.value ? 'text-accent' : 'text-muted-foreground'}>{r.icon}</span>
-                            <span className="text-xs font-medium">{r.label}</span>
-                          </button>
+                          <div key={r.value} className="flex flex-col items-center">
+                            <button
+                              disabled={loading || !email}
+                              onClick={() => { setRole(r.value); handleEmailSubmitWithRole(r.value); }}
+                              className={`w-full flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center disabled:opacity-40 disabled:cursor-not-allowed ${
+                                role === r.value
+                                  ? 'border-accent bg-accent/5'
+                                  : 'border-border hover:border-muted-foreground/30'
+                              }`}
+                            >
+                              <span className={role === r.value ? 'text-accent' : 'text-muted-foreground'}>{r.icon}</span>
+                              <span className="text-xs font-medium">{r.label}</span>
+                            </button>
+                            {isDemoMode && (
+                              <button
+                                disabled={loading}
+                                onClick={() => handleRandomize(r.value)}
+                                className="mt-1 flex items-center gap-1 text-[10px] text-muted-foreground hover:text-accent transition-colors disabled:opacity-40"
+                              >
+                                <Shuffle className="w-3 h-3" />
+                                randomize
+                              </button>
+                            )}
+                          </div>
                         ))}
                       </div>
                     </div>
