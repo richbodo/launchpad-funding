@@ -4,7 +4,6 @@ import { BrowserRouter } from 'react-router-dom';
 import { SessionProvider } from '@/lib/sessionContext';
 import Login from '../Login';
 
-// Mock supabase
 const mockSelect = vi.fn();
 const mockUpdate = vi.fn();
 const mockInsert = vi.fn();
@@ -35,10 +34,7 @@ vi.mock('@/integrations/supabase/client', () => ({
         };
       }
       if (table === 'session_participants') {
-        return {
-          select: mockSelect,
-          update: mockUpdate,
-        };
+        return { select: mockSelect, update: mockUpdate };
       }
       if (table === 'session_logs') {
         return { insert: mockInsert };
@@ -86,13 +82,11 @@ function setupFacilitatorMock(passwordHash: string) {
   });
 }
 
-async function goToPasswordStep() {
+async function enterEmailAndClickRole(roleName: string) {
   renderLogin();
-  await waitFor(() => expect(screen.getByText('Facilitator')).toBeInTheDocument());
-  fireEvent.click(screen.getByText('Facilitator'));
+  await waitFor(() => expect(screen.getByText(roleName)).toBeInTheDocument());
   fireEvent.change(screen.getByPlaceholderText('you@company.com'), { target: { value: 'admin@test.com' } });
-  fireEvent.click(screen.getByText('Join Session'));
-  await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
+  fireEvent.click(screen.getByText(roleName));
 }
 
 describe('Login Page', () => {
@@ -105,24 +99,33 @@ describe('Login Page', () => {
     });
   });
 
-  it('renders role selection buttons', async () => {
+  it('renders role selection buttons with "Join session as..." label', async () => {
     renderLogin();
     await waitFor(() => {
       expect(screen.getByText('Investor')).toBeInTheDocument();
       expect(screen.getByText('Startup')).toBeInTheDocument();
       expect(screen.getByText('Facilitator')).toBeInTheDocument();
+      expect(screen.getByText('Join session as...')).toBeInTheDocument();
+    });
+  });
+
+  it('shows email field with (required) label', async () => {
+    renderLogin();
+    await waitFor(() => {
+      expect(screen.getByText('(required)')).toBeInTheDocument();
     });
   });
 
   it('shows password step for facilitator role', async () => {
     setupFacilitatorMock('secret123');
-    await goToPasswordStep();
-    expect(screen.getByText('Facilitator access')).toBeInTheDocument();
+    await enterEmailAndClickRole('Facilitator');
+    await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
   });
 
   it('rejects incorrect facilitator password', async () => {
     setupFacilitatorMock('correct_password');
-    await goToPasswordStep();
+    await enterEmailAndClickRole('Facilitator');
+    await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'wrong' } });
     fireEvent.click(screen.getByText('Continue'));
     await waitFor(() => expect(mockNavigate).not.toHaveBeenCalled());
@@ -130,7 +133,8 @@ describe('Login Page', () => {
 
   it('accepts correct facilitator password and navigates to admin', async () => {
     setupFacilitatorMock('demo123');
-    await goToPasswordStep();
+    await enterEmailAndClickRole('Facilitator');
+    await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
     fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'demo123' } });
     fireEvent.click(screen.getByText('Continue'));
     await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/admin'));
@@ -138,18 +142,16 @@ describe('Login Page', () => {
 
   it('toggles password visibility with eye icon', async () => {
     setupFacilitatorMock('demo123');
-    await goToPasswordStep();
+    await enterEmailAndClickRole('Facilitator');
+    await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
 
     const passwordInput = screen.getByPlaceholderText('Enter your password');
     expect(passwordInput).toHaveAttribute('type', 'password');
 
-    // Click eye icon to show password
     const eyeButton = passwordInput.parentElement?.querySelector('button');
-    expect(eyeButton).toBeTruthy();
     fireEvent.click(eyeButton!);
     expect(passwordInput).toHaveAttribute('type', 'text');
 
-    // Click again to hide
     fireEvent.click(eyeButton!);
     expect(passwordInput).toHaveAttribute('type', 'password');
   });

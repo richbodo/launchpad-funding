@@ -56,9 +56,9 @@ export default function Login() {
     fetchSessions();
   }, []);
 
-  const handleEmailSubmit = async () => {
-    if (!email || !role || !selectedSession) {
-      toast.error('Please fill in all fields');
+  const handleEmailSubmitWithRole = async (selectedRole: UserRole) => {
+    if (!email || !selectedSession) {
+      toast.error('Please enter your email address');
       return;
     }
     setLoading(true);
@@ -69,7 +69,7 @@ export default function Login() {
         .select('*')
         .eq('session_id', selectedSession)
         .eq('email', email.toLowerCase())
-        .eq('role', role)
+        .eq('role', selectedRole)
         .maybeSingle();
 
       if (error || !participant) {
@@ -85,7 +85,7 @@ export default function Login() {
       }
 
       // Facilitators need password on next step
-      if (role === 'facilitator') {
+      if (selectedRole === 'facilitator') {
         setPendingParticipant(participant);
         setStep('facilitator-password');
         setLoading(false);
@@ -210,15 +210,29 @@ export default function Login() {
                       </div>
                     )}
 
-                    {/* Role selection */}
+                    {/* Email */}
                     <div>
-                      <Label className="mb-2 block">I am a...</Label>
+                      <Label htmlFor="email">Email Address <span className="text-muted-foreground font-normal">(required)</span></Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@company.com"
+                        className="mt-1.5"
+                      />
+                    </div>
+
+                    {/* Role selection — acts as submit */}
+                    <div>
+                      <Label className="mb-2 block">Join session as...</Label>
                       <div className="grid grid-cols-3 gap-2">
                         {roles.map(r => (
                           <button
                             key={r.value}
-                            onClick={() => setRole(r.value)}
-                            className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center ${
+                            disabled={loading || !email}
+                            onClick={() => { setRole(r.value); handleEmailSubmitWithRole(r.value); }}
+                            className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center disabled:opacity-40 disabled:cursor-not-allowed ${
                               role === r.value
                                 ? 'border-accent bg-accent/5'
                                 : 'border-border hover:border-muted-foreground/30'
@@ -230,29 +244,6 @@ export default function Login() {
                         ))}
                       </div>
                     </div>
-
-                    {/* Email */}
-                    <div>
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="you@company.com"
-                        className="mt-1.5"
-                      />
-                    </div>
-
-                    {/* Submit */}
-                    <Button
-                      onClick={handleEmailSubmit}
-                      disabled={loading || !email || !role}
-                      className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-11 text-base font-semibold"
-                    >
-                      {loading ? 'Checking...' : 'Join Session'}
-                      <ArrowRight className="w-4 h-4 ml-2" />
-                    </Button>
                   </>
                 )}
               </motion.div>
