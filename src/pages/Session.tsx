@@ -2,13 +2,15 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
+import { useSessionStages } from '@/hooks/useSessionStages';
 import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
 import VideoPane from '@/components/VideoPane';
 import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
+import StageSelector from '@/components/StageSelector';
 import { Button } from '@/components/ui/button';
-import { DollarSign, ExternalLink, LogOut } from 'lucide-react';
+import { DollarSign, ExternalLink, LogOut, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface Startup {
   email: string;
@@ -23,9 +25,21 @@ export default function SessionPage() {
   const [totalFunded, setTotalFunded] = useState(0);
   const [startupFunded, setStartupFunded] = useState(0);
   const [startups, setStartups] = useState<Startup[]>([]);
-  const [currentStartupIndex, setCurrentStartupIndex] = useState(0);
   const [investOpen, setInvestOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
+
+  const {
+    stages,
+    currentStage,
+    currentStageIndex,
+    isPaused,
+    remainingSeconds,
+    next,
+    prev,
+    goToStage,
+    togglePause,
+    activeStartupIndex,
+  } = useSessionStages(startups);
 
   useEffect(() => {
     if (!user || !id) {
@@ -34,7 +48,6 @@ export default function SessionPage() {
     }
 
     const fetchData = async () => {
-      // Session info
       const { data: sessionData } = await supabase
         .from('sessions')
         .select('*')
@@ -42,7 +55,6 @@ export default function SessionPage() {
         .single();
       setSession(sessionData);
 
-      // Startups
       const { data: startupData } = await supabase
         .from('session_participants')
         .select('email, display_name, presentation_order')
@@ -51,7 +63,6 @@ export default function SessionPage() {
         .order('presentation_order', { ascending: true });
       if (startupData) setStartups(startupData);
 
-      // Investments
       const { data: investData } = await supabase
         .from('investments')
         .select('amount, startup_email')
@@ -62,7 +73,6 @@ export default function SessionPage() {
     };
     fetchData();
 
-    // Subscribe to investments
     const channel = supabase
       .channel(`investments-${id}`)
       .on('postgres_changes', {
@@ -79,7 +89,7 @@ export default function SessionPage() {
     return () => { supabase.removeChannel(channel); };
   }, [id, user, navigate]);
 
-  const currentStartup = startups[currentStartupIndex];
+  const currentStartup = startups[activeStartupIndex ?? 0];
   const currentStartupName = currentStartup?.display_name || currentStartup?.email || 'Startup';
 
   const handleLogout = async () => {
@@ -103,6 +113,8 @@ export default function SessionPage() {
 
   if (!user || !id) return null;
 
+  const isFacilitator = user.role === 'facilitator';
+
   return (
     <div className="h-screen flex flex-col bg-background">
       {/* Funding meter */}
@@ -117,10 +129,9 @@ export default function SessionPage() {
         <div className="flex items-center gap-3">
           <h2 className="font-semibold text-sm">{session?.name || 'Funding Session'}</h2>
           <SessionTimer
-            startTime={session?.start_time || ''}
-            endTime={session?.end_time || ''}
-            currentPhase="Presentation"
-            phaseEndTime={new Date(Date.now() + 5 * 60 * 1000)}
+            currentPhase={currentStage?.label ?? ''}
+            remainingSeconds={remainingSeconds}
+            isPaused={isPaused}
           />
         </div>
         <div className="flex items-center gap-2">
@@ -148,28 +159,50 @@ export default function SessionPage() {
             />
           </div>
 
-          {/* Startup navigation (facilitator only) */}
-          {user.role === 'facilitator' && startups.length > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-3">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentStartupIndex === 0}
-                onClick={() => setCurrentStartupIndex(i => i - 1)}
-              >
-                Previous
-              </Button>
-              <span className="text-xs text-muted-foreground mono">
-                {currentStartupIndex + 1} / {startups.length}
+          {/* Facilitator controls */}
+          {isFacilitator && (
+            <div className="flex flex-col items-center gap-2 mt-3">
+              {/* Current stage name */}
+              <span className="text-sm font-semibold text-foreground">
+                {currentStage?.fullLabel}
               </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentStartupIndex === startups.length - 1}
-                onClick={() => setCurrentStartupIndex(i => i + 1)}
-              >
-                Next
-              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentStageIndex === 0}
+                  onClick={prev}
+                >
+                  <ChevronLeft className="w-4 h-4 mr-0.5" />
+                  Previous
+                </Button>
+
+                <Button
+                  variant={isPaused ? 'default' : 'secondary'}
+                  size="sm"
+                  onClick={togglePause}
+                >
+                  {isPaused ? <Play className="w-4 h-4 mr-1" /> : <Pause className="w-4 h-4 mr-1" />}
+                  {isPaused ? 'Play' : 'Pause'}
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentStageIndex === stages.length - 1}
+                  onClick={next}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-0.5" />
+                </Button>
+
+                <StageSelector
+                  stages={stages}
+                  currentStageIndex={currentStageIndex}
+                  onSelectStage={goToStage}
+                />
+              </div>
             </div>
           )}
 
