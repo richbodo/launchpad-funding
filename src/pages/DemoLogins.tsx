@@ -88,7 +88,7 @@ export default function DemoLogins() {
 
         <h1 className="text-2xl font-bold mb-2">Demo Login Credentials</h1>
         <p className="text-muted-foreground mb-6">
-          Facilitators manage sessions and administer the application. Startups and investors don't need passwords — just enter the email and select the role.
+          Facilitators manage sessions and administer the application - start with one of those logins.  Startups and investors don't need passwords — just enter the email and select the role.
         </p>
 
         {/* Facilitators */}
