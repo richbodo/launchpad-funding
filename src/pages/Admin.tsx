@@ -8,11 +8,12 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { motion } from 'framer-motion';
 import DemoModeBanner from '@/components/DemoModeBanner';
 
@@ -34,6 +35,22 @@ interface ParticipantRow {
   dd_room_link: string | null;
   website_link: string | null;
 }
+
+interface EmailLogRow {
+  id: string;
+  message_id: string | null;
+  template_name: string;
+  recipient_email: string;
+  status: string;
+  error_message: string | null;
+  created_at: string;
+}
+
+// Default welcome messages
+const DEFAULT_WELCOME_FACILITATOR = "Welcome! As a facilitator, you'll be managing the session flow, coordinating presenters, and guiding Q&A.";
+const DEFAULT_WELCOME_STARTUP = "Welcome! You've been selected to pitch at this session. Prepare your presentation and be ready to take questions from investors.";
+const DEFAULT_WELCOME_INVESTOR = "Welcome! You'll be reviewing startup pitches and can pledge funding to teams you believe in.";
+const DEFAULT_CONTACT_EMAIL = "noreply@pitch.globaldonut.com";
 
 export default function Admin() {
   const navigate = useNavigate();
@@ -74,6 +91,64 @@ export default function Admin() {
   const [metaDDRoom, setMetaDDRoom] = useState('');
   const [metaWebsite, setMetaWebsite] = useState('');
 
+  // Send email dialog
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const [pendingParticipant, setPendingParticipant] = useState<{ email: string; name: string; role: string } | null>(null);
+  const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Email settings
+  const [emailContact, setEmailContact] = useState(DEFAULT_CONTACT_EMAIL);
+  const [welcomeFacilitator, setWelcomeFacilitator] = useState(DEFAULT_WELCOME_FACILITATOR);
+  const [welcomeStartup, setWelcomeStartup] = useState(DEFAULT_WELCOME_STARTUP);
+  const [welcomeInvestor, setWelcomeInvestor] = useState(DEFAULT_WELCOME_INVESTOR);
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // Email logs
+  const [emailLogs, setEmailLogs] = useState<EmailLogRow[]>([]);
+  const [emailLogsLoading, setEmailLogsLoading] = useState(false);
+
+  // --- Email Settings persistence ---
+  const fetchEmailSettings = async () => {
+    const keys = ['email_contact', 'email_welcome_facilitator', 'email_welcome_startup', 'email_welcome_investor'];
+    const { data } = await supabase.from('app_settings').select('key, value').in('key', keys);
+    if (data) {
+      for (const row of data) {
+        if (row.key === 'email_contact') setEmailContact(row.value);
+        if (row.key === 'email_welcome_facilitator') setWelcomeFacilitator(row.value);
+        if (row.key === 'email_welcome_startup') setWelcomeStartup(row.value);
+        if (row.key === 'email_welcome_investor') setWelcomeInvestor(row.value);
+      }
+    }
+  };
+
+  const saveEmailSetting = async (key: string, value: string) => {
+    setSavingSettings(true);
+    const { error } = await supabase.from('app_settings').upsert(
+      { key, value, updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+    if (error) toast.error('Failed to save setting');
+    else toast.success('Setting saved');
+    setSavingSettings(false);
+    setEditingField(null);
+  };
+
+  // --- Email Logs ---
+  const fetchEmailLogs = async () => {
+    setEmailLogsLoading(true);
+    const { data, error } = await supabase.functions.invoke('email-logs', {
+      body: { limit: 100 },
+    });
+    if (error) {
+      toast.error('Failed to load email logs');
+    } else if (data?.logs) {
+      setEmailLogs(data.logs);
+    }
+    setEmailLogsLoading(false);
+  };
+
+  // --- Existing handlers ---
   const handleAdminLogin = async () => {
     const { data: facilitators, error } = await supabase
       .from('session_participants')
@@ -168,7 +243,6 @@ export default function Admin() {
         if (error) throw error;
         toast.success(`Demo data seeded: ${data?.summary?.sessions_created} sessions, ${data?.summary?.participants_created} participants`);
       } else {
-        // Clean up demo sessions
         const { data: demoSessions } = await supabase
           .from('sessions')
           .select('id')
@@ -215,7 +289,10 @@ export default function Admin() {
   }, [sessionUser, isAuthenticated]);
 
   useEffect(() => {
-    if (isAuthenticated) fetchDemoMode();
+    if (isAuthenticated) {
+      fetchDemoMode();
+      fetchEmailSettings();
+    }
   }, [isAuthenticated]);
 
   const createSession = async () => {
@@ -226,7 +303,6 @@ export default function Admin() {
     const startISO = new Date(`${newDate}T${newStartTime}`).toISOString();
     const endISO = new Date(`${newDate}T${newEndTime}`).toISOString();
 
-    // Check for overlapping sessions
     const { data: overlapping } = await supabase
       .from('sessions')
       .select('id, name')
@@ -278,7 +354,6 @@ export default function Admin() {
     }
     if (!selectedSession) return;
 
-    // Auto-assign next presentation_order for startups
     let nextOrder: number | null = null;
     if (addRole === 'startup') {
       const startupOrders = participants
@@ -299,11 +374,67 @@ export default function Admin() {
       toast.error(error.message);
       return;
     }
+
+    // Show email dialog
+    setPendingParticipant({ email: addEmail.toLowerCase(), name: addName, role: addRole });
+    setEmailDialogOpen(true);
+
     toast.success('Participant added');
     setAddEmail('');
     setAddName('');
     setAddPassword('');
     fetchParticipants(selectedSession.id);
+  };
+
+  const sendWelcomeEmail = async () => {
+    if (!pendingParticipant || !selectedSession) return;
+    setSendingEmail(true);
+    try {
+      const { role, email, name } = pendingParticipant;
+      const welcomeMsg = role === 'facilitator' ? welcomeFacilitator
+        : role === 'startup' ? welcomeStartup : welcomeInvestor;
+
+      const sessionDate = new Date(selectedSession.start_time).toLocaleDateString('en-US', {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+      });
+      const startT = new Date(selectedSession.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const endT = new Date(selectedSession.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+      const sessionTime = `${startT} — ${endT}`;
+
+      const loginUrl = `${window.location.origin}/login?session=${selectedSession.id}&email=${encodeURIComponent(email)}&role=${role}`;
+
+      // Google Calendar link
+      const calStart = new Date(selectedSession.start_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      const calEnd = new Date(selectedSession.end_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+      const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(selectedSession.name)}&dates=${calStart}/${calEnd}&details=${encodeURIComponent('Join: ' + loginUrl)}`;
+
+      const { error } = await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName: 'session-invitation',
+          recipientEmail: email,
+          idempotencyKey: `session-invite-${selectedSession.id}-${email}`,
+          templateData: {
+            recipientName: name || undefined,
+            roleName: role,
+            sessionName: selectedSession.name,
+            sessionDate,
+            sessionTime,
+            welcomeMessage: welcomeMsg,
+            loginUrl,
+            calendarUrl,
+            contactEmail: emailContact !== DEFAULT_CONTACT_EMAIL ? emailContact : undefined,
+          },
+        },
+      });
+      if (error) throw error;
+      toast.success(`Invitation email queued for ${email}`);
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to send email');
+    } finally {
+      setSendingEmail(false);
+      setEmailDialogOpen(false);
+      setPendingParticipant(null);
+    }
   };
 
   const removeParticipant = async (id: string) => {
@@ -312,7 +443,6 @@ export default function Admin() {
     toast.success('Participant removed');
   };
 
-  // Reorder startup presentation_order
   const changeStartupOrder = async (participantId: string, newOrder: number) => {
     const startups = participants
       .filter(p => p.role === 'startup')
@@ -324,11 +454,9 @@ export default function Admin() {
     const oldOrder = movedStartup.presentation_order ?? 0;
     if (oldOrder === newOrder) return;
 
-    // Remove moved startup, insert at new position
     const without = startups.filter(s => s.id !== participantId);
     without.splice(newOrder - 1, 0, movedStartup);
 
-    // Batch update all with new sequential orders
     const updates = without.map((s, i) => ({
       id: s.id,
       newOrder: i + 1,
@@ -343,7 +471,6 @@ export default function Admin() {
     if (selectedSession) fetchParticipants(selectedSession.id);
   };
 
-  // Save metadata
   const saveMetadata = async () => {
     if (!metaParticipant) return;
     const { error } = await supabase.from('session_participants')
@@ -367,7 +494,6 @@ export default function Admin() {
     setMetaWebsite(p.website_link || '');
   };
 
-  // Sorting
   const toggleSort = (col: 'role' | 'display_name') => {
     if (sortBy === col) {
       setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -384,6 +510,47 @@ export default function Admin() {
   });
 
   const startupCount = participants.filter(p => p.role === 'startup').length;
+
+  const statusBadge = (status: string) => {
+    const colors: Record<string, string> = {
+      sent: 'bg-accent/10 text-accent',
+      pending: 'bg-amber-500/10 text-amber-600',
+      failed: 'bg-destructive/10 text-destructive',
+      dlq: 'bg-destructive/10 text-destructive',
+      suppressed: 'bg-muted text-muted-foreground',
+      bounced: 'bg-destructive/10 text-destructive',
+      complained: 'bg-destructive/10 text-destructive',
+    };
+    return <span className={`text-xs px-2 py-0.5 rounded font-medium ${colors[status] || 'bg-muted text-muted-foreground'}`}>{status}</span>;
+  };
+
+  // Editable welcome message component
+  const EditableWelcome = ({ label, settingKey, value, setValue }: {
+    label: string; settingKey: string; value: string; setValue: (v: string) => void;
+  }) => {
+    const isEditing = editingField === settingKey;
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label className="text-sm font-medium">{label}</Label>
+          {isEditing ? (
+            <Button variant="ghost" size="sm" onClick={() => saveEmailSetting(settingKey, value)} disabled={savingSettings}>
+              <Check className="w-3.5 h-3.5 mr-1" /> Save
+            </Button>
+          ) : (
+            <Button variant="ghost" size="sm" onClick={() => setEditingField(settingKey)}>
+              <Pencil className="w-3.5 h-3.5" />
+            </Button>
+          )}
+        </div>
+        {isEditing ? (
+          <Textarea value={value} onChange={e => setValue(e.target.value)} rows={3} className="text-sm" />
+        ) : (
+          <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg whitespace-pre-wrap">{value}</p>
+        )}
+      </div>
+    );
+  };
 
   if (!isAuthenticated) {
     return (
@@ -452,6 +619,7 @@ export default function Admin() {
             <TabsTrigger value="sessions"><Calendar className="w-4 h-4 mr-1" /> Sessions</TabsTrigger>
             <TabsTrigger value="create"><Plus className="w-4 h-4 mr-1" /> New Session</TabsTrigger>
             <TabsTrigger value="settings"><Settings className="w-4 h-4 mr-1" /> Settings</TabsTrigger>
+            <TabsTrigger value="email-logs" onClick={() => fetchEmailLogs()}><Mail className="w-4 h-4 mr-1" /> Email Logs</TabsTrigger>
           </TabsList>
 
           <TabsContent value="create">
@@ -717,55 +885,161 @@ export default function Admin() {
 
           {/* Settings Tab */}
           <TabsContent value="settings">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="w-5 h-5" /> App Settings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between p-4 rounded-lg border border-border">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-base font-medium">Demo Mode</Label>
-                      {demoMode !== null && (
-                        <Badge variant={demoMode ? 'default' : 'secondary'}>
-                          {demoMode ? 'Active' : 'Off'}
-                        </Badge>
+            <div className="space-y-6">
+              {/* Demo Mode */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="w-5 h-5" /> App Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between p-4 rounded-lg border border-border">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-base font-medium">Demo Mode</Label>
+                        {demoMode !== null && (
+                          <Badge variant={demoMode ? 'default' : 'secondary'}>
+                            {demoMode ? 'Active' : 'Off'}
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Seeds fixture sessions with test participants. Sessions stay active relative to the current time.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={demoMode ?? false}
+                      onCheckedChange={toggleDemoMode}
+                      disabled={seedingDemo || demoMode === null}
+                    />
+                  </div>
+
+                  {demoMode && (
+                    <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
+                      <p className="text-sm text-muted-foreground flex-1">
+                        Demo sessions get stale timestamps over time. Click refresh to re-seed with current times.
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={refreshDemoData}
+                        disabled={seedingDemo}
+                      >
+                        <RefreshCw className={`w-4 h-4 mr-1 ${seedingDemo ? 'animate-spin' : ''}`} />
+                        {seedingDemo ? 'Seeding...' : 'Refresh Demo Data'}
+                      </Button>
+                    </div>
+                  )}
+
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p><strong>Demo credentials:</strong> facilitator@demo.com / demo123</p>
+                    <p>Demo sessions are prefixed with [DEMO] and automatically cleaned up when switching to production.</p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Email Settings */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5" /> Email Settings
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Facilitator Contact Email</Label>
+                      {editingField === 'email_contact' ? (
+                        <Button variant="ghost" size="sm" onClick={() => saveEmailSetting('email_contact', emailContact)} disabled={savingSettings}>
+                          <Check className="w-3.5 h-3.5 mr-1" /> Save
+                        </Button>
+                      ) : (
+                        <Button variant="ghost" size="sm" onClick={() => setEditingField('email_contact')}>
+                          <Pencil className="w-3.5 h-3.5" />
+                        </Button>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground">
-                      Seeds fixture sessions with test participants. Sessions stay active relative to the current time.
-                    </p>
+                    {editingField === 'email_contact' ? (
+                      <Input value={emailContact} onChange={e => setEmailContact(e.target.value)} type="email" className="text-sm" />
+                    ) : (
+                      <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">{emailContact}</p>
+                    )}
+                    <p className="text-xs text-muted-foreground">Shown in invitation emails as the reply-to contact.</p>
                   </div>
-                  <Switch
-                    checked={demoMode ?? false}
-                    onCheckedChange={toggleDemoMode}
-                    disabled={seedingDemo || demoMode === null}
-                  />
-                </div>
 
-                {demoMode && (
-                  <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/50">
-                    <p className="text-sm text-muted-foreground flex-1">
-                      Demo sessions get stale timestamps over time. Click refresh to re-seed with current times.
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={refreshDemoData}
-                      disabled={seedingDemo}
-                    >
-                      <RefreshCw className={`w-4 h-4 mr-1 ${seedingDemo ? 'animate-spin' : ''}`} />
-                      {seedingDemo ? 'Seeding...' : 'Refresh Demo Data'}
-                    </Button>
+                  <hr className="border-border" />
+
+                  <EditableWelcome
+                    label="Facilitator Welcome Message"
+                    settingKey="email_welcome_facilitator"
+                    value={welcomeFacilitator}
+                    setValue={setWelcomeFacilitator}
+                  />
+                  <EditableWelcome
+                    label="Startup Welcome Message"
+                    settingKey="email_welcome_startup"
+                    value={welcomeStartup}
+                    setValue={setWelcomeStartup}
+                  />
+                  <EditableWelcome
+                    label="Investor Welcome Message"
+                    settingKey="email_welcome_investor"
+                    value={welcomeInvestor}
+                    setValue={setWelcomeInvestor}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Email Logs Tab */}
+          <TabsContent value="email-logs">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <Mail className="w-5 h-5" /> Email Delivery Log
+                </CardTitle>
+                <Button variant="outline" size="sm" onClick={fetchEmailLogs} disabled={emailLogsLoading}>
+                  <RefreshCw className={`w-4 h-4 mr-1 ${emailLogsLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                {emailLogsLoading ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
+                ) : emailLogs.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">No emails sent yet</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Template</TableHead>
+                          <TableHead>Recipient</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Time</TableHead>
+                          <TableHead>Error</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {emailLogs.map(log => (
+                          <TableRow key={log.id}>
+                            <TableCell className="text-sm">{log.template_name}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{log.recipient_email}</TableCell>
+                            <TableCell>{statusBadge(log.status)}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                              {new Date(log.created_at).toLocaleString()}
+                            </TableCell>
+                            <TableCell className="text-sm text-destructive max-w-48 truncate" title={log.error_message || ''}>
+                              {log.error_message || '—'}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
                   </div>
                 )}
-
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <p><strong>Demo credentials:</strong> facilitator@demo.com / demo123</p>
-                  <p>Demo sessions are prefixed with [DEMO] and automatically cleaned up when switching to production.</p>
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -801,6 +1075,27 @@ export default function Admin() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setMetaParticipant(null)}>Cancel</Button>
             <Button onClick={saveMetadata} className="bg-accent text-accent-foreground hover:bg-accent/90">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Send Email Dialog */}
+      <Dialog open={emailDialogOpen} onOpenChange={open => { if (!open) { setEmailDialogOpen(false); setPendingParticipant(null); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Send Invitation Email?</DialogTitle>
+            <DialogDescription>
+              Would you like to send a welcome email to <strong>{pendingParticipant?.email}</strong> with session details, a login link, and a calendar invite?
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setEmailDialogOpen(false); setPendingParticipant(null); }}>
+              No, Skip
+            </Button>
+            <Button onClick={sendWelcomeEmail} disabled={sendingEmail} className="bg-accent text-accent-foreground hover:bg-accent/90">
+              <Mail className="w-4 h-4 mr-1" />
+              {sendingEmail ? 'Sending…' : 'Yes, Send Email'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
