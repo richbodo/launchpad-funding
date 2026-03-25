@@ -9,6 +9,7 @@ import Login from "./pages/Login";
 import Session from "./pages/Session";
 import Admin from "./pages/Admin";
 import DemoLogins from "./pages/DemoLogins";
+import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
 import HelpButton from "./components/HelpButton";
 
@@ -28,6 +29,7 @@ const App = () => (
             <Route path="/session/:id" element={<Session />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/demo-logins" element={<DemoLogins />} />
+            <Route path="/unsubscribe" element={<Unsubscribe />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
