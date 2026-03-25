@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
       }
 
       try {
-        await sendLovableEmail(
+        const sendResult = await sendLovableEmail(
           {
             run_id: payload.run_id,
             to: payload.to,
@@ -261,18 +261,33 @@ Deno.serve(async (req) => {
             unsubscribe_token: payload.unsubscribe_token,
             message_id: payload.message_id,
           },
-          // sendUrl is optional — when LOVABLE_SEND_URL is not set, the library
-          // falls back to the default Lovable API endpoint (https://api.lovable.dev).
-          // Set LOVABLE_SEND_URL as a Supabase secret to override (e.g. for local dev).
           { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
         )
 
-        // Log success
+        const responseMetadata = {
+          api_response: sendResult ?? null,
+          sent_at: new Date().toISOString(),
+          from: payload.from,
+          sender_domain: payload.sender_domain,
+          subject: payload.subject,
+          purpose: payload.purpose,
+        }
+
+        console.log('Email send completed', {
+          queue,
+          msg_id: msg.msg_id,
+          message_id: payload.message_id,
+          to: payload.to,
+          api_response: JSON.stringify(sendResult),
+        })
+
+        // Log success with metadata
         await supabase.from('email_send_log').insert({
           message_id: payload.message_id,
           template_name: payload.label || queue,
           recipient_email: payload.to,
           status: 'sent',
+          metadata: responseMetadata,
         })
 
         // Delete from queue
@@ -286,13 +301,27 @@ Deno.serve(async (req) => {
         totalProcessed++
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
-        console.error('Email send failed', {
+        const errorStack = error instanceof Error ? error.stack : undefined
+        const errorStatus = (error && typeof error === 'object' && 'status' in error) ? (error as any).status : undefined
+        const errorBody = (error && typeof error === 'object' && 'body' in error) ? (error as any).body : undefined
+
+        const errorMetadata = {
+          error_message: errorMsg,
+          error_stack: errorStack,
+          error_status: errorStatus,
+          error_body: errorBody,
+          error_type: error?.constructor?.name,
+          from: payload.from,
+          sender_domain: payload.sender_domain,
+          subject: payload.subject,
+          purpose: payload.purpose,
+          failed_attempts: failedAttempts + 1,
           queue,
           msg_id: msg.msg_id,
           read_ct: msg.read_ct,
-          failed_attempts: failedAttempts,
-          error: errorMsg,
-        })
+        }
+
+        console.error('Email send failed', errorMetadata)
 
         if (isRateLimited(error)) {
           await supabase.from('email_send_log').insert({
@@ -301,6 +330,7 @@ Deno.serve(async (req) => {
             recipient_email: payload.to,
             status: 'rate_limited',
             error_message: errorMsg.slice(0, 1000),
+            metadata: errorMetadata,
           })
 
           const retryAfterSecs = getRetryAfterSeconds(error)
@@ -338,6 +368,7 @@ Deno.serve(async (req) => {
           recipient_email: payload.to,
           status: 'failed',
           error_message: errorMsg.slice(0, 1000),
+          metadata: errorMetadata,
         })
         if (payload?.message_id && typeof payload.message_id === 'string') {
           failedAttemptsByMessageId.set(payload.message_id, failedAttempts + 1)

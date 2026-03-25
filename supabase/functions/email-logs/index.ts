@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
 
   const { data, error } = await supabase
     .from('email_send_log')
-    .select('id, message_id, template_name, recipient_email, status, error_message, created_at')
+    .select('id, message_id, template_name, recipient_email, status, error_message, metadata, created_at')
     .order('created_at', { ascending: false })
     .limit(limit)
 
