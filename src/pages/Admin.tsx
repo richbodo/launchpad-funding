@@ -355,6 +355,40 @@ export default function Admin() {
     }
     if (!selectedSession) return;
 
+    const normalizedEmail = addEmail.toLowerCase().trim();
+
+    // Pre-check to avoid duplicate key errors and allow resending invites.
+    const { data: existingParticipant, error: existingLookupError } = await supabase
+      .from('session_participants')
+      .select('id, role, display_name')
+      .eq('session_id', selectedSession.id)
+      .eq('email', normalizedEmail)
+      .maybeSingle();
+
+    if (existingLookupError) {
+      toast.error('Could not verify existing participant. Please try again.', { duration: 15000 });
+      return;
+    }
+
+    if (existingParticipant) {
+      if (existingParticipant.role !== addRole) {
+        toast.error(
+          `${normalizedEmail} is already registered for this session as ${existingParticipant.role}.`,
+          { duration: 15000 }
+        );
+        return;
+      }
+
+      setPendingParticipant({
+        email: normalizedEmail,
+        name: existingParticipant.display_name || addName,
+        role: addRole,
+      });
+      setEmailDialogOpen(true);
+      toast.info('Participant already exists — you can resend the invitation email.', { duration: 10000 });
+      return;
+    }
+
     let nextOrder: number | null = null;
     if (addRole === 'startup') {
       const startupOrders = participants
@@ -365,19 +399,27 @@ export default function Admin() {
 
     const { error } = await supabase.from('session_participants').insert([{
       session_id: selectedSession.id,
-      email: addEmail.toLowerCase(),
+      email: normalizedEmail,
       role: addRole as "facilitator" | "investor" | "startup",
       display_name: addName || null,
       password_hash: addRole === 'facilitator' ? addPassword : null,
       presentation_order: nextOrder,
     }]);
+
     if (error) {
-      toast.error(error.message);
+      if (error.code === '23505' || error.message.includes('session_participants_session_id_email_key')) {
+        setPendingParticipant({ email: normalizedEmail, name: addName, role: addRole });
+        setEmailDialogOpen(true);
+        toast.info('Participant already exists — opening email dialog to resend invite.', { duration: 10000 });
+        return;
+      }
+
+      toast.error(error.message || 'Failed to add participant', { duration: 15000 });
       return;
     }
 
     // Show email dialog
-    setPendingParticipant({ email: addEmail.toLowerCase(), name: addName, role: addRole });
+    setPendingParticipant({ email: normalizedEmail, name: addName, role: addRole });
     setEmailDialogOpen(true);
 
     toast.success('Participant added');
