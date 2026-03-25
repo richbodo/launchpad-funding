@@ -152,7 +152,22 @@ export default function Admin() {
     setEmailLogsLoading(false);
   };
 
-  // --- Existing handlers ---
+  const fetchTimeline = async (log: EmailLogRow) => {
+    setTimelineLog(log);
+    setTimelineLoading(true);
+    const messageId = log.message_id || log.id;
+    const { data, error } = await supabase.functions.invoke('email-logs', {
+      body: { message_id: messageId },
+    });
+    if (error) {
+      toast.error('Failed to load delivery timeline');
+      setTimeline([]);
+    } else {
+      setTimeline(data?.timeline ?? []);
+    }
+    setTimelineLoading(false);
+  };
+
   const handleAdminLogin = async () => {
     const { data: facilitators, error } = await supabase
       .from('session_participants')
