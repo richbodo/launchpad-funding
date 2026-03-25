@@ -595,8 +595,54 @@ export default function Admin() {
       suppressed: 'bg-muted text-muted-foreground',
       bounced: 'bg-destructive/10 text-destructive',
       complained: 'bg-destructive/10 text-destructive',
+      rate_limited: 'bg-amber-500/10 text-amber-600',
     };
     return <span className={`text-xs px-2 py-0.5 rounded font-medium ${colors[status] || 'bg-muted text-muted-foreground'}`}>{status}</span>;
+  };
+
+  // Contextual delivery interpretation for the timeline
+  const deliveryContextLabel = (event: EmailLogRow, allEvents: EmailLogRow[]) => {
+    const hasBounce = allEvents.some(e => e.status === 'bounced');
+    const hasComplaint = allEvents.some(e => e.status === 'complained');
+    const hasSent = allEvents.some(e => e.status === 'sent');
+    const sentEvent = allEvents.find(e => e.status === 'sent');
+
+    if (event.status === 'pending') {
+      return <span className="text-xs text-muted-foreground italic">Queued locally — waiting to be sent to mail server</span>;
+    }
+    if (event.status === 'sent') {
+      if (hasBounce) {
+        return <span className="text-xs text-destructive italic">Accepted by mail server, but later bounced</span>;
+      }
+      if (hasComplaint) {
+        return <span className="text-xs text-amber-600 italic">Accepted by mail server, but recipient complained (spam)</span>;
+      }
+      const sentAt = new Date(event.created_at).getTime();
+      const minutesSinceSend = (Date.now() - sentAt) / 60000;
+      if (minutesSinceSend > 10) {
+        return <span className="text-xs text-accent italic">✓ Accepted by mail server — no bounce detected, likely delivered</span>;
+      }
+      return <span className="text-xs text-muted-foreground italic">Accepted by mail server — waiting for bounce/complaint window (~10 min)</span>;
+    }
+    if (event.status === 'rate_limited') {
+      return <span className="text-xs text-amber-600 italic">Mail API rate limit hit — will retry automatically</span>;
+    }
+    if (event.status === 'failed') {
+      return <span className="text-xs text-destructive italic">Send attempt failed — will retry up to 5 times</span>;
+    }
+    if (event.status === 'dlq') {
+      return <span className="text-xs text-destructive italic">Permanently failed — moved to dead letter queue after max retries or TTL</span>;
+    }
+    if (event.status === 'bounced') {
+      return <span className="text-xs text-destructive italic">Mail server reported bounce — email was not delivered to recipient</span>;
+    }
+    if (event.status === 'complained') {
+      return <span className="text-xs text-destructive italic">Recipient marked email as spam</span>;
+    }
+    if (event.status === 'suppressed') {
+      return <span className="text-xs text-muted-foreground italic">Recipient is on suppression list — email was not sent</span>;
+    }
+    return null;
   };
 
   // Editable welcome message component
@@ -1108,13 +1154,16 @@ export default function Admin() {
                             'bg-muted-foreground border-muted-foreground'
                           }`} />
                           <div className="bg-muted/50 rounded-lg p-4">
-                            <div className="flex items-center gap-3 mb-2">
+                            <div className="flex items-center gap-3 mb-1">
                               {statusBadge(event.status)}
                               <span className="text-sm text-muted-foreground">
                                 {new Date(event.created_at).toLocaleString()}
                               </span>
                               {idx === 0 && <span className="text-xs text-muted-foreground">(first event)</span>}
                               {idx === timeline.length - 1 && idx > 0 && <span className="text-xs text-muted-foreground">(latest)</span>}
+                            </div>
+                            <div className="mb-2">
+                              {deliveryContextLabel(event, timeline)}
                             </div>
                             {event.error_message && (
                               <p className="text-sm text-destructive mb-2">Error: {event.error_message}</p>
