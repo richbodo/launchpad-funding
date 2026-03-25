@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
       video: {
         room: roomName,
         roomJoin: true,
-        canPublish: true,
+        canPublish: role !== "investor",
         canSubscribe: true,
         canPublishData: true,
       },

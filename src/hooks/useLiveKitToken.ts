@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 interface TokenResult {
@@ -15,43 +15,52 @@ export function useLiveKitToken(
 ) {
   const [result, setResult] = useState<TokenResult | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const cancelledRef = useRef(false);
 
-  useEffect(() => {
-    if (!sessionId || !identity || !role) {
-      setLoading(false);
-      return;
-    }
+  const fetchToken = useCallback(async () => {
+    if (!sessionId || !identity || !role) return;
 
-    let cancelled = false;
+    cancelledRef.current = false;
+    setLoading(true);
+    setError(null);
 
-    const fetchToken = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const { data, error: fnErr } = await supabase.functions.invoke('livekit-token', {
-          body: { session_id: sessionId, identity, name, role },
-        });
+    try {
+      const { data, error: fnErr } = await supabase.functions.invoke('livekit-token', {
+        body: { session_id: sessionId, identity, name, role },
+      });
 
-        if (cancelled) return;
+      if (cancelledRef.current) return;
 
-        if (fnErr || !data?.token) {
-          setError(fnErr?.message || data?.error || 'Failed to get LiveKit token');
-          setLoading(false);
-          return;
-        }
-
-        setResult(data as TokenResult);
-      } catch (err: any) {
-        if (!cancelled) setError(err.message || 'Failed to get LiveKit token');
-      } finally {
-        if (!cancelled) setLoading(false);
+      if (fnErr || !data?.token) {
+        setError(fnErr?.message || data?.error || 'Failed to get LiveKit token');
+        return;
       }
-    };
 
-    fetchToken();
-    return () => { cancelled = true; };
+      setResult(data as TokenResult);
+    } catch (err: any) {
+      if (!cancelledRef.current) {
+        setError(err.message || 'Failed to get LiveKit token');
+      }
+    } finally {
+      if (!cancelledRef.current) setLoading(false);
+    }
   }, [sessionId, identity, name, role]);
 
-  return { ...result, error, loading };
+  const reset = useCallback(() => {
+    cancelledRef.current = true;
+    setResult(null);
+    setError(null);
+    setLoading(false);
+  }, []);
+
+  return {
+    token: result?.token ?? null,
+    ws_url: result?.ws_url ?? null,
+    room: result?.room ?? null,
+    error,
+    loading,
+    fetchToken,
+    reset,
+  };
 }

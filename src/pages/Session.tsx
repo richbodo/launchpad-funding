@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
@@ -9,11 +9,12 @@ import '@livekit/components-styles';
 import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
 import VideoPane from '@/components/VideoPane';
+import type { CallState } from '@/components/VideoPane';
 import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
 import { Button } from '@/components/ui/button';
-import { DollarSign, ExternalLink, LogOut, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DollarSign, ExternalLink, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 
 interface Startup {
@@ -37,6 +38,7 @@ export default function SessionPage() {
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [investOpen, setInvestOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [callState, setCallState] = useState<CallState>('idle');
 
   const {
     stages,
@@ -51,14 +53,14 @@ export default function SessionPage() {
     activeStartupIndex,
   } = useSessionStages(startups);
 
-  // Fetch LiveKit token for the current user
-  const { token, ws_url, error: tokenError } = useLiveKitToken(
+  const { token, ws_url, fetchToken, reset, error: tokenError } = useLiveKitToken(
     id || '',
     user?.email || '',
     user?.displayName || '',
     user?.role || '',
   );
 
+  // Fetch session data, participants, investments
   useEffect(() => {
     if (!user || !id) {
       navigate('/login');
@@ -98,7 +100,8 @@ export default function SessionPage() {
     };
     fetchData();
 
-    const channel = supabase
+    // Realtime: investments
+    const investChannel = supabase
       .channel(`investments-${id}`)
       .on('postgres_changes', {
         event: 'INSERT',
@@ -111,8 +114,66 @@ export default function SessionPage() {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Realtime: session status changes
+    const sessionChannel = supabase
+      .channel(`session-status-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'sessions',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        setSession((prev: any) => ({ ...prev, ...payload.new }));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(investChannel);
+      supabase.removeChannel(sessionChannel);
+    };
   }, [id, user, navigate]);
+
+  // Facilitator: Start Call (also sets session to 'live')
+  const handleStartCall = useCallback(async () => {
+    if (!id) return;
+    setCallState('connecting');
+    if (session?.status !== 'live') {
+      await supabase.from('sessions').update({ status: 'live' }).eq('id', id);
+    }
+    await fetchToken();
+    setCallState('connected');
+  }, [id, session?.status, fetchToken]);
+
+  // Startup: Join Call
+  const handleJoinCall = useCallback(async () => {
+    setCallState('connecting');
+    await fetchToken();
+    setCallState('connected');
+  }, [fetchToken]);
+
+  // Facilitator: End Call
+  const handleEndCall = useCallback(async () => {
+    if (!id) return;
+    await supabase.from('sessions').update({ status: 'completed' }).eq('id', id);
+    reset();
+    setCallState('idle');
+  }, [id, reset]);
+
+  // Investor: auto-join as viewer when session goes live
+  useEffect(() => {
+    if (user?.role === 'investor' && session?.status === 'live' && callState === 'idle') {
+      setCallState('connecting');
+      fetchToken().then(() => setCallState('connected'));
+    }
+  }, [session?.status, user?.role, callState, fetchToken]);
+
+  // Disconnect all non-facilitators when session completes
+  useEffect(() => {
+    if (session?.status === 'completed' && callState === 'connected') {
+      reset();
+      setCallState('idle');
+    }
+  }, [session?.status, callState, reset]);
 
   const currentStartup = startups[activeStartupIndex ?? 0];
   const currentStartupName = currentStartup?.display_name || currentStartup?.email || 'Startup';
@@ -139,8 +200,8 @@ export default function SessionPage() {
   if (!user || !id) return null;
 
   const isFacilitator = user.role === 'facilitator';
+  const isConnected = callState === 'connected' && token && ws_url;
 
-  // Session shell (funding meter, header, controls) rendered regardless of LiveKit state
   const sessionContent = (
     <>
       {/* Main content: 3-pane layout */}
@@ -153,7 +214,13 @@ export default function SessionPage() {
                 <VideoPane
                   label={f.display_name || f.email}
                   sublabel="Host Stream"
-                  participantIdentity={token ? f.email : undefined}
+                  participantIdentity={isConnected ? f.email : undefined}
+                  callState={callState}
+                  isSelf={f.email === user.email}
+                  selfRole={f.email === user.email ? 'facilitator' : undefined}
+                  sessionStatus={session?.status}
+                  onStartCall={handleStartCall}
+                  onJoinCall={handleJoinCall}
                 />
               </div>
             ))
@@ -171,14 +238,18 @@ export default function SessionPage() {
               label={currentStartupName}
               sublabel="Startup Presentation"
               isActive={true}
-              participantIdentity={token ? currentStartup?.email : undefined}
+              participantIdentity={isConnected ? currentStartup?.email : undefined}
+              callState={callState}
+              isSelf={user.role === 'startup' && currentStartup?.email === user.email}
+              selfRole={user.role === 'startup' ? 'startup' : undefined}
+              sessionStatus={session?.status}
+              onJoinCall={handleJoinCall}
             />
           </div>
 
           {/* Facilitator controls */}
           {isFacilitator && (
             <div className="flex flex-col items-center gap-2 mt-3">
-              {/* Current stage name */}
               <span className="text-sm font-semibold text-foreground">
                 {currentStage?.fullLabel}
               </span>
@@ -257,14 +328,12 @@ export default function SessionPage() {
           startupEmail={currentStartup.email}
         />
       )}
-
     </>
   );
 
   return (
     <div className="h-screen flex flex-col bg-background">
       <DemoModeBanner />
-      {/* Funding meter */}
       <FundingMeter
         totalFunded={totalFunded}
         currentStartup={currentStartupName}
@@ -280,6 +349,13 @@ export default function SessionPage() {
             remainingSeconds={remainingSeconds}
             isPaused={isPaused}
           />
+          {/* End Call — next to timer, facilitator only */}
+          {isFacilitator && callState === 'connected' && (
+            <Button variant="destructive" size="sm" onClick={handleEndCall}>
+              <PhoneOff className="w-4 h-4 mr-1" />
+              End Call
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{user.displayName} ({user.role})</span>
@@ -289,15 +365,16 @@ export default function SessionPage() {
         </div>
       </div>
 
-      {/* Wrap in LiveKitRoom when token is available, otherwise render with placeholders */}
-      {token && ws_url ? (
+      {/* LiveKitRoom only when connected */}
+      {isConnected ? (
         <LiveKitRoom
           serverUrl={ws_url}
           token={token}
           connect={true}
-          video={true}
-          audio={true}
+          video={user.role !== 'investor'}
+          audio={user.role !== 'investor'}
           style={{ display: 'contents' }}
+          onDisconnected={() => { reset(); setCallState('idle'); }}
           onError={(err) => console.error('LiveKit error:', err)}
         >
           {sessionContent}
