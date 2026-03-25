@@ -409,7 +409,7 @@ export default function Admin() {
       const calEnd = new Date(selectedSession.end_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
       const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(selectedSession.name)}&dates=${calStart}/${calEnd}&details=${encodeURIComponent('Join: ' + loginUrl)}`;
 
-      const { error } = await supabase.functions.invoke('send-transactional-email', {
+      const { data, error } = await supabase.functions.invoke('send-transactional-email', {
         body: {
           templateName: 'session-invitation',
           recipientEmail: email,
@@ -427,10 +427,24 @@ export default function Admin() {
           },
         },
       });
-      if (error) throw error;
+
+      if (error) {
+        console.error('Email send error:', error);
+        throw error;
+      }
+
+      // Check if the response itself indicates failure
+      if (data && data.error) {
+        console.error('Email send response error:', data);
+        throw new Error(data.error);
+      }
+
+      console.log('Email send response:', data);
       toast.success(`Invitation email queued for ${email}`);
     } catch (err: any) {
-      toast.error(err.message || 'Failed to send email');
+      const errMsg = err?.message || err?.context?.message || JSON.stringify(err) || 'Failed to send email';
+      console.error('Email send failed:', err);
+      toast.error(`Email failed: ${errMsg}`, { duration: 15000 });
     } finally {
       setSendingEmail(false);
       setEmailDialogOpen(false);
