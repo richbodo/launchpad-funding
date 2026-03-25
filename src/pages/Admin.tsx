@@ -1092,13 +1092,19 @@ export default function Admin() {
                             <TableCell className="text-sm text-destructive max-w-48 truncate" title={log.error_message || ''}>
                               {log.error_message || '—'}
                             </TableCell>
-                            <TableCell className="text-xs text-muted-foreground max-w-64">
+                             <TableCell className="text-xs text-muted-foreground max-w-96">
                               {log.metadata ? (
-                                <details>
-                                  <summary className="cursor-pointer hover:text-foreground">
-                                    {log.metadata.api_response ? 'API response' : log.metadata.error_status ? `HTTP ${log.metadata.error_status}` : 'View'}
+                                <details open={!!log.metadata.error_message || !!log.metadata.error_status}>
+                                  <summary className="cursor-pointer hover:text-foreground font-medium">
+                                    {log.metadata.api_response?.workflow_id
+                                      ? `✓ ${log.metadata.api_response.workflow_id}`
+                                      : log.metadata.error_status
+                                        ? `✗ HTTP ${log.metadata.error_status}`
+                                        : log.metadata.error_message
+                                          ? `✗ ${String(log.metadata.error_message).slice(0, 60)}`
+                                          : 'View details'}
                                   </summary>
-                                  <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-auto max-h-32 whitespace-pre-wrap">
+                                  <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-auto max-h-48 whitespace-pre-wrap break-all">
                                     {JSON.stringify(log.metadata, null, 2)}
                                   </pre>
                                 </details>
