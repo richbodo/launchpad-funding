@@ -1070,74 +1070,134 @@ export default function Admin() {
 
           {/* Email Logs Tab */}
           <TabsContent value="email-logs">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Mail className="w-5 h-5" /> Email Delivery Log
-                </CardTitle>
-                <Button variant="outline" size="sm" onClick={fetchEmailLogs} disabled={emailLogsLoading}>
-                  <RefreshCw className={`w-4 h-4 mr-1 ${emailLogsLoading ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-              </CardHeader>
-              <CardContent>
-                {emailLogsLoading ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
-                ) : emailLogs.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-8">No emails sent yet</p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Template</TableHead>
-                          <TableHead>Recipient</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Time</TableHead>
-                          <TableHead>Error</TableHead>
-                          <TableHead>Details</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {emailLogs.map(log => (
-                          <TableRow key={log.id}>
-                            <TableCell className="text-sm">{log.template_name}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground">{log.recipient_email}</TableCell>
-                            <TableCell>{statusBadge(log.status)}</TableCell>
-                            <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
-                              {new Date(log.created_at).toLocaleString()}
-                            </TableCell>
-                            <TableCell className="text-sm text-destructive max-w-48 truncate" title={log.error_message || ''}>
-                              {log.error_message || '—'}
-                            </TableCell>
-                             <TableCell className="text-xs text-muted-foreground max-w-96">
-                              {log.metadata ? (
-                                <details open={!!log.metadata.error_message || !!log.metadata.error_status}>
-                                  <summary className="cursor-pointer hover:text-foreground font-medium">
-                                    {log.metadata.api_response?.workflow_id
-                                      ? `✓ ${log.metadata.api_response.workflow_id}`
-                                      : log.metadata.error_status
-                                        ? `✗ HTTP ${log.metadata.error_status}`
-                                        : log.metadata.error_message
-                                          ? `✗ ${String(log.metadata.error_message).slice(0, 60)}`
-                                          : 'View details'}
-                                  </summary>
-                                  <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-auto max-h-48 whitespace-pre-wrap break-all">
-                                    {JSON.stringify(log.metadata, null, 2)}
-                                  </pre>
-                                </details>
-                              ) : (
-                                <span className="text-muted-foreground/50">—</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+            {timelineLog ? (
+              /* ── Full-page delivery timeline ── */
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <Button variant="ghost" size="sm" onClick={() => setTimelineLog(null)} className="mb-2">
+                      <ArrowLeft className="w-4 h-4 mr-1" /> Back to logs
+                    </Button>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Mail className="w-5 h-5" /> Delivery Timeline
+                    </CardTitle>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      To: <strong>{timelineLog.recipient_email}</strong> · Template: <strong>{timelineLog.template_name}</strong>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      Message ID: <code className="bg-muted px-1 rounded">{timelineLog.message_id || timelineLog.id}</code>
+                    </p>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </CardHeader>
+                <CardContent>
+                  {timelineLoading ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">Loading timeline…</p>
+                  ) : timeline.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No timeline events found</p>
+                  ) : (
+                    <div className="relative pl-6 space-y-0">
+                      {/* Vertical line */}
+                      <div className="absolute left-[11px] top-2 bottom-2 w-0.5 bg-border" />
+                      {timeline.map((event, idx) => (
+                        <div key={event.id} className="relative pb-6 last:pb-0">
+                          {/* Dot */}
+                          <div className={`absolute left-[-17px] top-1.5 w-3 h-3 rounded-full border-2 ${
+                            event.status === 'sent' ? 'bg-accent border-accent' :
+                            event.status === 'pending' ? 'bg-amber-500 border-amber-500' :
+                            event.status === 'failed' || event.status === 'dlq' || event.status === 'bounced' ? 'bg-destructive border-destructive' :
+                            'bg-muted-foreground border-muted-foreground'
+                          }`} />
+                          <div className="bg-muted/50 rounded-lg p-4">
+                            <div className="flex items-center gap-3 mb-2">
+                              {statusBadge(event.status)}
+                              <span className="text-sm text-muted-foreground">
+                                {new Date(event.created_at).toLocaleString()}
+                              </span>
+                              {idx === 0 && <span className="text-xs text-muted-foreground">(first event)</span>}
+                              {idx === timeline.length - 1 && idx > 0 && <span className="text-xs text-muted-foreground">(latest)</span>}
+                            </div>
+                            {event.error_message && (
+                              <p className="text-sm text-destructive mb-2">Error: {event.error_message}</p>
+                            )}
+                            {event.metadata && (
+                              <details className="text-xs">
+                                <summary className="cursor-pointer hover:text-foreground text-muted-foreground font-medium">
+                                  {event.metadata.api_response?.workflow_id
+                                    ? `✓ Workflow: ${event.metadata.api_response.workflow_id}`
+                                    : event.metadata.error_status
+                                      ? `✗ HTTP ${event.metadata.error_status}`
+                                      : 'View metadata'}
+                                </summary>
+                                <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-auto max-h-64 whitespace-pre-wrap break-all">
+                                  {JSON.stringify(event.metadata, null, 2)}
+                                </pre>
+                              </details>
+                            )}
+                            {!event.metadata && !event.error_message && (
+                              <p className="text-xs text-muted-foreground/50 italic">No additional data captured at this stage</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              /* ── Summary list ── */
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5" /> Email Delivery Log
+                  </CardTitle>
+                  <Button variant="outline" size="sm" onClick={fetchEmailLogs} disabled={emailLogsLoading}>
+                    <RefreshCw className={`w-4 h-4 mr-1 ${emailLogsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {emailLogsLoading ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">Loading…</p>
+                  ) : emailLogs.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">No emails sent yet</p>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <p className="text-xs text-muted-foreground mb-3">Click any row to see full delivery timeline</p>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Template</TableHead>
+                            <TableHead>Recipient</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Time</TableHead>
+                            <TableHead>Error</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {emailLogs.map(log => (
+                            <TableRow
+                              key={log.id}
+                              className="cursor-pointer hover:bg-muted/50"
+                              onClick={() => fetchTimeline(log)}
+                            >
+                              <TableCell className="text-sm">{log.template_name}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground">{log.recipient_email}</TableCell>
+                              <TableCell>{statusBadge(log.status)}</TableCell>
+                              <TableCell className="text-sm text-muted-foreground whitespace-nowrap">
+                                {new Date(log.created_at).toLocaleString()}
+                              </TableCell>
+                              <TableCell className="text-sm text-destructive max-w-48 truncate" title={log.error_message || ''}>
+                                {log.error_message || '—'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
         </Tabs>
       </div>
