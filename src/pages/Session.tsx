@@ -1,22 +1,31 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useSessionStages } from '@/hooks/useSessionStages';
+import { useLiveKitToken } from '@/hooks/useLiveKitToken';
+import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react';
+import '@livekit/components-styles';
 import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
 import VideoPane from '@/components/VideoPane';
+import type { CallState } from '@/components/VideoPane';
 import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
 import { Button } from '@/components/ui/button';
-import { DollarSign, ExternalLink, LogOut, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DollarSign, ExternalLink, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 
 interface Startup {
   email: string;
   display_name: string | null;
   presentation_order: number | null;
+}
+
+interface Facilitator {
+  email: string;
+  display_name: string | null;
 }
 
 export default function SessionPage() {
@@ -26,8 +35,10 @@ export default function SessionPage() {
   const [totalFunded, setTotalFunded] = useState(0);
   const [startupFunded, setStartupFunded] = useState(0);
   const [startups, setStartups] = useState<Startup[]>([]);
+  const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [investOpen, setInvestOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
+  const [callState, setCallState] = useState<CallState>('idle');
 
   const {
     stages,
@@ -42,6 +53,14 @@ export default function SessionPage() {
     activeStartupIndex,
   } = useSessionStages(startups);
 
+  const { token, ws_url, fetchToken, reset, error: tokenError } = useLiveKitToken(
+    id || '',
+    user?.email || '',
+    user?.displayName || '',
+    user?.role || '',
+  );
+
+  // Fetch session data, participants, investments
   useEffect(() => {
     if (!user || !id) {
       navigate('/login');
@@ -64,6 +83,13 @@ export default function SessionPage() {
         .order('presentation_order', { ascending: true });
       if (startupData) setStartups(startupData);
 
+      const { data: facilitatorData } = await supabase
+        .from('session_participants')
+        .select('email, display_name')
+        .eq('session_id', id)
+        .eq('role', 'facilitator');
+      if (facilitatorData) setFacilitators(facilitatorData);
+
       const { data: investData } = await supabase
         .from('investments')
         .select('amount, startup_email')
@@ -74,7 +100,8 @@ export default function SessionPage() {
     };
     fetchData();
 
-    const channel = supabase
+    // Realtime: investments
+    const investChannel = supabase
       .channel(`investments-${id}`)
       .on('postgres_changes', {
         event: 'INSERT',
@@ -87,8 +114,66 @@ export default function SessionPage() {
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Realtime: session status changes
+    const sessionChannel = supabase
+      .channel(`session-status-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'sessions',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        setSession((prev: any) => ({ ...prev, ...payload.new }));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(investChannel);
+      supabase.removeChannel(sessionChannel);
+    };
   }, [id, user, navigate]);
+
+  // Facilitator: Start Call (also sets session to 'live')
+  const handleStartCall = useCallback(async () => {
+    if (!id) return;
+    setCallState('connecting');
+    if (session?.status !== 'live') {
+      await supabase.from('sessions').update({ status: 'live' }).eq('id', id);
+    }
+    await fetchToken();
+    setCallState('connected');
+  }, [id, session?.status, fetchToken]);
+
+  // Startup: Join Call
+  const handleJoinCall = useCallback(async () => {
+    setCallState('connecting');
+    await fetchToken();
+    setCallState('connected');
+  }, [fetchToken]);
+
+  // Facilitator: End Call
+  const handleEndCall = useCallback(async () => {
+    if (!id) return;
+    await supabase.from('sessions').update({ status: 'completed' }).eq('id', id);
+    reset();
+    setCallState('idle');
+  }, [id, reset]);
+
+  // Investor: auto-join as viewer when session goes live
+  useEffect(() => {
+    if (user?.role === 'investor' && session?.status === 'live' && callState === 'idle') {
+      setCallState('connecting');
+      fetchToken().then(() => setCallState('connected'));
+    }
+  }, [session?.status, user?.role, callState, fetchToken]);
+
+  // Disconnect all non-facilitators when session completes
+  useEffect(() => {
+    if (session?.status === 'completed' && callState === 'connected') {
+      reset();
+      setCallState('idle');
+    }
+  }, [session?.status, callState, reset]);
 
   const currentStartup = startups[activeStartupIndex ?? 0];
   const currentStartupName = currentStartup?.display_name || currentStartup?.email || 'Startup';
@@ -115,40 +200,35 @@ export default function SessionPage() {
   if (!user || !id) return null;
 
   const isFacilitator = user.role === 'facilitator';
+  const isConnected = callState === 'connected' && token && ws_url;
 
-  return (
-    <div className="h-screen flex flex-col bg-background">
-      <DemoModeBanner />
-      {/* Funding meter */}
-      <FundingMeter
-        totalFunded={totalFunded}
-        currentStartup={currentStartupName}
-        startupFunded={startupFunded}
-      />
-
-      {/* Session header bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card">
-        <div className="flex items-center gap-3">
-          <h2 className="font-semibold text-sm">{session?.name || 'Funding Session'}</h2>
-          <SessionTimer
-            currentPhase={currentStage?.label ?? ''}
-            remainingSeconds={remainingSeconds}
-            isPaused={isPaused}
-          />
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{user.displayName} ({user.role})</span>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            <LogOut className="w-4 h-4" />
-          </Button>
-        </div>
-      </div>
-
+  const sessionContent = (
+    <>
       {/* Main content: 3-pane layout */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Left pane: Facilitator video */}
-        <div className="md:w-72 lg:w-80 shrink-0 p-3 border-b md:border-b-0 md:border-r border-border">
-          <VideoPane label="Facilitator" sublabel="Host Stream" />
+        {/* Left pane: Facilitator video(s) — up to 3 */}
+        <div className="md:w-72 lg:w-80 shrink-0 p-3 border-b md:border-b-0 md:border-r border-border flex flex-col gap-2">
+          {facilitators.length > 0 ? (
+            facilitators.slice(0, 3).map((f) => (
+              <div key={f.email} className="flex-1 min-h-0">
+                <VideoPane
+                  label={f.display_name || f.email}
+                  sublabel="Host Stream"
+                  participantIdentity={isConnected ? f.email : undefined}
+                  callState={callState}
+                  isSelf={f.email === user.email}
+                  selfRole={f.email === user.email ? 'facilitator' : undefined}
+                  sessionStatus={session?.status}
+                  onStartCall={handleStartCall}
+                  onJoinCall={handleJoinCall}
+                />
+              </div>
+            ))
+          ) : (
+            <div className="flex-1">
+              <VideoPane label="Facilitator" sublabel="Host Stream" />
+            </div>
+          )}
         </div>
 
         {/* Center pane: Startup presentation */}
@@ -158,13 +238,18 @@ export default function SessionPage() {
               label={currentStartupName}
               sublabel="Startup Presentation"
               isActive={true}
+              participantIdentity={isConnected ? currentStartup?.email : undefined}
+              callState={callState}
+              isSelf={user.role === 'startup' && currentStartup?.email === user.email}
+              selfRole={user.role === 'startup' ? 'startup' : undefined}
+              sessionStatus={session?.status}
+              onJoinCall={handleJoinCall}
             />
           </div>
 
           {/* Facilitator controls */}
           {isFacilitator && (
             <div className="flex flex-col items-center gap-2 mt-3">
-              {/* Current stage name */}
               <span className="text-sm font-semibold text-foreground">
                 {currentStage?.fullLabel}
               </span>
@@ -242,6 +327,61 @@ export default function SessionPage() {
           startupName={currentStartup.display_name || currentStartup.email}
           startupEmail={currentStartup.email}
         />
+      )}
+    </>
+  );
+
+  return (
+    <div className="h-screen flex flex-col bg-background">
+      <DemoModeBanner />
+      <FundingMeter
+        totalFunded={totalFunded}
+        currentStartup={currentStartupName}
+        startupFunded={startupFunded}
+      />
+
+      {/* Session header bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-card">
+        <div className="flex items-center gap-3">
+          <h2 className="font-semibold text-sm">{session?.name || 'Funding Session'}</h2>
+          <SessionTimer
+            currentPhase={currentStage?.label ?? ''}
+            remainingSeconds={remainingSeconds}
+            isPaused={isPaused}
+          />
+          {/* End Call — next to timer, facilitator only */}
+          {isFacilitator && callState === 'connected' && (
+            <Button variant="destructive" size="sm" onClick={handleEndCall}>
+              <PhoneOff className="w-4 h-4 mr-1" />
+              End Call
+            </Button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{user.displayName} ({user.role})</span>
+          <Button variant="ghost" size="sm" onClick={handleLogout}>
+            <LogOut className="w-4 h-4" />
+          </Button>
+        </div>
+      </div>
+
+      {/* LiveKitRoom only when connected */}
+      {isConnected ? (
+        <LiveKitRoom
+          serverUrl={ws_url}
+          token={token}
+          connect={true}
+          video={user.role !== 'investor'}
+          audio={user.role !== 'investor'}
+          style={{ display: 'contents' }}
+          onDisconnected={() => { reset(); setCallState('idle'); }}
+          onError={(err) => console.error('LiveKit error:', err)}
+        >
+          {sessionContent}
+          <RoomAudioRenderer />
+        </LiveKitRoom>
+      ) : (
+        sessionContent
       )}
     </div>
   );
