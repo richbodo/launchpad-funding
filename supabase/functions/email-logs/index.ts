@@ -24,18 +24,40 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
   let limit = 100
+  let messageIdFilter: string | null = null
   try {
     const body = await req.json()
     if (body.limit) limit = Math.min(body.limit, 500)
+    if (body.message_id) messageIdFilter = body.message_id
   } catch { /* use default */ }
 
-  // Fetch all recent logs, then deduplicate client-side by message_id
-  // keeping only the latest row per message_id
+  // If requesting a specific message_id, return ALL rows for that message
+  if (messageIdFilter) {
+    const { data, error } = await supabase
+      .from('email_send_log')
+      .select('id, message_id, template_name, recipient_email, status, error_message, metadata, created_at')
+      .eq('message_id', messageIdFilter)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    return new Response(
+      JSON.stringify({ timeline: data ?? [] }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
+  // Summary view: deduplicate by message_id, keep latest
   const { data, error } = await supabase
     .from('email_send_log')
     .select('id, message_id, template_name, recipient_email, status, error_message, metadata, created_at')
     .order('created_at', { ascending: false })
-    .limit(limit * 2) // fetch extra to account for duplicates
+    .limit(limit * 2)
 
   if (error) {
     return new Response(
@@ -44,11 +66,10 @@ Deno.serve(async (req) => {
     )
   }
 
-  // Deduplicate: keep only the latest row per message_id
   const seen = new Set<string>()
   const deduped: typeof data = []
   for (const row of data ?? []) {
-    const key = row.message_id || row.id // fallback to id if no message_id
+    const key = row.message_id || row.id
     if (seen.has(key)) continue
     seen.add(key)
     deduped.push(row)
