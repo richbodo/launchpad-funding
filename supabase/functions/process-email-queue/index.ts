@@ -286,13 +286,27 @@ Deno.serve(async (req) => {
         totalProcessed++
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : String(error)
-        console.error('Email send failed', {
+        const errorStack = error instanceof Error ? error.stack : undefined
+        const errorStatus = (error && typeof error === 'object' && 'status' in error) ? (error as any).status : undefined
+        const errorBody = (error && typeof error === 'object' && 'body' in error) ? (error as any).body : undefined
+
+        const errorMetadata = {
+          error_message: errorMsg,
+          error_stack: errorStack,
+          error_status: errorStatus,
+          error_body: errorBody,
+          error_type: error?.constructor?.name,
+          from: payload.from,
+          sender_domain: payload.sender_domain,
+          subject: payload.subject,
+          purpose: payload.purpose,
+          failed_attempts: failedAttempts + 1,
           queue,
           msg_id: msg.msg_id,
           read_ct: msg.read_ct,
-          failed_attempts: failedAttempts,
-          error: errorMsg,
-        })
+        }
+
+        console.error('Email send failed', errorMetadata)
 
         if (isRateLimited(error)) {
           await supabase.from('email_send_log').insert({
@@ -301,6 +315,7 @@ Deno.serve(async (req) => {
             recipient_email: payload.to,
             status: 'rate_limited',
             error_message: errorMsg.slice(0, 1000),
+            metadata: errorMetadata,
           })
 
           const retryAfterSecs = getRetryAfterSeconds(error)
@@ -338,6 +353,7 @@ Deno.serve(async (req) => {
           recipient_email: payload.to,
           status: 'failed',
           error_message: errorMsg.slice(0, 1000),
+          metadata: errorMetadata,
         })
         if (payload?.message_id && typeof payload.message_id === 'string') {
           failedAttemptsByMessageId.set(payload.message_id, failedAttempts + 1)
