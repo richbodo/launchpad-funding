@@ -43,6 +43,7 @@ interface EmailLogRow {
   recipient_email: string;
   status: string;
   error_message: string | null;
+  metadata: Record<string, any> | null;
   created_at: string;
 }
 
@@ -1020,6 +1021,7 @@ export default function Admin() {
                           <TableHead>Status</TableHead>
                           <TableHead>Time</TableHead>
                           <TableHead>Error</TableHead>
+                          <TableHead>Details</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -1033,6 +1035,20 @@ export default function Admin() {
                             </TableCell>
                             <TableCell className="text-sm text-destructive max-w-48 truncate" title={log.error_message || ''}>
                               {log.error_message || '—'}
+                            </TableCell>
+                            <TableCell className="text-xs text-muted-foreground max-w-64">
+                              {log.metadata ? (
+                                <details>
+                                  <summary className="cursor-pointer hover:text-foreground">
+                                    {log.metadata.api_response ? 'API response' : log.metadata.error_status ? `HTTP ${log.metadata.error_status}` : 'View'}
+                                  </summary>
+                                  <pre className="mt-1 p-2 bg-muted rounded text-xs overflow-auto max-h-32 whitespace-pre-wrap">
+                                    {JSON.stringify(log.metadata, null, 2)}
+                                  </pre>
+                                </details>
+                              ) : (
+                                <span className="text-muted-foreground/50">—</span>
+                              )}
                             </TableCell>
                           </TableRow>
                         ))}
