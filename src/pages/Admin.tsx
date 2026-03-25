@@ -108,6 +108,9 @@ export default function Admin() {
   // Email logs
   const [emailLogs, setEmailLogs] = useState<EmailLogRow[]>([]);
   const [emailLogsLoading, setEmailLogsLoading] = useState(false);
+  const [timelineLog, setTimelineLog] = useState<EmailLogRow | null>(null);
+  const [timeline, setTimeline] = useState<EmailLogRow[]>([]);
+  const [timelineLoading, setTimelineLoading] = useState(false);
 
   // --- Email Settings persistence ---
   const fetchEmailSettings = async () => {
