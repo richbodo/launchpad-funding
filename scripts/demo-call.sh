@@ -19,7 +19,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-FIXTURES_DIR="$PROJECT_DIR/test-results/demo-videos"
 
 info()  { echo "==> $*"; }
 die()   { echo "ERROR: $*" >&2; exit 1; }
@@ -39,39 +38,20 @@ SESSION_ID="00000000-0000-0000-0000-000000000001"
 ROOM_NAME="session-${SESSION_ID}"
 
 # ---------- Participants to inject ----------
-# identity:display_name:filter (filter is the ffmpeg lavfi source for distinct visuals)
+# identity|display_name|filter|port
+# Each gets a distinct ffmpeg test source streamed via TCP to lk
 SYNTHETIC_PARTICIPANTS=(
-  "facilitator-b@test.com:Co-Facilitator:smptebars=size=640x480:rate=30"
-  "startup-a@test.com:AlphaTech:testsrc=size=640x480:rate=30"
-  "startup-b@test.com:BetaCorp:mandelbrot=size=640x480:rate=30"
+  "facilitator-b@test.com|Co-Facilitator|smptebars=size=640x480:rate=30|5551"
+  "startup-a@test.com|AlphaTech|testsrc=size=640x480:rate=30|5552"
+  "startup-b@test.com|BetaCorp|mandelbrot=size=640x480:rate=30|5553"
 )
 
-# ---------- Generate distinct video files (if ffmpeg available) ----------
+# ---------- Check for ffmpeg ----------
 HAS_FFMPEG=false
 if command -v ffmpeg >/dev/null 2>&1; then
   HAS_FFMPEG=true
-fi
-
-generate_video() {
-  local filter="$1" outfile="$2"
-  if [ -f "$outfile" ]; then return; fi
-  mkdir -p "$(dirname "$outfile")"
-  # 10-second video with a visually distinct test pattern per participant
-  ffmpeg -y -f lavfi -i "$filter" \
-    -t 10 -c:v libvpx -b:v 1M "$outfile" \
-    -loglevel error
-}
-
-if $HAS_FFMPEG; then
-  info "Generating distinct video fixtures..."
-  for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
-    IFS=: read -r ident name filter <<< "$entry"
-    safe_name="${ident%%@*}"
-    generate_video "$filter" "$FIXTURES_DIR/${safe_name}.ivf"
-  done
-  info "Video fixtures ready in $FIXTURES_DIR"
 else
-  info "ffmpeg not found -- will use generic --publish-demo streams."
+  info "ffmpeg not found -- will use generic --publish-demo streams (all look the same)."
   info "Install ffmpeg for distinct per-participant videos: brew install ffmpeg"
 fi
 
@@ -110,19 +90,26 @@ fi
 PIDS=()
 
 for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
-  IFS=: read -r ident name color <<< "$entry"
-  safe_name="${ident%%@*}"
-  video_file="$FIXTURES_DIR/${safe_name}.ivf"
+  IFS='|' read -r ident name filter port <<< "$entry"
 
   info "Injecting $ident ($name)..."
 
-  if $HAS_FFMPEG && [ -f "$video_file" ]; then
+  if $HAS_FFMPEG; then
+    # Stream an endless test pattern from ffmpeg → TCP → lk
+    ffmpeg -re -f lavfi -i "$filter" \
+      -c:v vp8 -b:v 1M -f ivf \
+      "tcp://127.0.0.1:${port}?listen=1" \
+      -loglevel error > /dev/null 2>&1 &
+    PIDS+=($!)
+    sleep 1  # give ffmpeg time to start listening
+
     lk room join \
       --url "$LK_URL" \
       --api-key "$LK_API_KEY" --api-secret "$LK_API_SECRET" \
       --identity "$ident" \
-      --publish "$video_file" --fps 30 \
+      --publish "vp8://127.0.0.1:${port}" \
       "$ROOM_NAME" > /dev/null 2>&1 &
+    PIDS+=($!)
   else
     lk room join \
       --url "$LK_URL" \
@@ -130,8 +117,8 @@ for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
       --identity "$ident" \
       --publish-demo \
       "$ROOM_NAME" > /dev/null 2>&1 &
+    PIDS+=($!)
   fi
-  PIDS+=($!)
   sleep 1
 done
 
@@ -139,9 +126,9 @@ echo ""
 info "Demo call is live!"
 echo ""
 echo "    Your camera:  facilitator@test.com (left pane)"
-echo "    Synthetic:    Co-Facilitator (left pane, blue label)"
-echo "    Synthetic:    AlphaTech startup (center pane, red label)"
-echo "    Synthetic:    BetaCorp startup (center pane, green label)"
+echo "    Synthetic:    Co-Facilitator (left pane, SMPTE color bars)"
+echo "    Synthetic:    AlphaTech startup (center pane, numbered test pattern)"
+echo "    Synthetic:    BetaCorp startup (center pane, Mandelbrot fractal)"
 echo ""
 echo "    Use Next/Previous to switch between startup presentations."
 echo "    Each startup has a visually distinct video stream."
