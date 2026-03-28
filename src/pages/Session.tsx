@@ -210,7 +210,7 @@ export default function SessionPage() {
         <div className="md:w-72 lg:w-80 shrink-0 p-3 border-b md:border-b-0 md:border-r border-border flex flex-col gap-2">
           {facilitators.length > 0 ? (
             facilitators.slice(0, 3).map((f) => (
-              <div key={f.email} className="flex-1 min-h-0">
+              <div key={f.email} className="flex-1 min-h-0" data-testid={`facilitator-pane-${f.email}`}>
                 <VideoPane
                   label={f.display_name || f.email}
                   sublabel="Host Stream"
@@ -233,7 +233,7 @@ export default function SessionPage() {
 
         {/* Center pane: Startup presentation */}
         <div className="flex-1 flex flex-col p-3 min-w-0">
-          <div className="flex-1 rounded-lg overflow-hidden">
+          <div className="flex-1 rounded-lg overflow-hidden" data-testid="main-video-pane">
             <VideoPane
               label={currentStartupName}
               sublabel="Startup Presentation"
@@ -250,12 +250,13 @@ export default function SessionPage() {
           {/* Facilitator controls */}
           {isFacilitator && (
             <div className="flex flex-col items-center gap-2 mt-3">
-              <span className="text-sm font-semibold text-foreground">
+              <span className="text-sm font-semibold text-foreground" data-testid="stage-label">
                 {currentStage?.fullLabel}
               </span>
 
               <div className="flex items-center gap-2">
                 <Button
+                  data-testid="stage-prev-btn"
                   variant="outline"
                   size="sm"
                   disabled={currentStageIndex === 0}
@@ -266,6 +267,7 @@ export default function SessionPage() {
                 </Button>
 
                 <Button
+                  data-testid="stage-playpause-btn"
                   variant={isPaused ? 'default' : 'secondary'}
                   size="sm"
                   onClick={togglePause}
@@ -275,6 +277,7 @@ export default function SessionPage() {
                 </Button>
 
                 <Button
+                  data-testid="stage-next-btn"
                   variant="outline"
                   size="sm"
                   disabled={currentStageIndex === stages.length - 1}
@@ -297,6 +300,7 @@ export default function SessionPage() {
           {user.role === 'investor' && (
             <div className="flex items-center justify-center gap-3 mt-3">
               <Button
+                data-testid="invest-btn"
                 onClick={() => setInvestOpen(true)}
                 disabled={currentStage?.type === 'intro' || currentStage?.type === 'outro'}
                 className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6 disabled:opacity-40"
@@ -351,7 +355,7 @@ export default function SessionPage() {
           />
           {/* End Call — next to timer, facilitator only */}
           {isFacilitator && callState === 'connected' && (
-            <Button variant="destructive" size="sm" onClick={handleEndCall}>
+            <Button data-testid="end-call-btn" variant="destructive" size="sm" onClick={handleEndCall}>
               <PhoneOff className="w-4 h-4 mr-1" />
               End Call
             </Button>

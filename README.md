@@ -66,6 +66,63 @@ FundFlow (one of the many names LLMs auto-generated for this app) is a real-time
 5. Use the stage controls (Previous / Play-Pause / Next) to manage the session flow
 6. Use the stage selector dropdown to jump to any stage directly
 
+## Running Tests
+
+### Prerequisites
+
+Complete the developer setup in [docs/dev_setup.md](docs/dev_setup.md) first (Colima, Supabase CLI, LiveKit, psql, npm install).
+
+### Start test infrastructure
+
+```
+mac% ./scripts/test-infra.sh
+```
+
+This script starts the following services if they aren't already running:
+
+- **Supabase** (via Docker/Colima) — Postgres, Realtime, PostgREST on `localhost:54321`
+- **Supabase Edge Functions** — served via `supabase functions serve` with LiveKit secrets loaded from `supabase/.env.local`
+- **LiveKit** — WebRTC SFU on `localhost:7880` (runs natively, no Docker)
+
+It also writes `.env.test` and `supabase/.env.local` with the correct credentials, installs npm dependencies if needed, and seeds test data if the test session doesn't exist. The script is idempotent — it skips services that are already running.
+
+To force a full database reset and re-seed:
+
+```
+mac% ./scripts/test-infra.sh --seed
+```
+
+### Run unit and component tests
+
+```
+mac% npm test
+```
+
+40 tests covering stage logic, hook behavior, VideoPane states, Session page layout, and Login flows. No infrastructure required — these run against mocks.
+
+### Run E2E tests
+
+E2E tests require Supabase and LiveKit running (via `test-infra.sh` above). Playwright starts the Vite dev server automatically.
+
+```
+mac% npx playwright test                                  # all E2E tests
+mac% npx playwright test tests/e2e/login.spec.ts          # login flows only
+mac% npx playwright test tests/e2e/stageFlow.spec.ts      # stage navigation
+mac% npx playwright test tests/e2e/chat.spec.ts           # realtime chat
+mac% npx playwright test tests/e2e/investment.spec.ts     # investment + realtime
+mac% npx playwright test tests/e2e/videoCall.spec.ts      # video call lifecycle
+mac% npx playwright test tests/e2e/videoVisibility.spec.ts # multi-role video
+```
+
+The video tests (`videoCall`, `videoVisibility`) additionally require LiveKit to be running.
+
+### Shut down test infrastructure
+
+```
+mac% ./scripts/test-infra-stop.sh          # stop services, keep data
+mac% ./scripts/test-infra-stop.sh --clean  # stop services, wipe data
+```
+
 ## License
 
 Copyright © 2026 Rich Bodo. All rights reserved.

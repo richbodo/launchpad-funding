@@ -60,7 +60,7 @@ export default function FundingMeter({ totalFunded, currentStartup, startupFunde
               style={{ background: THERMO_SEGMENTS[0].color }}
             />
             {/* Segments */}
-            <div className="flex-1 h-4 flex overflow-hidden rounded-r-full -ml-1">
+            <div className="flex-1 h-4 flex overflow-hidden rounded-r-full -ml-1" data-testid="funding-meter-bar">
               {THERMO_SEGMENTS.map((seg, i) => {
                 const segStart = (i / THERMO_SEGMENTS.length) * 100;
                 const segEnd = ((i + 1) / THERMO_SEGMENTS.length) * 100;
