@@ -27,7 +27,7 @@ interface UseSessionStagesReturn {
   activeStartupIndex: number | undefined;
 }
 
-function buildStages(startups: Startup[]): Stage[] {
+export function buildStages(startups: Startup[]): Stage[] {
   const stages: Stage[] = [];
 
   stages.push({
