@@ -13,12 +13,14 @@
 #   - Supabase and LiveKit running (via ./scripts/test-infra.sh)
 #   - lk CLI installed (brew install livekit-cli)
 #   - Vite dev server running (npx vite --mode test --port 8080)
-#   - ffmpeg (optional, for labeled video streams; falls back to --publish-demo)
+#   - ffmpeg (optional, for distinct video streams; falls back to --publish-demo)
 #
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+VIDEO_DIR="$PROJECT_DIR/test-results/demo-videos"
+LOG_DIR="$PROJECT_DIR/test-results/demo-logs"
 
 info()  { echo "==> $*"; }
 die()   { echo "ERROR: $*" >&2; exit 1; }
@@ -38,15 +40,14 @@ SESSION_ID="00000000-0000-0000-0000-000000000001"
 ROOM_NAME="session-${SESSION_ID}"
 
 # ---------- Participants to inject ----------
-# identity|display_name|filter|port
-# Each gets a distinct ffmpeg test source streamed via TCP to lk
+# identity|display_name|ffmpeg_filter
 SYNTHETIC_PARTICIPANTS=(
-  "facilitator-b@test.com|Co-Facilitator|smptebars=size=640x480:rate=30|5551"
-  "startup-a@test.com|AlphaTech|testsrc=size=640x480:rate=30|5552"
-  "startup-b@test.com|BetaCorp|mandelbrot=size=640x480:rate=30|5553"
+  "facilitator-b@test.com|Co-Facilitator|smptebars=size=320x240:rate=15"
+  "startup-a@test.com|AlphaTech|testsrc=size=320x240:rate=15"
+  "startup-b@test.com|BetaCorp|mandelbrot=size=320x240:rate=15"
 )
 
-# ---------- Check for ffmpeg ----------
+# ---------- Generate video fixtures (if ffmpeg available) ----------
 HAS_FFMPEG=false
 if command -v ffmpeg >/dev/null 2>&1; then
   HAS_FFMPEG=true
@@ -54,6 +55,30 @@ else
   info "ffmpeg not found -- will use generic --publish-demo streams (all look the same)."
   info "Install ffmpeg for distinct per-participant videos: brew install ffmpeg"
 fi
+
+VIDEO_DURATION=300  # 5 minutes — long enough for any demo session
+
+if $HAS_FFMPEG; then
+  mkdir -p "$VIDEO_DIR"
+  for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
+    IFS='|' read -r ident name filter <<< "$entry"
+    safe_name="${ident%%@*}"
+    outfile="$VIDEO_DIR/${safe_name}.ivf"
+    if [ -f "$outfile" ]; then
+      info "Video fixture for $name already exists, skipping."
+      continue
+    fi
+    info "Generating video fixture for $name (~5s)..."
+    ffmpeg -y -f lavfi -i "$filter" \
+      -t "$VIDEO_DURATION" -c:v libvpx -b:v 500k "$outfile" \
+      -loglevel error
+  done
+  info "Video fixtures ready."
+fi
+
+# ---------- Prepare log directory ----------
+mkdir -p "$LOG_DIR"
+rm -f "$LOG_DIR"/*.log
 
 # ---------- Reset test session ----------
 info "Resetting test session to 'scheduled' status..."
@@ -86,58 +111,36 @@ if [ "$ROOM_EXISTS" = "0" ]; then
   echo "         Attempting to inject participants anyway..."
 fi
 
-# ---------- Log directory ----------
-LOG_DIR="$PROJECT_DIR/test-results/demo-logs"
-mkdir -p "$LOG_DIR"
-rm -f "$LOG_DIR"/*.log  # clear previous run
-
-# ---------- Wait for TCP listener ----------
-wait_for_port() {
-  local port="$1" max_wait="${2:-5}"
-  for i in $(seq 1 "$max_wait"); do
-    # Check if something is listening on the port
-    if lsof -ti :"$port" > /dev/null 2>&1; then
-      return 0
-    fi
-    sleep 1
-  done
-  echo "WARNING: port $port not ready after ${max_wait}s" >&2
-  return 1
-}
-
 # ---------- Inject synthetic participants ----------
 PIDS=()
 
-for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
-  IFS='|' read -r ident name filter port <<< "$entry"
-  safe_name="${ident%%@*}"
-
-  info "Injecting $ident ($name)..."
-
-  if $HAS_FFMPEG; then
-    # Stream an endless test pattern from ffmpeg → TCP → lk
-    ffmpeg -re -f lavfi -i "$filter" \
-      -c:v vp8 -b:v 1M -f ivf \
-      "tcp://127.0.0.1:${port}?listen=1" \
-      -loglevel info \
-      > "$LOG_DIR/ffmpeg-${safe_name}.log" 2>&1 &
-    PIDS+=($!)
-
-    # Wait until ffmpeg is actually listening before connecting lk
-    if ! wait_for_port "$port" 5; then
-      echo "    ffmpeg failed to start for $name — check $LOG_DIR/ffmpeg-${safe_name}.log"
-      continue
-    fi
-
+# publish_loop: re-publishes the video file when it ends, keeping the
+# participant in the room indefinitely.
+publish_loop() {
+  local ident="$1" video_file="$2" logfile="$3"
+  while true; do
     lk room join \
       --url "$LK_URL" \
       --api-key "$LK_API_KEY" --api-secret "$LK_API_SECRET" \
       --identity "$ident" \
-      --publish "vp8://127.0.0.1:${port}" \
-      "$ROOM_NAME" \
-      > "$LOG_DIR/lk-${safe_name}.log" 2>&1 &
+      --publish "$video_file" --fps 15 \
+      --exit-after-publish \
+      "$ROOM_NAME" >> "$logfile" 2>&1
+    # Brief pause before re-joining (avoids tight loop on error)
+    sleep 1
+  done
+}
+
+for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
+  IFS='|' read -r ident name filter <<< "$entry"
+  safe_name="${ident%%@*}"
+  logfile="$LOG_DIR/lk-${safe_name}.log"
+
+  info "Injecting $ident ($name)..."
+
+  if $HAS_FFMPEG && [ -f "$VIDEO_DIR/${safe_name}.ivf" ]; then
+    publish_loop "$ident" "$VIDEO_DIR/${safe_name}.ivf" "$logfile" &
     PIDS+=($!)
-    sleep 1  # brief gap between participants
   else
     lk room join \
       --url "$LK_URL" \
@@ -145,48 +148,29 @@ for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
       --identity "$ident" \
       --publish-demo \
       "$ROOM_NAME" \
-      > "$LOG_DIR/lk-${safe_name}.log" 2>&1 &
+      > "$logfile" 2>&1 &
     PIDS+=($!)
-    sleep 1
   fi
+  sleep 2
 done
 
 # ---------- Verify participants joined ----------
-sleep 2
+sleep 3
 info "Checking participant status..."
-FAILED=false
 for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
-  IFS='|' read -r ident name filter port <<< "$entry"
+  IFS='|' read -r ident name filter <<< "$entry"
   safe_name="${ident%%@*}"
-  LK_LOG="$LOG_DIR/lk-${safe_name}.log"
-  FF_LOG="$LOG_DIR/ffmpeg-${safe_name}.log"
+  logfile="$LOG_DIR/lk-${safe_name}.log"
 
-  if $HAS_FFMPEG; then
-    # Check if ffmpeg is still alive
-    FF_PID=$(lsof -ti :"$port" 2>/dev/null | head -1)
-    if [ -z "$FF_PID" ]; then
-      echo "    FAIL: ffmpeg for $name died. Last lines:"
-      tail -3 "$FF_LOG" 2>/dev/null | sed 's/^/          /'
-      FAILED=true
-    fi
-  fi
-
-  # Check if lk published a track
-  if grep -q "published track" "$LK_LOG" 2>/dev/null; then
-    echo "    OK:   $name — track published"
-  elif grep -q "error" "$LK_LOG" 2>/dev/null; then
-    echo "    FAIL: $name — lk error. Last lines:"
-    grep -i error "$LK_LOG" | tail -3 | sed 's/^/          /'
-    FAILED=true
+  if grep -q "published track" "$logfile" 2>/dev/null; then
+    echo "    OK:   $name -- track published"
+  elif grep -qi "error" "$logfile" 2>/dev/null; then
+    echo "    FAIL: $name -- check $logfile"
+    grep -i error "$logfile" | tail -2 | sed 's/^/          /'
   else
-    echo "    WAIT: $name — still connecting (check log: $LK_LOG)"
+    echo "    WAIT: $name -- still connecting (check $logfile)"
   fi
 done
-
-if $FAILED; then
-  echo ""
-  echo "    Logs are in: $LOG_DIR/"
-fi
 
 echo ""
 info "Demo call is live!"
