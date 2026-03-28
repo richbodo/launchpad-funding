@@ -175,7 +175,7 @@ export default function SessionPage() {
     }
   }, [session?.status, callState, reset]);
 
-  const currentStartup = startups[activeStartupIndex ?? 0];
+  const currentStartup = activeStartupIndex !== undefined ? startups[activeStartupIndex] : undefined;
   const currentStartupName = currentStartup?.display_name || currentStartup?.email || 'Startup';
 
   const handleLogout = async () => {
@@ -235,11 +235,11 @@ export default function SessionPage() {
         <div className="flex-1 flex flex-col p-3 min-w-0">
           <div className="flex-1 rounded-lg overflow-hidden" data-testid="main-video-pane">
             <VideoPane
-              label={currentStartupName}
-              sublabel="Startup Presentation"
-              isActive={true}
-              participantIdentity={isConnected ? currentStartup?.email : undefined}
-              callState={callState}
+              label={currentStartup ? currentStartupName : (currentStage?.label || 'No Presentation')}
+              sublabel={currentStartup ? 'Startup Presentation' : undefined}
+              isActive={!!currentStartup}
+              participantIdentity={isConnected && currentStartup ? currentStartup.email : undefined}
+              callState={currentStartup ? callState : 'idle'}
               isSelf={user.role === 'startup' && currentStartup?.email === user.email}
               selfRole={user.role === 'startup' ? 'startup' : undefined}
               sessionStatus={session?.status}

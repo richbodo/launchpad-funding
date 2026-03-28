@@ -16,10 +16,11 @@ VALUES (
   'America/New_York'
 );
 
--- Facilitator
+-- Facilitators
 INSERT INTO session_participants (session_id, email, display_name, role, password_hash, presentation_order)
 VALUES
-  ('00000000-0000-0000-0000-000000000001', 'facilitator@test.com', 'Test Facilitator', 'facilitator', 'test123', NULL);
+  ('00000000-0000-0000-0000-000000000001', 'facilitator@test.com', 'Test Facilitator', 'facilitator', 'test123', NULL),
+  ('00000000-0000-0000-0000-000000000001', 'facilitator-b@test.com', 'Co-Facilitator', 'facilitator', 'test123', NULL);
 
 -- Startups (in presentation order)
 INSERT INTO session_participants (session_id, email, display_name, role, presentation_order, website_link)

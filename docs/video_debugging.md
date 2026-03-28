@@ -8,13 +8,22 @@ The fastest way to verify the video stack works:
 mac% ./scripts/demo-call.sh
 ```
 
-This opens your browser, you log in as the facilitator with your **real camera**,
-click "Start Call", then press ENTER back in the terminal. The script injects
-synthetic video participants (AlphaTech and BetaCorp startups) via the LiveKit
-CLI. You'll see your camera in the left pane and synthetic startup video in
-the center pane. Use Next/Previous to switch between startups.
+This auto-logs you in as the facilitator (demo mode bypasses password).
+Click "Start Call", allow camera+mic, then press ENTER in the terminal.
+The script injects three synthetic video participants via the `lk` CLI:
+
+- **Co-Facilitator** — SMPTE color bars (left pane)
+- **AlphaTech** — numbered test pattern (center pane)
+- **BetaCorp** — Mandelbrot fractal (center pane)
+
+Use Next/Previous to switch between startups — each has a visually distinct
+stream so you can confirm the center pane is switching correctly.
 
 Requires: Supabase, LiveKit, and Vite dev server running (via `test-infra.sh`).
+Optional: ffmpeg for distinct per-participant video streams (falls back to
+generic LiveKit demo streams without it).
+
+Logs from each synthetic participant are saved in `test-results/demo-logs/`.
 
 ---
 

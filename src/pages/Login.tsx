@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser, UserRole } from '@/lib/sessionContext';
 import { useDemoMode } from '@/hooks/useDemoMode';
@@ -22,6 +22,7 @@ type Step = 'login' | 'facilitator-password';
 
 export default function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setUser } = useSessionUser();
   const { isDemoMode } = useDemoMode();
   const [email, setEmail] = useState('');
@@ -33,6 +34,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<Step>('login');
   const [pendingParticipant, setPendingParticipant] = useState<any>(null);
+  const autoLoginAttempted = useRef(false);
 
   const handleRandomize = async (targetRole: UserRole) => {
     if (!selectedSession) return;
@@ -126,6 +128,50 @@ export default function Login() {
     };
     fetchSessions();
   }, []);
+
+  // Auto-login via URL params in demo mode: ?autoLogin=true&role=facilitator[&email=x]
+  useEffect(() => {
+    if (autoLoginAttempted.current) return;
+    if (!isDemoMode || !selectedSession) return;
+    const autoLogin = searchParams.get('autoLogin');
+    const autoRole = searchParams.get('role') as UserRole | null;
+    if (autoLogin !== 'true' || !autoRole) return;
+    autoLoginAttempted.current = true;
+
+    const doAutoLogin = async () => {
+      const autoEmail = searchParams.get('email');
+      let participant: any;
+
+      if (autoEmail) {
+        const { data } = await supabase
+          .from('session_participants')
+          .select('*')
+          .eq('session_id', selectedSession)
+          .eq('email', autoEmail.toLowerCase())
+          .eq('role', autoRole)
+          .maybeSingle();
+        participant = data;
+      } else {
+        const { data: available } = await supabase
+          .from('session_participants')
+          .select('*')
+          .eq('session_id', selectedSession)
+          .eq('role', autoRole)
+          .eq('is_logged_in', false);
+        if (available && available.length > 0) {
+          participant = available[Math.floor(Math.random() * available.length)];
+        }
+      }
+
+      if (!participant) {
+        toast.error(`Auto-login: no available ${autoRole} found`);
+        return;
+      }
+
+      await completeLoginWith(participant, autoRole);
+    };
+    doAutoLogin();
+  }, [isDemoMode, selectedSession, searchParams]);
 
   const handleEmailSubmitWithRole = async (selectedRole: UserRole) => {
     if (!email || !selectedSession) {
