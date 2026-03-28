@@ -2,10 +2,9 @@
 #
 # Launches a live demo call for manual testing.
 #
-# Opens your browser so you can log in as the facilitator with your real
-# camera. Once you start the call, this script injects synthetic video
-# participants (a startup and an investor) via the LiveKit CLI so you
-# see a multi-person call.
+# Opens your browser and auto-logs you in as the facilitator (demo mode
+# bypasses password). Injects a second facilitator and two startups as
+# synthetic video participants, each with a visually distinct stream.
 #
 # Usage:
 #   mac% ./scripts/demo-call.sh
@@ -14,11 +13,13 @@
 #   - Supabase and LiveKit running (via ./scripts/test-infra.sh)
 #   - lk CLI installed (brew install livekit-cli)
 #   - Vite dev server running (npx vite --mode test --port 8080)
+#   - ffmpeg (optional, for labeled video streams; falls back to --publish-demo)
 #
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+FIXTURES_DIR="$PROJECT_DIR/test-results/demo-videos"
 
 info()  { echo "==> $*"; }
 die()   { echo "ERROR: $*" >&2; exit 1; }
@@ -37,6 +38,44 @@ LK_URL="ws://localhost:7880"
 SESSION_ID="00000000-0000-0000-0000-000000000001"
 ROOM_NAME="session-${SESSION_ID}"
 
+# ---------- Participants to inject ----------
+# identity:display_name:color (color used for labeled video generation)
+SYNTHETIC_PARTICIPANTS=(
+  "facilitator-b@test.com:Co-Facilitator:0x2563EB"
+  "startup-a@test.com:AlphaTech:0xDC2626"
+  "startup-b@test.com:BetaCorp:0x059669"
+)
+
+# ---------- Generate labeled video files (if ffmpeg available) ----------
+HAS_FFMPEG=false
+if command -v ffmpeg >/dev/null 2>&1; then
+  HAS_FFMPEG=true
+fi
+
+generate_video() {
+  local name="$1" color="$2" outfile="$3"
+  if [ -f "$outfile" ]; then return; fi
+  mkdir -p "$(dirname "$outfile")"
+  # 10-second looping video with participant name, distinct background color
+  ffmpeg -y -f lavfi \
+    -i "color=c=${color}:size=640x480:rate=30,drawtext=text='${name}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:borderw=2:bordercolor=black" \
+    -t 10 -c:v libvpx -b:v 1M "$outfile" \
+    -loglevel error
+}
+
+if $HAS_FFMPEG; then
+  info "Generating labeled video fixtures..."
+  for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
+    IFS=: read -r ident name color <<< "$entry"
+    safe_name="${ident%%@*}"
+    generate_video "$name" "$color" "$FIXTURES_DIR/${safe_name}.ivf"
+  done
+  info "Video fixtures ready in $FIXTURES_DIR"
+else
+  info "ffmpeg not found -- will use generic --publish-demo streams."
+  info "Install ffmpeg for labeled per-participant videos: brew install ffmpeg"
+fi
+
 # ---------- Reset test session ----------
 info "Resetting test session to 'scheduled' status..."
 psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -qc \
@@ -46,17 +85,16 @@ psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -qc \
 psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -qc \
   "UPDATE session_participants SET is_logged_in = false WHERE session_id = '$SESSION_ID';" 2>/dev/null
 
-# ---------- Open browser ----------
-info "Opening browser to login page..."
-open "http://localhost:8080/login"
+# ---------- Open browser with auto-login ----------
+info "Opening browser (auto-login as facilitator)..."
+open "http://localhost:8080/login?autoLogin=true&email=facilitator@test.com&role=facilitator"
 
 echo ""
-echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  1. Log in as: facilitator@test.com / test123              ║"
-echo "║  2. Click 'Start Call'                                     ║"
-echo "║  3. Allow camera + microphone when prompted                ║"
-echo "║  4. Come back here and press ENTER                         ║"
-echo "╚══════════════════════════════════════════════════════════════╝"
+echo "============================================================"
+echo "  Browser opened -- you will be auto-logged in as the"
+echo "  facilitator. Click 'Start Call' and allow camera+mic,"
+echo "  then press ENTER here to inject the other participants."
+echo "============================================================"
 echo ""
 read -r -p "Press ENTER after you've started the call..."
 
@@ -70,35 +108,44 @@ if [ "$ROOM_EXISTS" = "0" ]; then
 fi
 
 # ---------- Inject synthetic participants ----------
-info "Injecting startup-a@test.com (AlphaTech) with demo video..."
-lk room join \
-  --url "$LK_URL" \
-  --api-key "$LK_API_KEY" --api-secret "$LK_API_SECRET" \
-  --identity "startup-a@test.com" \
-  --publish-demo \
-  "$ROOM_NAME" > /dev/null 2>&1 &
-STARTUP_PID=$!
+PIDS=()
 
-sleep 1
+for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
+  IFS=: read -r ident name color <<< "$entry"
+  safe_name="${ident%%@*}"
+  video_file="$FIXTURES_DIR/${safe_name}.ivf"
 
-info "Injecting startup-b@test.com (BetaCorp) with demo video..."
-lk room join \
-  --url "$LK_URL" \
-  --api-key "$LK_API_KEY" --api-secret "$LK_API_SECRET" \
-  --identity "startup-b@test.com" \
-  --publish-demo \
-  "$ROOM_NAME" > /dev/null 2>&1 &
-BETACORP_PID=$!
+  info "Injecting $ident ($name)..."
+
+  if $HAS_FFMPEG && [ -f "$video_file" ]; then
+    lk room join \
+      --url "$LK_URL" \
+      --api-key "$LK_API_KEY" --api-secret "$LK_API_SECRET" \
+      --identity "$ident" \
+      --publish "$video_file" --fps 30 \
+      "$ROOM_NAME" > /dev/null 2>&1 &
+  else
+    lk room join \
+      --url "$LK_URL" \
+      --api-key "$LK_API_KEY" --api-secret "$LK_API_SECRET" \
+      --identity "$ident" \
+      --publish-demo \
+      "$ROOM_NAME" > /dev/null 2>&1 &
+  fi
+  PIDS+=($!)
+  sleep 1
+done
 
 echo ""
 info "Demo call is live!"
 echo ""
-echo "    Your camera: facilitator (left pane)"
-echo "    Synthetic:   AlphaTech startup (center pane when on their stage)"
-echo "    Synthetic:   BetaCorp startup (center pane when on their stage)"
+echo "    Your camera:  facilitator@test.com (left pane)"
+echo "    Synthetic:    Co-Facilitator (left pane, blue label)"
+echo "    Synthetic:    AlphaTech startup (center pane, red label)"
+echo "    Synthetic:    BetaCorp startup (center pane, green label)"
 echo ""
 echo "    Use Next/Previous to switch between startup presentations."
-echo "    The center pane will show each startup's synthetic video."
+echo "    Each startup has a visually distinct video stream."
 echo ""
 echo "    Press ENTER to end the demo and clean up."
 echo ""
@@ -106,7 +153,11 @@ read -r -p "Press ENTER to stop synthetic participants..."
 
 # ---------- Cleanup ----------
 info "Stopping synthetic participants..."
-kill $STARTUP_PID $BETACORP_PID 2>/dev/null || true
-wait $STARTUP_PID $BETACORP_PID 2>/dev/null || true
+for pid in "${PIDS[@]}"; do
+  kill "$pid" 2>/dev/null || true
+done
+for pid in "${PIDS[@]}"; do
+  wait "$pid" 2>/dev/null || true
+done
 
-info "Demo ended. The browser session is still active — click 'End Call' to finish."
+info "Demo ended. The browser session is still active -- click 'End Call' to finish."
