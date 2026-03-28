@@ -28,7 +28,7 @@ cd "$PROJECT_DIR"
 
 # ---------- 1. Supabase ----------
 info "Checking Supabase..."
-if curl -sf http://127.0.0.1:54321 > /dev/null 2>&1; then
+if curl -so /dev/null -w '%{http_code}' http://127.0.0.1:54321 2>/dev/null | grep -q '[2-4]'; then
   warn
 else
   info "Starting local Supabase..."
@@ -73,11 +73,20 @@ else
   LK_API_SECRET=$(grep -o 'API Secret: [^ ]*' /tmp/livekit-dev.log 2>/dev/null | head -1 | awk '{print $NF}' || echo "secret")
 fi
 
-# ---------- 3. Edge Functions with LiveKit secrets ----------
-# `supabase start` runs Edge Functions but doesn't load .env.local.
-# We need to run `supabase functions serve` separately so the livekit-token
-# function can read LIVEKIT_API_KEY, LIVEKIT_API_SECRET, and LIVEKIT_WS_URL.
-info "Checking Edge Functions with LiveKit secrets..."
+# ---------- 3. Write supabase/.env.local ----------
+# supabase start loads .env.local into the edge-runtime container automatically.
+# This must be written BEFORE `supabase start` for the env vars to take effect.
+# If Supabase was already running, the env vars are already loaded from the
+# previous start. If the secrets are wrong, run: supabase stop && ./scripts/test-infra.sh
+info "Writing supabase/.env.local..."
+cat > "$PROJECT_DIR/supabase/.env.local" <<ENVEOF
+LIVEKIT_API_KEY=$LK_API_KEY
+LIVEKIT_API_SECRET=$LK_API_SECRET
+LIVEKIT_WS_URL=ws://localhost:7880
+ENVEOF
+
+# Verify livekit-token Edge Function returns a valid token
+info "Verifying livekit-token Edge Function..."
 EDGE_FN_OK=$(curl -sf http://127.0.0.1:54321/functions/v1/livekit-token \
   -X POST \
   -H "Content-Type: application/json" \
@@ -85,24 +94,11 @@ EDGE_FN_OK=$(curl -sf http://127.0.0.1:54321/functions/v1/livekit-token \
   -H "Authorization: Bearer ${PUB_KEY:-none}" \
   -d '{"session_id":"00000000-0000-0000-0000-000000000001","identity":"test","role":"facilitator"}' 2>/dev/null | grep -c '"token"' || echo "0")
 
-if [ "$EDGE_FN_OK" = "0" ]; then
-  info "Starting Edge Functions with LiveKit env vars..."
-  # Kill existing functions serve if running
-  lsof -ti :54322 2>/dev/null | xargs kill 2>/dev/null || true
-
-  # Write .env.local first (needed by functions serve)
-  cat > "$PROJECT_DIR/supabase/.env.local" <<ENVEOF
-LIVEKIT_API_KEY=$LK_API_KEY
-LIVEKIT_API_SECRET=$LK_API_SECRET
-LIVEKIT_WS_URL=ws://localhost:7880
-ENVEOF
-
-  supabase functions serve --env-file "$PROJECT_DIR/supabase/.env.local" > /tmp/supabase-functions.log 2>&1 &
-  FUNCTIONS_PID=$!
-  info "Edge Functions serving with LiveKit secrets (pid $FUNCTIONS_PID)"
-  sleep 3
+if [ "$EDGE_FN_OK" = "1" ]; then
+  info "livekit-token Edge Function is working."
 else
-  info "Edge Functions already have LiveKit config."
+  echo "WARNING: livekit-token returned an error. If LiveKit secrets changed,"
+  echo "         run: supabase stop && ./scripts/test-infra.sh"
 fi
 
 # ---------- 4. Write .env.test ----------

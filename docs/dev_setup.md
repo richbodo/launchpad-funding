@@ -295,6 +295,35 @@ Open http://localhost:8080 and verify:
 
 ---
 
+## 9. Live video demo
+
+Once everything is running, the best way to verify your full setup and
+get a feel for the state of the app is the live demo call. This is also
+a useful integration test — if this works, all your infrastructure
+(Colima, Supabase, LiveKit, Edge Functions, Vite) is correctly wired up.
+
+```
+mac% ./scripts/demo-call.sh
+```
+
+This script:
+1. Resets the test session to a clean state
+2. Opens your browser to the login page
+3. You log in as the facilitator with your **real camera and microphone**
+4. You click "Start Call" and press ENTER back in the terminal
+5. The script injects synthetic video participants (AlphaTech and BetaCorp
+   startups) into the LiveKit room via the `lk` CLI
+6. You see a live multi-person call: your camera in the left pane, synthetic
+   startup video in the center pane
+
+Use the **Next/Previous** buttons to switch between startup presentations
+and see each synthetic stream. Press ENTER in the terminal when you're done
+to clean up.
+
+This script will be extended over time with additional demo scenarios.
+
+---
+
 ## Automated setup (alternative to steps 4-7)
 
 The script `scripts/test-infra.sh` automates steps 4 through 7. It starts

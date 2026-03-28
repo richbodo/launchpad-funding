@@ -12,16 +12,6 @@ CLEAN_FLAG="${1:-}"
 
 info()  { echo "==> $*"; }
 
-# ---------- Stop Edge Functions serve ----------
-FUNC_PIDS=$(pgrep -f "supabase functions serve" 2>/dev/null || true)
-if [ -n "$FUNC_PIDS" ]; then
-  info "Stopping supabase functions serve..."
-  echo "$FUNC_PIDS" | xargs kill 2>/dev/null || true
-  echo "    Edge Functions stopped."
-else
-  info "supabase functions serve not running."
-fi
-
 # ---------- Stop LiveKit ----------
 if lsof -ti :7880 > /dev/null 2>&1; then
   info "Stopping LiveKit server..."
@@ -35,7 +25,7 @@ else
 fi
 
 # ---------- Stop Supabase ----------
-if curl -sf http://127.0.0.1:54321 > /dev/null 2>&1; then
+if curl -so /dev/null -w '%{http_code}' http://127.0.0.1:54321 2>/dev/null | grep -q '[2-4]'; then
   if [ "$CLEAN_FLAG" = "--clean" ]; then
     info "Stopping Supabase and wiping all data..."
     supabase stop --no-backup
