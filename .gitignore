@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Test environment (contains local service credentials)
+.env.test
+
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
