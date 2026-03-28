@@ -86,6 +86,11 @@ export default function DemoLogins() {
           </Button>
         </div>
 
+        <h1 className="text-2xl font-bold mb-2">Shortcut</h1>
+        <p className="text-muted-foreground mb-6">
+          Hit the Randomize buttons on the home page - they log you into a user without email/pass
+        </p>
+
         <h1 className="text-2xl font-bold mb-2">Demo Login Credentials</h1>
         <p className="text-muted-foreground mb-6">
           Facilitators manage sessions and administer the application - start with one of those logins.  Startups and investors don't need passwords — just enter the email and select the role.

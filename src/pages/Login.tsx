@@ -55,7 +55,7 @@ export default function Login() {
       setEmail(pick.email);
       setRole(targetRole);
 
-      if (targetRole === 'facilitator') {
+      if (targetRole === 'facilitator' && !isDemoMode) {
         setPendingParticipant(pick);
         setStep('facilitator-password');
         setLoading(false);
@@ -154,8 +154,8 @@ export default function Login() {
         toast.info('Resuming your existing session...');
       }
 
-      // Facilitators need password on next step
-      if (selectedRole === 'facilitator') {
+      // Facilitators need password on next step (skip in demo mode)
+      if (selectedRole === 'facilitator' && !isDemoMode) {
         setPendingParticipant(participant);
         setStep('facilitator-password');
         setLoading(false);

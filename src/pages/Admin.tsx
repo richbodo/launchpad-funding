@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
+import { useDemoMode } from '@/hooks/useDemoMode';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -56,6 +57,7 @@ const DEFAULT_CONTACT_EMAIL = "noreply@pitch.globaldonut.com";
 export default function Admin() {
   const navigate = useNavigate();
   const { user: sessionUser } = useSessionUser();
+  const { isDemoMode: isDemoModeActive } = useDemoMode();
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
@@ -306,6 +308,24 @@ export default function Admin() {
       fetchSessions();
     }
   }, [sessionUser, isAuthenticated]);
+
+  // In demo mode, auto-login as the first available facilitator
+  useEffect(() => {
+    if (!isDemoModeActive || isAuthenticated) return;
+    const autoLogin = async () => {
+      const { data: facilitators } = await supabase
+        .from('session_participants')
+        .select('email')
+        .eq('role', 'facilitator')
+        .limit(1);
+      if (facilitators && facilitators.length > 0) {
+        setAdminEmail(facilitators[0].email);
+        setIsAuthenticated(true);
+        fetchSessions();
+      }
+    };
+    autoLogin();
+  }, [isDemoModeActive, isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated) {
