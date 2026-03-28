@@ -260,7 +260,7 @@ export default function Login() {
                     {activeSessions.length === 1 && (
                       <div className="text-center pb-2">
                         <p className="text-sm text-muted-foreground">Joining</p>
-                        <p className="font-semibold text-lg">{activeSessions[0].name}</p>
+                        <p className="font-semibold text-lg" data-testid="session-name">{activeSessions[0].name}</p>
                       </div>
                     )}
 
@@ -284,6 +284,7 @@ export default function Login() {
                         {roles.map(r => (
                           <div key={r.value} className="flex flex-col items-center">
                             <button
+                              data-testid={`role-btn-${r.value}`}
                               disabled={loading || !email}
                               onClick={() => { setRole(r.value); handleEmailSubmitWithRole(r.value); }}
                               className={`w-full flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center disabled:opacity-40 disabled:cursor-not-allowed ${
@@ -360,6 +361,7 @@ export default function Login() {
                     Back
                   </Button>
                   <Button
+                    data-testid="password-submit-btn"
                     onClick={handlePasswordSubmit}
                     disabled={loading || !password}
                     className="flex-1 bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"

@@ -77,6 +77,7 @@ export default function InvestDialog({ open, onOpenChange, sessionId, startupNam
                   <div className="relative mt-1.5">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
                     <Input
+                      data-testid="invest-amount-input"
                       id="amount"
                       type="number"
                       min="1"
@@ -89,6 +90,7 @@ export default function InvestDialog({ open, onOpenChange, sessionId, startupNam
                 </div>
 
                 <Button
+                  data-testid="invest-confirm-btn"
                   onClick={handleInvest}
                   disabled={!amount || submitting}
                   className="w-full bg-accent text-accent-foreground hover:bg-accent/90 h-11 text-base font-semibold"

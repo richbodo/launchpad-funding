@@ -30,7 +30,7 @@ export default function StageSelector({ stages, currentStageIndex, onSelectStage
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button data-testid="stage-dropdown" variant="outline" size="sm">
           <ListOrdered className="w-4 h-4 mr-1" />
           Select Stage
         </Button>

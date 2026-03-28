@@ -81,7 +81,7 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
       </div>
 
       <ScrollArea className="flex-1 px-4 py-2">
-        <div className="space-y-3">
+        <div className="space-y-3" data-testid="chat-message-list">
           {messages.map((msg) => (
             <div key={msg.id} className="group">
               <div className="flex items-baseline gap-2">
@@ -106,12 +106,13 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
             className="flex gap-2"
           >
             <Input
+              data-testid="chat-input"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Ask a question..."
               className="flex-1 bg-muted/50 border-border"
             />
-            <Button type="submit" size="icon" variant="default" className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0">
+            <Button data-testid="chat-send-btn" type="submit" size="icon" variant="default" className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0">
               <Send className="w-4 h-4" />
             </Button>
           </form>
