@@ -39,41 +39,40 @@ SESSION_ID="00000000-0000-0000-0000-000000000001"
 ROOM_NAME="session-${SESSION_ID}"
 
 # ---------- Participants to inject ----------
-# identity:display_name:color (color used for labeled video generation)
+# identity:display_name:filter (filter is the ffmpeg lavfi source for distinct visuals)
 SYNTHETIC_PARTICIPANTS=(
-  "facilitator-b@test.com:Co-Facilitator:0x2563EB"
-  "startup-a@test.com:AlphaTech:0xDC2626"
-  "startup-b@test.com:BetaCorp:0x059669"
+  "facilitator-b@test.com:Co-Facilitator:smptebars=size=640x480:rate=30"
+  "startup-a@test.com:AlphaTech:testsrc=size=640x480:rate=30"
+  "startup-b@test.com:BetaCorp:mandelbrot=size=640x480:rate=30"
 )
 
-# ---------- Generate labeled video files (if ffmpeg available) ----------
+# ---------- Generate distinct video files (if ffmpeg available) ----------
 HAS_FFMPEG=false
 if command -v ffmpeg >/dev/null 2>&1; then
   HAS_FFMPEG=true
 fi
 
 generate_video() {
-  local name="$1" color="$2" outfile="$3"
+  local filter="$1" outfile="$2"
   if [ -f "$outfile" ]; then return; fi
   mkdir -p "$(dirname "$outfile")"
-  # 10-second looping video with participant name, distinct background color
-  ffmpeg -y -f lavfi \
-    -i "color=c=${color}:size=640x480:rate=30,drawtext=text='${name}':fontsize=52:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2:borderw=2:bordercolor=black" \
+  # 10-second video with a visually distinct test pattern per participant
+  ffmpeg -y -f lavfi -i "$filter" \
     -t 10 -c:v libvpx -b:v 1M "$outfile" \
     -loglevel error
 }
 
 if $HAS_FFMPEG; then
-  info "Generating labeled video fixtures..."
+  info "Generating distinct video fixtures..."
   for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
-    IFS=: read -r ident name color <<< "$entry"
+    IFS=: read -r ident name filter <<< "$entry"
     safe_name="${ident%%@*}"
-    generate_video "$name" "$color" "$FIXTURES_DIR/${safe_name}.ivf"
+    generate_video "$filter" "$FIXTURES_DIR/${safe_name}.ivf"
   done
   info "Video fixtures ready in $FIXTURES_DIR"
 else
   info "ffmpeg not found -- will use generic --publish-demo streams."
-  info "Install ffmpeg for labeled per-participant videos: brew install ffmpeg"
+  info "Install ffmpeg for distinct per-participant videos: brew install ffmpeg"
 fi
 
 # ---------- Reset test session ----------
