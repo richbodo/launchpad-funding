@@ -60,20 +60,29 @@ VIDEO_DURATION=300  # 5 minutes — long enough for any demo session
 
 if $HAS_FFMPEG; then
   mkdir -p "$VIDEO_DIR"
+  NEEDS_GEN=false
   for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
     IFS='|' read -r ident name filter <<< "$entry"
     safe_name="${ident%%@*}"
-    outfile="$VIDEO_DIR/${safe_name}.ivf"
-    if [ -f "$outfile" ]; then
-      info "Video fixture for $name already exists, skipping."
-      continue
-    fi
-    info "Generating video fixture for $name (~5s)..."
-    ffmpeg -y -f lavfi -i "$filter" \
-      -t "$VIDEO_DURATION" -c:v libvpx -b:v 500k "$outfile" \
-      -loglevel error
+    [ -f "$VIDEO_DIR/${safe_name}.ivf" ] || NEEDS_GEN=true
   done
-  info "Video fixtures ready."
+
+  if $NEEDS_GEN; then
+    info "One-time video fixture generation (cached for future runs)..."
+    for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
+      IFS='|' read -r ident name filter <<< "$entry"
+      safe_name="${ident%%@*}"
+      outfile="$VIDEO_DIR/${safe_name}.ivf"
+      if [ -f "$outfile" ]; then
+        continue
+      fi
+      info "  Generating $name (~5s)..."
+      ffmpeg -y -f lavfi -i "$filter" \
+        -t "$VIDEO_DURATION" -c:v libvpx -b:v 500k "$outfile" \
+        -loglevel error
+    done
+    info "Video fixtures cached in test-results/demo-videos/"
+  fi
 fi
 
 # ---------- Prepare log directory ----------

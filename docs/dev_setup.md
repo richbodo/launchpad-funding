@@ -270,6 +270,7 @@ This creates a deterministic test session with known credentials:
 | Email | Role | Password |
 |---|---|---|
 | `facilitator@test.com` | facilitator | `test123` |
+| `facilitator-b@test.com` | facilitator | `test123` |
 | `startup-a@test.com` | startup | — |
 | `startup-b@test.com` | startup | — |
 | `investor-1@test.com` | investor | — |
@@ -302,25 +303,39 @@ get a feel for the state of the app is the live demo call. This is also
 a useful integration test — if this works, all your infrastructure
 (Colima, Supabase, LiveKit, Edge Functions, Vite) is correctly wired up.
 
+**Optional but recommended:** Install ffmpeg for visually distinct
+synthetic video streams per participant:
+
+```
+mac% brew install ffmpeg
+```
+
+Then run:
+
 ```
 mac% ./scripts/demo-call.sh
 ```
 
 This script:
-1. Resets the test session to a clean state
-2. Opens your browser to the login page
-3. You log in as the facilitator with your **real camera and microphone**
-4. You click "Start Call" and press ENTER back in the terminal
-5. The script injects synthetic video participants (AlphaTech and BetaCorp
-   startups) into the LiveKit room via the `lk` CLI
-6. You see a live multi-person call: your camera in the left pane, synthetic
-   startup video in the center pane
+1. Generates video fixture files on first run (cached for future runs,
+   requires ffmpeg; falls back to generic LiveKit demo streams without it)
+2. Resets the test session to a clean state
+3. Opens your browser and **auto-logs you in** as the facilitator (demo
+   mode bypasses password)
+4. You click "Start Call", allow camera+mic, and press ENTER in the terminal
+5. The script injects three synthetic video participants via the `lk` CLI:
+   - **Co-Facilitator** (left pane, SMPTE color bars)
+   - **AlphaTech** startup (center pane, numbered test pattern)
+   - **BetaCorp** startup (center pane, Mandelbrot fractal)
+6. You see a live multi-person call: your camera + co-facilitator in the
+   left pane, the active startup's video in the center pane
 
-Use the **Next/Previous** buttons to switch between startup presentations
-and see each synthetic stream. Press ENTER in the terminal when you're done
-to clean up.
+Use **Next/Previous** to switch between startup presentations and see each
+startup's distinct video stream change in the center pane. Press ENTER in
+the terminal when you're done to clean up.
 
-This script will be extended over time with additional demo scenarios.
+Logs from each synthetic participant are saved in
+`test-results/demo-logs/` for debugging.
 
 ---
 
