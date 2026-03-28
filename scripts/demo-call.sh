@@ -90,13 +90,29 @@ mkdir -p "$LOG_DIR"
 rm -f "$LOG_DIR"/*.log
 
 # ---------- Reset test session ----------
+PSQL="psql postgresql://postgres:postgres@127.0.0.1:54322/postgres -qc"
+
 info "Resetting test session to 'scheduled' status..."
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -qc \
-  "UPDATE sessions SET status = 'scheduled' WHERE id = '$SESSION_ID';" 2>/dev/null
+$PSQL "UPDATE sessions SET status = 'scheduled' WHERE id = '$SESSION_ID';" 2>/dev/null
 
 # Clear any stale login flags
-psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" -qc \
-  "UPDATE session_participants SET is_logged_in = false WHERE session_id = '$SESSION_ID';" 2>/dev/null
+$PSQL "UPDATE session_participants SET is_logged_in = false WHERE session_id = '$SESSION_ID';" 2>/dev/null
+
+# Ensure all synthetic participants exist in the DB (may be missing if
+# seed.sql was run before they were added)
+for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
+  IFS='|' read -r ident name filter <<< "$entry"
+  # Determine role from the identity email
+  case "$ident" in
+    facilitator*) p_role="facilitator" ;;
+    startup*)     p_role="startup" ;;
+    investor*)    p_role="investor" ;;
+    *)            p_role="investor" ;;
+  esac
+  $PSQL "INSERT INTO session_participants (session_id, email, display_name, role, password_hash)
+         VALUES ('$SESSION_ID', '$ident', '$name', '$p_role', CASE WHEN '$p_role' = 'facilitator' THEN 'test123' ELSE NULL END)
+         ON CONFLICT (session_id, email) DO NOTHING;" 2>/dev/null
+done
 
 # ---------- Open browser with auto-login ----------
 info "Opening browser (auto-login as facilitator)..."

@@ -160,13 +160,22 @@ describe('Session — facilitator view', () => {
     });
   });
 
-  it('center pane renders VideoPane for current startup', async () => {
+  it('center pane shows intro placeholder at stage 0, startup after advancing', async () => {
     renderSession();
+    // At stage 0 (Introduction), center pane shows the stage label, not a startup
     await waitFor(() => {
-      // AlphaTech appears in both center pane and funding meter "Now Presenting"
+      // "Introduction" appears in both SessionTimer and center pane
+      expect(screen.getAllByText('Introduction').length).toBeGreaterThanOrEqual(1);
+    });
+    expect(screen.queryByText('Startup Presentation')).not.toBeInTheDocument();
+
+    // Click Next to advance to the first startup's presentation
+    const nextBtn = screen.getByTestId('stage-next-btn');
+    nextBtn.click();
+
+    await waitFor(() => {
       expect(screen.getAllByText('AlphaTech').length).toBeGreaterThanOrEqual(1);
     });
-    // Verify the "Startup Presentation" sublabel in the center pane
     expect(screen.getByText('Startup Presentation')).toBeInTheDocument();
   });
 
