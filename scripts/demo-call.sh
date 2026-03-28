@@ -86,11 +86,31 @@ if [ "$ROOM_EXISTS" = "0" ]; then
   echo "         Attempting to inject participants anyway..."
 fi
 
+# ---------- Log directory ----------
+LOG_DIR="$PROJECT_DIR/test-results/demo-logs"
+mkdir -p "$LOG_DIR"
+rm -f "$LOG_DIR"/*.log  # clear previous run
+
+# ---------- Wait for TCP listener ----------
+wait_for_port() {
+  local port="$1" max_wait="${2:-5}"
+  for i in $(seq 1 "$max_wait"); do
+    # Check if something is listening on the port
+    if lsof -ti :"$port" > /dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "WARNING: port $port not ready after ${max_wait}s" >&2
+  return 1
+}
+
 # ---------- Inject synthetic participants ----------
 PIDS=()
 
 for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
   IFS='|' read -r ident name filter port <<< "$entry"
+  safe_name="${ident%%@*}"
 
   info "Injecting $ident ($name)..."
 
@@ -99,28 +119,74 @@ for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
     ffmpeg -re -f lavfi -i "$filter" \
       -c:v vp8 -b:v 1M -f ivf \
       "tcp://127.0.0.1:${port}?listen=1" \
-      -loglevel error > /dev/null 2>&1 &
+      -loglevel info \
+      > "$LOG_DIR/ffmpeg-${safe_name}.log" 2>&1 &
     PIDS+=($!)
-    sleep 1  # give ffmpeg time to start listening
+
+    # Wait until ffmpeg is actually listening before connecting lk
+    if ! wait_for_port "$port" 5; then
+      echo "    ffmpeg failed to start for $name — check $LOG_DIR/ffmpeg-${safe_name}.log"
+      continue
+    fi
 
     lk room join \
       --url "$LK_URL" \
       --api-key "$LK_API_KEY" --api-secret "$LK_API_SECRET" \
       --identity "$ident" \
       --publish "vp8://127.0.0.1:${port}" \
-      "$ROOM_NAME" > /dev/null 2>&1 &
+      "$ROOM_NAME" \
+      > "$LOG_DIR/lk-${safe_name}.log" 2>&1 &
     PIDS+=($!)
+    sleep 1  # brief gap between participants
   else
     lk room join \
       --url "$LK_URL" \
       --api-key "$LK_API_KEY" --api-secret "$LK_API_SECRET" \
       --identity "$ident" \
       --publish-demo \
-      "$ROOM_NAME" > /dev/null 2>&1 &
+      "$ROOM_NAME" \
+      > "$LOG_DIR/lk-${safe_name}.log" 2>&1 &
     PIDS+=($!)
+    sleep 1
   fi
-  sleep 1
 done
+
+# ---------- Verify participants joined ----------
+sleep 2
+info "Checking participant status..."
+FAILED=false
+for entry in "${SYNTHETIC_PARTICIPANTS[@]}"; do
+  IFS='|' read -r ident name filter port <<< "$entry"
+  safe_name="${ident%%@*}"
+  LK_LOG="$LOG_DIR/lk-${safe_name}.log"
+  FF_LOG="$LOG_DIR/ffmpeg-${safe_name}.log"
+
+  if $HAS_FFMPEG; then
+    # Check if ffmpeg is still alive
+    FF_PID=$(lsof -ti :"$port" 2>/dev/null | head -1)
+    if [ -z "$FF_PID" ]; then
+      echo "    FAIL: ffmpeg for $name died. Last lines:"
+      tail -3 "$FF_LOG" 2>/dev/null | sed 's/^/          /'
+      FAILED=true
+    fi
+  fi
+
+  # Check if lk published a track
+  if grep -q "published track" "$LK_LOG" 2>/dev/null; then
+    echo "    OK:   $name — track published"
+  elif grep -q "error" "$LK_LOG" 2>/dev/null; then
+    echo "    FAIL: $name — lk error. Last lines:"
+    grep -i error "$LK_LOG" | tail -3 | sed 's/^/          /'
+    FAILED=true
+  else
+    echo "    WAIT: $name — still connecting (check log: $LK_LOG)"
+  fi
+done
+
+if $FAILED; then
+  echo ""
+  echo "    Logs are in: $LOG_DIR/"
+fi
 
 echo ""
 info "Demo call is live!"
@@ -132,6 +198,8 @@ echo "    Synthetic:    BetaCorp startup (center pane, Mandelbrot fractal)"
 echo ""
 echo "    Use Next/Previous to switch between startup presentations."
 echo "    Each startup has a visually distinct video stream."
+echo ""
+echo "    Logs: $LOG_DIR/"
 echo ""
 echo "    Press ENTER to end the demo and clean up."
 echo ""
@@ -147,3 +215,4 @@ for pid in "${PIDS[@]}"; do
 done
 
 info "Demo ended. The browser session is still active -- click 'End Call' to finish."
+info "Logs saved in: $LOG_DIR/"
