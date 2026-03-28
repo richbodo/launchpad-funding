@@ -4,29 +4,26 @@ import { BrowserRouter } from 'react-router-dom';
 import { SessionProvider } from '@/lib/sessionContext';
 import Login from '../Login';
 
-const mockSelect = vi.fn();
-const mockUpdate = vi.fn();
-const mockInsert = vi.fn();
+const testSession = {
+  id: 'session-1',
+  name: 'Test Session',
+  start_time: new Date(Date.now() - 60000).toISOString(),
+  end_time: new Date(Date.now() + 3600000).toISOString(),
+};
 
-let sessionCallCount = 0;
+// Tracks the mock for participant lookup so individual tests can customize it
+let participantResult: any = { data: null, error: null };
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: vi.fn((table: string) => {
       if (table === 'sessions') {
-        sessionCallCount++;
-        const isFirstCall = sessionCallCount % 2 === 1;
         return {
           select: vi.fn().mockReturnValue({
-            lte: vi.fn().mockReturnValue({
-              gte: vi.fn().mockReturnValue({
-                eq: vi.fn().mockResolvedValue({
-                  data: isFirstCall ? [{
-                    id: 'session-1',
-                    name: 'Test Session',
-                    start_time: new Date(Date.now() - 60000).toISOString(),
-                    end_time: new Date(Date.now() + 3600000).toISOString(),
-                  }] : [],
+            eq: vi.fn().mockReturnValue({
+              order: vi.fn().mockReturnValue({
+                limit: vi.fn().mockResolvedValue({
+                  data: [testSession],
                 }),
               }),
             }),
@@ -34,12 +31,45 @@ vi.mock('@/integrations/supabase/client', () => ({
         };
       }
       if (table === 'session_participants') {
-        return { select: mockSelect, update: mockUpdate };
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              eq: vi.fn().mockReturnValue({
+                eq: vi.fn().mockReturnValue({
+                  maybeSingle: vi.fn().mockImplementation(() =>
+                    Promise.resolve(participantResult)
+                  ),
+                }),
+              }),
+            }),
+          }),
+          update: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ error: null }),
+          }),
+        };
       }
       if (table === 'session_logs') {
-        return { insert: mockInsert };
+        return {
+          insert: vi.fn().mockResolvedValue({ error: null }),
+        };
       }
-      return { select: vi.fn() };
+      if (table === 'app_settings') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockReturnValue({
+              single: vi.fn().mockResolvedValue({
+                data: { value: 'production' },
+                error: null,
+              }),
+            }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+        }),
+      };
     }),
   },
 }));
@@ -60,43 +90,23 @@ function renderLogin() {
   );
 }
 
-function setupFacilitatorMock(passwordHash: string) {
-  mockSelect.mockReturnValue({
-    eq: vi.fn().mockReturnValue({
-      eq: vi.fn().mockReturnValue({
-        eq: vi.fn().mockReturnValue({
-          maybeSingle: vi.fn().mockResolvedValue({
-            data: {
-              id: 'p-1',
-              email: 'admin@test.com',
-              role: 'facilitator',
-              display_name: 'Admin',
-              password_hash: passwordHash,
-              is_logged_in: false,
-            },
-            error: null,
-          }),
-        }),
-      }),
-    }),
-  });
+function setParticipantMock(participant: any) {
+  participantResult = { data: participant, error: null };
 }
 
 async function enterEmailAndClickRole(roleName: string) {
   renderLogin();
   await waitFor(() => expect(screen.getByText(roleName)).toBeInTheDocument());
-  fireEvent.change(screen.getByPlaceholderText('you@company.com'), { target: { value: 'admin@test.com' } });
+  fireEvent.change(screen.getByPlaceholderText('you@company.com'), {
+    target: { value: 'admin@test.com' },
+  });
   fireEvent.click(screen.getByText(roleName));
 }
 
 describe('Login Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    sessionCallCount = 0;
-    mockInsert.mockResolvedValue({ error: null });
-    mockUpdate.mockReturnValue({
-      eq: vi.fn().mockResolvedValue({ error: null }),
-    });
+    participantResult = { data: null, error: null };
   });
 
   it('renders role selection buttons with "Join session as..." label', async () => {
@@ -117,33 +127,75 @@ describe('Login Page', () => {
   });
 
   it('shows password step for facilitator role', async () => {
-    setupFacilitatorMock('secret123');
+    setParticipantMock({
+      id: 'p-1',
+      email: 'admin@test.com',
+      role: 'facilitator',
+      display_name: 'Admin',
+      password_hash: 'secret123',
+      is_logged_in: false,
+    });
     await enterEmailAndClickRole('Facilitator');
-    await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument()
+    );
   });
 
   it('rejects incorrect facilitator password', async () => {
-    setupFacilitatorMock('correct_password');
+    setParticipantMock({
+      id: 'p-1',
+      email: 'admin@test.com',
+      role: 'facilitator',
+      display_name: 'Admin',
+      password_hash: 'correct_password',
+      is_logged_in: false,
+    });
     await enterEmailAndClickRole('Facilitator');
-    await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
-    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'wrong' } });
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument()
+    );
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), {
+      target: { value: 'wrong' },
+    });
     fireEvent.click(screen.getByText('Continue'));
     await waitFor(() => expect(mockNavigate).not.toHaveBeenCalled());
   });
 
   it('accepts correct facilitator password and navigates to session', async () => {
-    setupFacilitatorMock('demo123');
+    setParticipantMock({
+      id: 'p-1',
+      email: 'admin@test.com',
+      role: 'facilitator',
+      display_name: 'Admin',
+      password_hash: 'demo123',
+      is_logged_in: false,
+    });
     await enterEmailAndClickRole('Facilitator');
-    await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
-    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: 'demo123' } });
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument()
+    );
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), {
+      target: { value: 'demo123' },
+    });
     fireEvent.click(screen.getByText('Continue'));
-    await waitFor(() => expect(mockNavigate).toHaveBeenCalledWith('/session/session-1'));
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith('/session/session-1')
+    );
   });
 
   it('toggles password visibility with eye icon', async () => {
-    setupFacilitatorMock('demo123');
+    setParticipantMock({
+      id: 'p-1',
+      email: 'admin@test.com',
+      role: 'facilitator',
+      display_name: 'Admin',
+      password_hash: 'demo123',
+      is_logged_in: false,
+    });
     await enterEmailAndClickRole('Facilitator');
-    await waitFor(() => expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument()
+    );
 
     const passwordInput = screen.getByPlaceholderText('Enter your password');
     expect(passwordInput).toHaveAttribute('type', 'password');
