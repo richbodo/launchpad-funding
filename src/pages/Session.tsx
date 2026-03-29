@@ -14,7 +14,7 @@ import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
 import { Button } from '@/components/ui/button';
-import { DollarSign, ExternalLink, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight } from 'lucide-react';
+import { DollarSign, ExternalLink, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 
 interface Startup {
@@ -39,6 +39,7 @@ export default function SessionPage() {
   const [investOpen, setInvestOpen] = useState(false);
   const [session, setSession] = useState<any>(null);
   const [callState, setCallState] = useState<CallState>('idle');
+  const [stageIdentity, setStageIdentity] = useState<string | null>(null);
 
   const {
     stages,
@@ -175,6 +176,13 @@ export default function SessionPage() {
     }
   }, [session?.status, callState, reset]);
 
+  // Clear facilitator from stage when a startup takes over
+  useEffect(() => {
+    if (currentStage?.type === 'presentation' || currentStage?.type === 'qa') {
+      setStageIdentity(null);
+    }
+  }, [currentStage?.type]);
+
   const currentStartup = activeStartupIndex !== undefined ? startups[activeStartupIndex] : undefined;
   const currentStartupName = currentStartup?.display_name || currentStartup?.email || 'Startup';
 
@@ -209,21 +217,41 @@ export default function SessionPage() {
         {/* Left pane: Facilitator video(s) — up to 3 */}
         <div className="md:w-72 lg:w-80 shrink-0 p-3 border-b md:border-b-0 md:border-r border-border flex flex-col gap-2">
           {facilitators.length > 0 ? (
-            facilitators.slice(0, 3).map((f) => (
-              <div key={f.email} className="flex-1 min-h-0" data-testid={`facilitator-pane-${f.email}`}>
-                <VideoPane
-                  label={f.display_name || f.email}
-                  sublabel="Host Stream"
-                  participantIdentity={isConnected ? f.email : undefined}
-                  callState={callState}
-                  isSelf={f.email === user.email}
-                  selfRole={f.email === user.email ? 'facilitator' : undefined}
-                  sessionStatus={session?.status}
-                  onStartCall={handleStartCall}
-                  onJoinCall={handleJoinCall}
-                />
-              </div>
-            ))
+            facilitators.slice(0, 3).map((f) => {
+              const isIntroOutro = currentStage?.type === 'intro' || currentStage?.type === 'outro';
+              const isOnStage = stageIdentity === f.email;
+
+              return (
+                <div key={f.email} className="flex-1 min-h-0 flex flex-col" data-testid={`facilitator-pane-${f.email}`}>
+                  <div className="flex-1 min-h-0">
+                    <VideoPane
+                      label={f.display_name || f.email}
+                      sublabel="Host Stream"
+                      participantIdentity={isConnected ? f.email : undefined}
+                      callState={callState}
+                      isSelf={f.email === user.email}
+                      selfRole={f.email === user.email ? 'facilitator' : undefined}
+                      sessionStatus={session?.status}
+                      onStartCall={handleStartCall}
+                      onJoinCall={handleJoinCall}
+                    />
+                  </div>
+                  {isFacilitator && isConnected && isIntroOutro && (
+                    <Button
+                      data-testid={`take-stage-btn-${f.email}`}
+                      variant={isOnStage ? 'secondary' : 'outline'}
+                      size="sm"
+                      className="mt-1 w-full"
+                      onClick={() => setStageIdentity(f.email)}
+                      disabled={isOnStage}
+                    >
+                      <Monitor className="w-4 h-4 mr-1" />
+                      {isOnStage ? 'On Stage' : 'Take Stage'}
+                    </Button>
+                  )}
+                </div>
+              );
+            })
           ) : (
             <div className="flex-1">
               <VideoPane label="Facilitator" sublabel="Host Stream" />
@@ -234,17 +262,49 @@ export default function SessionPage() {
         {/* Center pane: Startup presentation */}
         <div className="flex-1 flex flex-col p-3 min-w-0">
           <div className="flex-1 rounded-lg overflow-hidden" data-testid="main-video-pane">
-            <VideoPane
-              label={currentStartup ? currentStartupName : (currentStage?.label || 'No Presentation')}
-              sublabel={currentStartup ? 'Startup Presentation' : undefined}
-              isActive={!!currentStartup}
-              participantIdentity={isConnected && currentStartup ? currentStartup.email : undefined}
-              callState={currentStartup ? callState : 'idle'}
-              isSelf={user.role === 'startup' && currentStartup?.email === user.email}
-              selfRole={user.role === 'startup' ? 'startup' : undefined}
-              sessionStatus={session?.status}
-              onJoinCall={handleJoinCall}
-            />
+            {(() => {
+              // The stage (center pane): startup video during presentation/Q&A,
+              // facilitator video during intro/outro if someone has taken the stage.
+              const isStartupStage = activeStartupIndex !== undefined;
+              const stageFacilitator = !isStartupStage && stageIdentity
+                ? facilitators.find(f => f.email === stageIdentity)
+                : undefined;
+
+              if (isStartupStage && currentStartup) {
+                return (
+                  <VideoPane
+                    label={currentStartupName}
+                    sublabel="Startup Presentation"
+                    isActive
+                    participantIdentity={isConnected ? currentStartup.email : undefined}
+                    callState={callState}
+                    isSelf={user.role === 'startup' && currentStartup.email === user.email}
+                    selfRole={user.role === 'startup' ? 'startup' : undefined}
+                    sessionStatus={session?.status}
+                    onJoinCall={handleJoinCall}
+                  />
+                );
+              }
+
+              if (stageFacilitator) {
+                return (
+                  <VideoPane
+                    label={stageFacilitator.display_name || stageFacilitator.email}
+                    sublabel="On Stage"
+                    isActive
+                    participantIdentity={isConnected ? stageFacilitator.email : undefined}
+                    callState={isConnected ? callState : 'idle'}
+                  />
+                );
+              }
+
+              return (
+                <VideoPane
+                  label={currentStage?.label || 'No Presentation'}
+                  callState="idle"
+                />
+              );
+            })()}
           </div>
 
           {/* Facilitator controls */}
