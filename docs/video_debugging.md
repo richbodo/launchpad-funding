@@ -5,7 +5,7 @@
 The fastest way to verify the video stack works:
 
 ```
-mac% ./scripts/demo-call.sh
+mac% ./scripts/demo_call.py
 ```
 
 This auto-logs you in as the facilitator (demo mode bypasses password).

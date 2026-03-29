@@ -313,7 +313,7 @@ mac% brew install ffmpeg
 Then run:
 
 ```
-mac% ./scripts/demo-call.sh
+mac% ./scripts/demo_call.py
 ```
 
 This script:

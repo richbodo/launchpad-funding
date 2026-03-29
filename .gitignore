@@ -23,6 +23,12 @@ supabase/.temp/
 test-results/
 playwright-report/
 
+# Python
+__pycache__/
+
+# Claude Code memory
+memory/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
