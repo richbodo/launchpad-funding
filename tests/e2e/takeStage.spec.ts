@@ -4,8 +4,12 @@ import { loginAs } from './helpers/auth';
 test.describe('Take Stage — facilitator controls', () => {
   test.beforeEach(async ({ page }) => {
     await loginAs(page, { email: 'facilitator@test.com', role: 'facilitator', password: 'test123' });
-    // Wait for startups to load so stages are built
+    // Wait for stage label AND startups to load (stages rebuild when participant data arrives).
+    // The stage label shows "Introduction" immediately, but we need startups loaded so
+    // that clicking Next advances to a presentation stage rather than Outro.
     await expect(page.locator('[data-testid="stage-label"]')).toHaveText(/Introduction/, { timeout: 10_000 });
+    // Wait for the facilitator pane to confirm participants have loaded
+    await expect(page.locator('[data-testid^="facilitator-pane-"]')).toHaveCount(1, { timeout: 10_000 });
   });
 
   test('Take Stage button is NOT visible before call is started', async ({ page }) => {
