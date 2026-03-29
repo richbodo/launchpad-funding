@@ -63,6 +63,7 @@ supabase/
 - Sessions go through: `draft` → `scheduled` → `live` → `completed`
 - The `useSessionStages` hook builds stages dynamically from startup list: Intro → (Presentation + Q&A per startup) → Outro
 - Each stage has a countdown timer; facilitator controls playback
+- During intro/outro, facilitators can "Take Stage" to mirror their video to the center pane (the stage). State is local to `Session.tsx` via `stageIdentity`, auto-clears when advancing to a presentation/Q&A stage.
 
 ### Real-time Features
 - Chat messages: Supabase Realtime postgres_changes on `chat_messages` table

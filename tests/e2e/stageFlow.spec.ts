@@ -7,7 +7,10 @@ test.describe('stage flow — facilitator perspective', () => {
     // Wait for startups to load — stages rebuild when participant data arrives.
     // Without this, clicking Next before load can advance to "Outro" instead of
     // the first presentation stage, then reset back to "Introduction" when data loads.
-    await expect(page.locator('[data-testid="main-video-pane"]').locator('text=AlphaTech')).toBeVisible({ timeout: 10_000 });
+    // We check the stage label includes "Introduction" (always present) AND that the
+    // facilitator pane has loaded (confirms participant data has arrived).
+    await expect(page.locator('[data-testid="stage-label"]')).toHaveText(/Introduction/, { timeout: 10_000 });
+    await expect(page.locator('[data-testid^="facilitator-pane-"]')).toHaveCount(1, { timeout: 10_000 });
   });
 
   test('initial state: stage label shows "Stage 1 — Introduction"', async ({ page }) => {

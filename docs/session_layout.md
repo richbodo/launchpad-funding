@@ -1,8 +1,10 @@
 # Session Layout Behavior (Desktop)
 
 This document describes the three-pane session layout on desktop and how
-each pane behaves across the session lifecycle. Mobile layout is not
-covered here and will be addressed separately.
+each pane behaves across the session lifecycle. The center pane is
+referred to as **"the stage"** throughout this document and in the
+codebase. Mobile layout is not covered here and will be addressed
+separately.
 
 ---
 
@@ -21,9 +23,10 @@ covered here and will be addressed separately.
 - **Left pane** (fixed width ~280-320px): Facilitator video streams,
   stacked vertically. Up to 3 facilitators, each getting an equal share
   of the vertical space.
-- **Center pane** (flexible, fills remaining width): The main content
-  area. Shows the active startup's video during presentation/Q&A stages,
-  and is empty (placeholder) during intro/outro.
+- **Center pane / "the stage"** (flexible, fills remaining width): The
+  main content area. Shows the active startup's video during
+  presentation/Q&A stages. During intro/outro, a facilitator can "Take
+  Stage" to mirror their video here; otherwise shows a placeholder.
 - **Right pane** (fixed width ~320-384px): Live chat panel.
 
 ---
@@ -34,13 +37,13 @@ A session progresses through these stages in order:
 
 | # | Stage | Type | Duration | Center pane shows |
 |---|-------|------|----------|-------------------|
-| 1 | Introduction | `intro` | 5 min | Placeholder (no startup presenting) |
+| 1 | Introduction | `intro` | 5 min | Facilitator video (if taken stage) or placeholder |
 | 2 | Startup A Presentation | `presentation` | 5 min | Startup A video |
 | 3 | Startup A Q&A | `qa` | 3 min | Startup A video |
 | 4 | Startup B Presentation | `presentation` | 5 min | Startup B video |
 | 5 | Startup B Q&A | `qa` | 3 min | Startup B video |
 | ... | (repeat for each startup) | | | |
-| N | Outro | `outro` | 5 min | Placeholder (no startup presenting) |
+| N | Outro | `outro` | 5 min | Facilitator video (if taken stage) or placeholder |
 
 The facilitator advances through stages via Next/Previous controls.
 Stage state is local to the facilitator's browser (not synced via
@@ -94,14 +97,12 @@ Each facilitator pane shows one of:
 
 ### During intro stage
 
-The center pane shows a placeholder. No startup is presenting during the
-introduction. The `activeStartupIndex` is `undefined` during intro.
+No startup is presenting during the introduction. The
+`activeStartupIndex` is `undefined` during intro.
 
-**Current behavior (bug):** The code falls back to `startups[0]` when
-`activeStartupIndex` is `undefined` (via `startups[activeStartupIndex ?? 0]`),
-so the center pane actually attempts to show the first startup's video
-during intro/outro. This should be fixed so that the center pane shows
-an empty placeholder during intro/outro stages.
+If a facilitator has clicked **"Take Stage"**, the stage shows that
+facilitator's video with an "On Stage" sublabel. Otherwise it shows a
+placeholder with the "Introduction" label.
 
 ### During presentation stages
 
@@ -119,8 +120,8 @@ purposes.
 
 ### During outro stage
 
-The center pane shows a placeholder, same as intro. No startup is
-presenting.
+Same as intro — no startup is presenting. A facilitator can take the
+stage, or the placeholder is shown.
 
 ### Pane states
 
@@ -131,7 +132,27 @@ presenting.
   yet. This happens when the startup hasn't joined the call, or when
   the track is still being negotiated.
 - **Placeholder (no startup)** — During intro/outro when no startup
-  should be presenting.
+  should be presenting and no facilitator has taken the stage.
+
+### Take Stage
+
+During intro and outro stages, each facilitator's left-pane slot shows a
+**"Take Stage"** button (visible only when the call is connected). Clicking
+it mirrors that facilitator's video to the stage (center pane). The
+facilitator's left-pane video continues playing simultaneously.
+
+- Only one facilitator can be on stage at a time. Clicking "Take Stage"
+  on a different facilitator replaces the current one.
+- The button shows "On Stage" (disabled) for the facilitator currently
+  on stage.
+- Any facilitator can put any facilitator on stage (including a co-host).
+- When the session advances to a presentation or Q&A stage, the stage
+  identity is automatically cleared — the startup takes over the center
+  pane.
+- When returning to intro/outro (via Previous or stage selector), the
+  facilitator must explicitly click "Take Stage" again.
+- State is local to `Session.tsx` (`stageIdentity`), not synced across
+  participants.
 
 ---
 
@@ -187,9 +208,6 @@ disconnected automatically.
   stage is active. Other participants each run their own independent
   stage/timer state. A future enhancement will sync stage state via
   Supabase Realtime.
-
-- **Center pane during intro/outro**: Currently falls back to showing
-  the first startup instead of an empty placeholder (see bug note above).
 
 - **Mobile layout**: Not documented here. The current responsive layout
   stacks panes vertically on small screens but has not been tested or

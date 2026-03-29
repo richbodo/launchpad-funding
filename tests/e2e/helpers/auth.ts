@@ -16,11 +16,21 @@ export async function loginAs(page: Page, opts: {
   // Click role button to submit
   await page.click(`[data-testid="role-btn-${opts.role}"]`);
 
-  // Facilitator has a password step
+  // Facilitator has a password step (skipped in demo mode).
+  // Race: either the password field appears or we navigate straight through.
   if (opts.role === 'facilitator') {
-    await expect(page.locator('#password')).toBeVisible();
-    await page.fill('#password', opts.password!);
-    await page.click('[data-testid="password-submit-btn"]');
+    const passwordVisible = page.locator('#password');
+    const navigated = page.waitForURL(/\/session\//, { timeout: 10_000 });
+
+    const result = await Promise.race([
+      passwordVisible.waitFor({ state: 'visible', timeout: 5_000 }).then(() => 'password' as const),
+      navigated.then(() => 'navigated' as const),
+    ]);
+
+    if (result === 'password') {
+      await page.fill('#password', opts.password!);
+      await page.click('[data-testid="password-submit-btn"]');
+    }
   }
 
   // Wait for navigation to session page
