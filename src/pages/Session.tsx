@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
@@ -14,7 +14,7 @@ import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
 import { Button } from '@/components/ui/button';
-import { DollarSign, ExternalLink, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, Video } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 
 interface Startup {
@@ -51,6 +51,7 @@ export default function SessionPage() {
     prev,
     goToStage,
     togglePause,
+    syncState,
     activeStartupIndex,
   } = useSessionStages(startups);
 
@@ -176,12 +177,84 @@ export default function SessionPage() {
     }
   }, [session?.status, callState, reset]);
 
-  // Clear facilitator from stage when a startup takes over
+  // Clear stage override when stage advances (let auto-select take over)
   useEffect(() => {
-    if (currentStage?.type === 'presentation' || currentStage?.type === 'qa') {
-      setStageIdentity(null);
+    setStageIdentity(null);
+  }, [currentStageIndex]);
+
+  // ── Stage sync via Supabase Realtime Broadcast + Presence ───────────
+  const stageChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+  const hasInitialSync = useRef(false);
+
+  const broadcastStage = useCallback((
+    index: number, paused: boolean, remaining: number, identity: string | null
+  ) => {
+    const payload = { currentStageIndex: index, isPaused: paused, remainingSeconds: remaining, stageIdentity: identity };
+    stageChannelRef.current?.send({ type: 'broadcast', event: 'stage_state', payload });
+    stageChannelRef.current?.track(payload);
+  }, []);
+
+  // Subscribe to stage broadcast channel with presence for late joiners
+  useEffect(() => {
+    if (!id) return;
+
+    const isFac = user?.role === 'facilitator';
+    const channel = supabase.channel(`stage-sync-${id}`);
+    stageChannelRef.current = channel;
+    hasInitialSync.current = false;
+
+    channel
+      .on('broadcast', { event: 'stage_state' }, ({ payload }) => {
+        if (!isFac) {
+          syncState(payload.currentStageIndex, payload.isPaused, payload.remainingSeconds);
+          setStageIdentity(payload.stageIdentity);
+          hasInitialSync.current = true;
+        }
+      })
+      .on('presence', { event: 'sync' }, () => {
+        // Late joiner: read facilitator's tracked state on first sync
+        if (!isFac && !hasInitialSync.current) {
+          const state = channel.presenceState();
+          for (const presences of Object.values(state)) {
+            const p = (presences as any[])?.[0];
+            if (p?.currentStageIndex !== undefined) {
+              syncState(p.currentStageIndex, p.isPaused, p.remainingSeconds);
+              setStageIdentity(p.stageIdentity);
+              hasInitialSync.current = true;
+              break;
+            }
+          }
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED' && isFac) {
+          await channel.track({
+            currentStageIndex, isPaused, remainingSeconds, stageIdentity,
+          });
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+      stageChannelRef.current = null;
+    };
+  }, [id, user?.role, syncState]);
+
+  // Facilitator: broadcast stage state on discrete changes
+  const prevStageRef = useRef({ currentStageIndex, isPaused, stageIdentity });
+
+  useEffect(() => {
+    if (user?.role !== 'facilitator') return;
+    const prev = prevStageRef.current;
+    if (
+      prev.currentStageIndex !== currentStageIndex ||
+      prev.isPaused !== isPaused ||
+      prev.stageIdentity !== stageIdentity
+    ) {
+      broadcastStage(currentStageIndex, isPaused, remainingSeconds, stageIdentity);
+      prevStageRef.current = { currentStageIndex, isPaused, stageIdentity };
     }
-  }, [currentStage?.type]);
+  }, [currentStageIndex, isPaused, stageIdentity, remainingSeconds, user?.role, broadcastStage]);
 
   const currentStartup = activeStartupIndex !== undefined ? startups[activeStartupIndex] : undefined;
   const currentStartupName = currentStartup?.display_name || currentStartup?.email || 'Startup';
@@ -214,11 +287,10 @@ export default function SessionPage() {
     <>
       {/* Main content: 3-pane layout */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Left pane: Facilitator video(s) — up to 3 */}
-        <div className="md:w-72 lg:w-80 shrink-0 p-3 border-b md:border-b-0 md:border-r border-border flex flex-col gap-2">
+        {/* Left pane: Facilitator video(s) + startup previews */}
+        <div className="md:w-72 lg:w-80 shrink-0 p-3 border-b md:border-b-0 md:border-r border-border flex flex-col gap-2 overflow-y-auto">
           {facilitators.length > 0 ? (
             facilitators.slice(0, 3).map((f) => {
-              const isIntroOutro = currentStage?.type === 'intro' || currentStage?.type === 'outro';
               const isOnStage = stageIdentity === f.email;
 
               return (
@@ -236,7 +308,7 @@ export default function SessionPage() {
                       onJoinCall={handleJoinCall}
                     />
                   </div>
-                  {isFacilitator && isConnected && isIntroOutro && (
+                  {isFacilitator && isConnected && (
                     <Button
                       data-testid={`take-stage-btn-${f.email}`}
                       variant={isOnStage ? 'secondary' : 'outline'}
@@ -257,19 +329,66 @@ export default function SessionPage() {
               <VideoPane label="Facilitator" sublabel="Host Stream" />
             </div>
           )}
+
+          {/* Startups section — facilitator can put any startup on the center stage */}
+          {isFacilitator && isConnected && startups.length > 0 && (
+            <>
+              <div className="pt-2 pb-1 border-t border-border mt-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">Startups</p>
+              </div>
+              {startups.map((s) => {
+                const isOnStage = stageIdentity === s.email;
+                return (
+                  <div key={s.email} className="flex flex-col" data-testid={`startup-pane-${s.email}`}>
+                    <div className="h-24">
+                      <VideoPane
+                        label={s.display_name || s.email}
+                        sublabel="Startup"
+                        participantIdentity={isConnected ? s.email : undefined}
+                        callState={callState}
+                      />
+                    </div>
+                    <Button
+                      data-testid={`take-stage-btn-${s.email}`}
+                      variant={isOnStage ? 'secondary' : 'outline'}
+                      size="sm"
+                      className="mt-1 w-full"
+                      onClick={() => setStageIdentity(s.email)}
+                      disabled={isOnStage}
+                    >
+                      <Monitor className="w-4 h-4 mr-1" />
+                      {isOnStage ? 'On Stage' : 'Take Stage'}
+                    </Button>
+                  </div>
+                );
+              })}
+            </>
+          )}
         </div>
 
         {/* Center pane: Startup presentation */}
         <div className="flex-1 flex flex-col p-3 min-w-0">
           <div className="flex-1 rounded-lg overflow-hidden" data-testid="main-video-pane">
             {(() => {
-              // The stage (center pane): startup video during presentation/Q&A,
-              // facilitator video during intro/outro if someone has taken the stage.
-              const isStartupStage = activeStartupIndex !== undefined;
-              const stageFacilitator = !isStartupStage && stageIdentity
-                ? facilitators.find(f => f.email === stageIdentity)
-                : undefined;
+              // Priority 1: Explicit "Take Stage" override (facilitator or startup)
+              if (stageIdentity && isConnected) {
+                const stageParticipant = facilitators.find(f => f.email === stageIdentity)
+                  || startups.find(s => s.email === stageIdentity);
+                if (stageParticipant) {
+                  return (
+                    <VideoPane
+                      label={stageParticipant.display_name || stageParticipant.email}
+                      sublabel="On Stage"
+                      isActive
+                      participantIdentity={stageIdentity}
+                      callState={callState}
+                    />
+                  );
+                }
+              }
 
+              // Priority 2: Auto-select from stage definition (presentation/Q&A)
+              const isStartupStage = activeStartupIndex !== undefined;
               if (isStartupStage && currentStartup) {
                 return (
                   <VideoPane
@@ -286,18 +405,7 @@ export default function SessionPage() {
                 );
               }
 
-              if (stageFacilitator) {
-                return (
-                  <VideoPane
-                    label={stageFacilitator.display_name || stageFacilitator.email}
-                    sublabel="On Stage"
-                    isActive
-                    participantIdentity={isConnected ? stageFacilitator.email : undefined}
-                    callState={isConnected ? callState : 'idle'}
-                  />
-                );
-              }
-
+              // Priority 3: Placeholder
               return (
                 <VideoPane
                   label={currentStage?.label || 'No Presentation'}
@@ -418,6 +526,19 @@ export default function SessionPage() {
             <Button data-testid="end-call-btn" variant="destructive" size="sm" onClick={handleEndCall}>
               <PhoneOff className="w-4 h-4 mr-1" />
               End Call
+            </Button>
+          )}
+          {/* Join Video Chat — startup only, when session is live */}
+          {user.role === 'startup' && session?.status === 'live' && callState === 'idle' && (
+            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={handleJoinCall}>
+              <Video className="w-4 h-4 mr-1" />
+              Join Video Chat
+            </Button>
+          )}
+          {user.role === 'startup' && callState === 'connecting' && (
+            <Button size="sm" disabled>
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+              Joining...
             </Button>
           )}
         </div>

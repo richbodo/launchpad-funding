@@ -7,9 +7,14 @@ import '@/test/mocks/livekit';
 // --- Supabase mock ---
 const mockChannelOn = vi.fn().mockReturnThis();
 const mockChannelSubscribe = vi.fn().mockReturnThis();
+const mockChannelSend = vi.fn().mockResolvedValue('ok');
+const mockChannelTrack = vi.fn().mockResolvedValue('ok');
 const mockChannel = {
   on: mockChannelOn,
   subscribe: mockChannelSubscribe,
+  send: mockChannelSend,
+  track: mockChannelTrack,
+  presenceState: vi.fn().mockReturnValue({}),
 };
 
 vi.mock('@/integrations/supabase/client', () => ({

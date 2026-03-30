@@ -24,6 +24,7 @@ interface UseSessionStagesReturn {
   prev: () => void;
   goToStage: (index: number) => void;
   togglePause: () => void;
+  syncState: (index: number, paused: boolean, remaining: number) => void;
   activeStartupIndex: number | undefined;
 }
 
@@ -135,6 +136,12 @@ export function useSessionStages(startups: Startup[]): UseSessionStagesReturn {
     setIsPaused(p => !p);
   }, []);
 
+  const syncState = useCallback((index: number, paused: boolean, remaining: number) => {
+    setCurrentStageIndex(index);
+    setRemainingSeconds(remaining);
+    setIsPaused(paused);
+  }, []);
+
   const currentStage = stages[currentStageIndex] ?? stages[0];
   const activeStartupIndex = currentStage?.startupIndex;
 
@@ -148,6 +155,7 @@ export function useSessionStages(startups: Startup[]): UseSessionStagesReturn {
     prev,
     goToStage,
     togglePause,
+    syncState,
     activeStartupIndex,
   };
 }

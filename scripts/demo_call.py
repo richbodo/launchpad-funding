@@ -2,12 +2,15 @@
 """
 Launches a live demo call for manual testing.
 
-Opens your browser and auto-logs you in as the facilitator (demo mode
-bypasses password). Injects a second facilitator and two startups as
-synthetic video participants, each with a visually distinct stream.
+Opens your browser and auto-logs you in as the selected role. Injects
+synthetic video participants so the session feels realistic. Supports
+testing from any role's perspective.
 
 Usage:
-    mac% ./scripts/demo_call.py
+    mac% ./scripts/demo_call.py                     # facilitator (default)
+    mac% ./scripts/demo_call.py --role investor      # investor perspective
+    mac% ./scripts/demo_call.py --role startup       # startup perspective
+    mac% ./scripts/demo_call.py --role all           # all 3 roles in separate tabs
 
 Prerequisites:
     - Supabase and LiveKit running (via ./scripts/test-infra.sh)
@@ -16,6 +19,7 @@ Prerequisites:
     - ffmpeg (optional, for distinct video streams; falls back to --publish-demo)
 """
 
+import argparse
 import datetime
 import shutil
 import signal
@@ -41,12 +45,52 @@ DB_URL = "postgresql://postgres:postgres@127.0.0.1:54322/postgres"
 VIDEO_DURATION = 300  # seconds — long enough for any demo session
 
 # (identity, display_name, ffmpeg_filter)
-SYNTHETIC_PARTICIPANTS = [
+ALL_SYNTHETIC_PARTICIPANTS = [
     ("facilitator-b@test.com", "Co-Facilitator B", "smptebars=size=320x240:rate=15"),
     ("facilitator-c@test.com", "Co-Facilitator C", "color=c=blue:size=320x240:rate=15,drawtext=text='Facilitator C':fontsize=24:fontcolor=white:x=(w-tw)/2:y=(h-th)/2"),
     ("startup-a@test.com", "AlphaTech", "testsrc=size=320x240:rate=15"),
     ("startup-b@test.com", "BetaCorp", "mandelbrot=size=320x240:rate=15"),
 ]
+
+
+def get_synthetic_participants(role: str) -> list[tuple[str, str, str]]:
+    """Return only the synthetic participants to inject for the given role.
+
+    Human-controlled identities are excluded so the human's browser tab
+    is the real participant, not a synthetic stream.
+    """
+    human_identities = {
+        "facilitator": {"facilitator@test.com"},
+        "investor":    {"facilitator@test.com", "investor-1@test.com"},
+        "startup":     {"facilitator@test.com", "startup-a@test.com"},
+        "all":         {"facilitator@test.com", "investor-1@test.com"},
+    }
+    exclude = human_identities[role]
+    return [p for p in ALL_SYNTHETIC_PARTICIPANTS if p[0] not in exclude]
+
+
+def get_browser_tabs(role: str) -> list[tuple[str, str]]:
+    """Return (url, description) pairs for browser tabs to open."""
+    base = "http://localhost:8080/login?autoLogin=true"
+    tabs = {
+        "facilitator": [
+            (f"{base}&email=facilitator@test.com&role=facilitator", "facilitator"),
+        ],
+        "investor": [
+            (f"{base}&email=facilitator@test.com&role=facilitator", "facilitator (for Start Call)"),
+            (f"{base}&email=investor-1@test.com&role=investor", "investor-1"),
+        ],
+        "startup": [
+            (f"{base}&email=facilitator@test.com&role=facilitator", "facilitator (for Start Call)"),
+            (f"{base}&email=startup-a@test.com&role=startup", "startup-a (AlphaTech)"),
+        ],
+        "all": [
+            (f"{base}&email=facilitator@test.com&role=facilitator", "facilitator"),
+            (f"{base}&email=investor-1@test.com&role=investor", "investor-1"),
+            (f"{base}&email=startup-a@test.com&role=startup", "startup-a (AlphaTech)"),
+        ],
+    }
+    return tabs[role]
 
 # ── Module-level process tracking (for signal handler) ─────────────────
 
@@ -128,7 +172,7 @@ def run_psql(sql: str, query=False):
 
 # ── Video generation ───────────────────────────────────────────────────
 
-def generate_videos() -> bool:
+def generate_videos(participants) -> bool:
     if not shutil.which("ffmpeg"):
         info("ffmpeg not found -- will use generic --publish-demo streams (all look the same).")
         info("Install ffmpeg for distinct per-participant videos: brew install ffmpeg")
@@ -138,12 +182,12 @@ def generate_videos() -> bool:
 
     needs_gen = any(
         not (VIDEO_DIR / f"{ident.split('@')[0]}.ivf").exists()
-        for ident, _, _ in SYNTHETIC_PARTICIPANTS
+        for ident, _, _ in participants
     )
 
     if needs_gen:
         info("One-time video fixture generation (cached for future runs)...")
-        for ident, name, ffmpeg_filter in SYNTHETIC_PARTICIPANTS:
+        for ident, name, ffmpeg_filter in participants:
             safe_name = ident.split("@")[0]
             outfile = VIDEO_DIR / f"{safe_name}.ivf"
             if outfile.exists():
@@ -164,14 +208,14 @@ def generate_videos() -> bool:
 
 # ── Database reset ─────────────────────────────────────────────────────
 
-def reset_test_session():
+def reset_test_session(participants):
     info("Resetting test session to 'scheduled' status...")
     run_psql(f"UPDATE sessions SET status = 'scheduled' WHERE id = '{SESSION_ID}';")
     debug("Session status set to 'scheduled'")
     run_psql(f"UPDATE session_participants SET is_logged_in = false WHERE session_id = '{SESSION_ID}';")
     debug("Cleared login flags")
 
-    for ident, name, _ in SYNTHETIC_PARTICIPANTS:
+    for ident, name, _ in participants:
         role = role_for_identity(ident)
         password_clause = "'test123'" if role == "facilitator" else "NULL"
         run_psql(
@@ -216,23 +260,23 @@ def publish_loop(identity: str, video_file: Path, log_path: Path, lk_creds: dict
                 if proc in _active_processes:
                     _active_processes.remove(proc)
             if exit_code != 0:
-                debug(f"[{identity}] lk exited with code {exit_code}")
-                # Print last few lines of log for immediate visibility
+                debug(f"[{identity}] lk exited with code {exit_code} — stopping re-publish (likely replaced by browser)")
                 try:
                     tail = log_path.read_text().splitlines()[-5:]
                     for line in tail:
                         debug(f"[{identity}] LOG: {line}")
                 except Exception:
                     pass
+                break
             else:
                 debug(f"[{identity}] publish complete (exit 0)")
             if _stop_event.wait(timeout=1):
                 break
 
 
-def inject_participants(has_ffmpeg: bool, lk_creds: dict):
-    info(f"Injecting {len(SYNTHETIC_PARTICIPANTS)} synthetic participants into room {ROOM_NAME}")
-    for ident, name, _ in SYNTHETIC_PARTICIPANTS:
+def inject_participants(has_ffmpeg: bool, lk_creds: dict, participants):
+    info(f"Injecting {len(participants)} synthetic participants into room {ROOM_NAME}")
+    for ident, name, _ in participants:
         safe_name = ident.split("@")[0]
         log_path = LOG_DIR / f"lk-{safe_name}.log"
 
@@ -334,9 +378,9 @@ def wait_for_call_start(lk_creds: dict, timeout=120) -> bool:
     return False
 
 
-def verify_participants():
+def verify_participants(participants):
     info("Checking participant status...")
-    for ident, name, _ in SYNTHETIC_PARTICIPANTS:
+    for ident, name, _ in participants:
         safe_name = ident.split("@")[0]
         log_path = LOG_DIR / f"lk-{safe_name}.log"
 
@@ -401,6 +445,23 @@ def main():
     signal.signal(signal.SIGINT, _signal_handler)
     signal.signal(signal.SIGTERM, _signal_handler)
 
+    # Parse arguments
+    parser = argparse.ArgumentParser(
+        description="Launch a live demo call for manual testing.",
+    )
+    parser.add_argument(
+        "--role",
+        choices=["facilitator", "investor", "startup", "all"],
+        default="facilitator",
+        help="Which role to test in the browser (default: facilitator)",
+    )
+    args = parser.parse_args()
+    role = args.role
+
+    # Determine participants and browser tabs for this role
+    participants = get_synthetic_participants(role)
+    tabs = get_browser_tabs(role)
+
     # Prerequisite checks
     check_command("lk", "brew install livekit-cli")
     check_command("psql", "brew install libpq && brew link --force libpq")
@@ -412,7 +473,7 @@ def main():
     lk_creds = parse_env_file(ENV_FILE)
 
     # Video fixtures
-    has_ffmpeg = generate_videos()
+    has_ffmpeg = generate_videos(participants)
 
     # Prepare log directory
     LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -420,19 +481,39 @@ def main():
         f.unlink()
 
     # Reset test session
-    reset_test_session()
+    reset_test_session(participants)
 
-    # Open browser
-    info("Opening browser (auto-login as facilitator)...")
-    login_url = "http://localhost:8080/login?autoLogin=true&email=facilitator@test.com&role=facilitator"
+    # Open browser tabs
     opener = "open" if sys.platform == "darwin" else "xdg-open"
-    subprocess.run([opener, login_url])
+    for url, desc in tabs:
+        info(f"Opening browser tab: {desc}")
+        subprocess.run([opener, url])
+        time.sleep(1)
 
     print()
     print("=" * 60)
-    print("  Browser opened -- you will be auto-logged in as the")
-    print("  facilitator. Click 'Start Call' and allow camera+mic.")
-    print("  Participants will be injected automatically.")
+    if role == "facilitator":
+        print("  Browser opened -- you are the FACILITATOR.")
+        print("  Click 'Start Call' and allow camera+mic.")
+    elif role == "investor":
+        print("  Two tabs opened:")
+        print("    Tab 1: Facilitator -- click 'Start Call' here first")
+        print("    Tab 2: Investor -- will auto-connect after Start Call")
+        print("  After you click Start Call, the investor tab auto-joins.")
+    elif role == "startup":
+        print("  Two tabs opened:")
+        print("    Tab 1: Facilitator -- click 'Start Call' here first")
+        print("    Tab 2: Startup (AlphaTech) -- click 'Join Call' when prompted")
+        print("  After Start Call, switch to the startup tab and click 'Join Call'.")
+        print("  Allow camera/mic access when prompted.")
+    elif role == "all":
+        print("  Three tabs opened:")
+        print("    Tab 1: Facilitator -- click 'Start Call' here first")
+        print("    Tab 2: Investor -- will auto-connect after Start Call")
+        print("    Tab 3: Startup (AlphaTech) -- click 'Join Call' when prompted")
+        print("  After Start Call, the investor auto-joins. Switch to the startup")
+        print("  tab and click 'Join Call'. Allow camera/mic when prompted.")
+    print("  Synthetic participants will be injected after Start Call.")
     print("=" * 60)
     print()
 
@@ -440,24 +521,36 @@ def main():
     if not wait_for_call_start(lk_creds):
         die("Timed out waiting for LiveKit room. Did you click 'Start Call'?")
 
+    # Set session status to 'live' directly via psql — the app's Supabase JS
+    # update is silently rejected by RLS (anon key lacks UPDATE permission).
+    # This triggers Realtime subscriptions so investor tabs auto-join and
+    # startup tabs enable their "Join Call" button.
+    if role != "facilitator":
+        info("Setting session status to 'live' via database...")
+        run_psql(f"UPDATE sessions SET status = 'live' WHERE id = '{SESSION_ID}';")
+        time.sleep(1)  # Let Realtime propagate to browser tabs
+
     # Inject synthetic participants
-    inject_participants(has_ffmpeg, lk_creds)
+    inject_participants(has_ffmpeg, lk_creds, participants)
 
     # Verify
     time.sleep(3)
-    verify_participants()
+    verify_participants(participants)
 
     print()
     info("Demo call is live!")
     print()
-    print("    Your camera:  facilitator@test.com (left pane)")
-    print("    Synthetic:    Co-Facilitator B (left pane, SMPTE color bars)")
-    print("    Synthetic:    Co-Facilitator C (left pane, blue with text)")
-    print("    Synthetic:    AlphaTech startup (center pane, numbered test pattern)")
-    print("    Synthetic:    BetaCorp startup (center pane, Mandelbrot fractal)")
+    for _, desc in tabs:
+        print(f"    You:        {desc}")
+    for ident, name, _ in participants:
+        print(f"    Synthetic:  {name} ({ident})")
     print()
-    print("    Use Next/Previous to switch between startup presentations.")
-    print("    Each startup has a visually distinct video stream.")
+    if role in ("facilitator", "all"):
+        print("    Use Next/Previous to switch between startup presentations.")
+    if role in ("investor", "all"):
+        print("    Use the Invest button during startup presentations.")
+    if role in ("startup", "all"):
+        print("    Switch to the startup tab and click 'Join Call' (allow camera/mic).")
     print()
     print(f"    Logs: {LOG_DIR}/")
     print()
