@@ -25,7 +25,6 @@ interface Startup {
   email: string;
   display_name: string | null;
   presentation_order: number | null;
-  funding_goal: number | null;
 }
 
 interface Facilitator {
