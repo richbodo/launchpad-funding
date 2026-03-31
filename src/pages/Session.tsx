@@ -665,7 +665,6 @@ interface StartupEditDialogProps {
 }
 
 function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
-  const [fundingGoal, setFundingGoal] = useState('');
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
   const [saving, setSaving] = useState(false);
@@ -678,13 +677,12 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
 
     supabase
       .from('session_participants')
-      .select('funding_goal, dd_room_link, website_link')
+      .select('dd_room_link, website_link')
       .eq('session_id', sessionId)
       .eq('email', email)
       .single()
       .then(({ data }) => {
         if (data) {
-          setFundingGoal(data.funding_goal != null ? String(data.funding_goal) : '');
           setDdRoomLink(data.dd_room_link || '');
           setWebsiteLink(data.website_link || '');
         }
@@ -694,7 +692,6 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
   const handleSave = async () => {
     setSaving(true);
     const updates: any = {
-      funding_goal: fundingGoal ? parseFloat(fundingGoal) : null,
       dd_room_link: ddRoomLink || null,
       website_link: websiteLink || null,
     };
