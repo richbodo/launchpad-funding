@@ -376,6 +376,10 @@ export type Database = {
           read_ct: number
         }[]
       }
+      verify_participant_password: {
+        Args: { _participant_id: string; _password: string }
+        Returns: boolean
+      }
     }
     Enums: {
       participant_role: "facilitator" | "startup" | "investor"
