@@ -482,7 +482,7 @@ export default function Admin() {
       const endT = new Date(selectedSession.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
       const sessionTime = `${startT} — ${endT}`;
 
-      const loginUrl = `${window.location.origin}/login?session=${selectedSession.id}&email=${encodeURIComponent(email)}&role=${role}`;
+      const loginUrl = `${window.location.origin}/login?session=${selectedSession.id}&email=${encodeURIComponent(email)}&role=${role}${role === 'startup' ? '&edit=true' : ''}`;
 
       // Google Calendar link
       const calStart = new Date(selectedSession.start_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');

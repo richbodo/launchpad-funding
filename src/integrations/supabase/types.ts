@@ -239,6 +239,7 @@ export type Database = {
           dd_room_link: string | null
           display_name: string | null
           email: string
+          funding_goal: number | null
           id: string
           is_logged_in: boolean
           logged_in_at: string | null
@@ -253,6 +254,7 @@ export type Database = {
           dd_room_link?: string | null
           display_name?: string | null
           email: string
+          funding_goal?: number | null
           id?: string
           is_logged_in?: boolean
           logged_in_at?: string | null
@@ -267,6 +269,7 @@ export type Database = {
           dd_room_link?: string | null
           display_name?: string | null
           email?: string
+          funding_goal?: number | null
           id?: string
           is_logged_in?: boolean
           logged_in_at?: string | null

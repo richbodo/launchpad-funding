@@ -31,10 +31,19 @@ registered startups:
 4. *(repeat presentation + Q&A for each startup in order)*
 5. **Outro** (5 min) — facilitator wraps up
 
-Each stage has a countdown timer. When the timer reaches zero, the
-session auto-advances to the next stage. The facilitator can also
-advance, go back, jump to any stage via the Stage Selector, or
-pause/resume the timer at any time.
+Each stage has a countdown timer. Timer behavior differs depending on
+how a stage is entered:
+
+- **Auto-advance** (timer expires): the session advances to the next
+  stage and the new stage's timer starts counting down automatically.
+  This is the normal flow when everything is running smoothly.
+- **Manual navigation** (Next, Previous, or Stage Selector): the new
+  stage's timer resets to its full duration and **pauses**. The
+  facilitator must press Play to start it. This gives participants
+  settling time after unexpected transitions — e.g., skipping a
+  startup that isn't present, or jumping back to revisit a stage.
+
+The facilitator can also pause/resume the timer at any time.
 
 ## Desktop layout (3-pane)
 
@@ -67,15 +76,14 @@ The center pane shows video according to this priority:
 
 1. **Manual override** — if a facilitator has clicked "Take Stage" on
    any participant (facilitator or startup), that participant's video
-   is shown with an "On Stage" label.
+   is shown with an "On Stage" label. 
 2. **Auto-select** — during presentation and Q&A stages, the
    corresponding startup's video is shown automatically.
 3. **Placeholder** — during intro/outro with no override, a static
    placeholder with the stage name.
 
 The manual override clears automatically when the stage advances
-(Next, Previous, Stage Selector, or timer auto-advance), returning
-control to auto-select.
+(Next, Previous, Stage Selector, or timer auto-advance).  Once the stage is entered, however, manual override does work again and can be used by the facilitator.
 
 ## Typical session walkthrough
 
@@ -86,18 +94,17 @@ control to auto-select.
    live. The facilitator's camera feed appears in the left pane.
 4. Investors auto-join as viewers. Startups click **Join Video Chat**
    in the header bar to connect with camera and mic.
-5. During the **Introduction**, the facilitator can click "Take Stage"
+5. During the **Introduction**, the facilitator clicks "Take Stage"
    on their own name (or a co-facilitator's) to put that feed on the
-   center stage for all participants.
-6. The facilitator clicks **Next** (or the timer expires) to advance
+   center stage for all participants, and introduces the group to the process.  The facilitator also clicks the "play" button to start the introduction timer, which counts down from 5 minutes to zero.
+6. After the intro, the facilitator clicks **Next** (or the timer expires) to advance
    to the first startup's **Presentation**. The center pane
-   automatically switches to that startup's video. The override
-   clears.
+   automatically switches to that startup's video.  If a stage timer expires, then the stage auto-advances to the next stage, and the next stage's timer auto plays.  If the facilitator selects a stage, then the timer on that stage does not auto-start, and the facilitator presses play to start that timer.
 7. During a presentation, investors can click **Invest** to pledge
    funds. The funding meter at the top updates in real time for all
-   participants.
-8. After the presentation timer, the session advances to **Q&A**. The
-   same startup stays on the center stage. Investors can still invest.
+   participants, adding their pledge to the total amount pledged, up to that startups funding goal.
+8. After a startups presentation timer expires, the session auto-advances to **Q&A**. The
+   same startup stays on the center stage. Investors can still invest as long as the app is in that stage, whether the timer expires or not.
 9. This cycle repeats for each startup.
 10. The **Outro** stage works like the introduction — facilitator can
     take the stage to wrap up.

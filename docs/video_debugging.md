@@ -8,22 +8,30 @@ The fastest way to verify the video stack works:
 mac% ./scripts/demo_call.py
 ```
 
-This auto-logs you in as the facilitator (demo mode bypasses password).
-Click "Start Call", allow camera+mic, then press ENTER in the terminal.
-The script injects three synthetic video participants via the `lk` CLI:
+This auto-logs you in as the facilitator. Click "Start Call", allow
+camera+mic, then press ENTER in the terminal. The script injects four
+synthetic video participants via the `lk` CLI:
 
-- **Co-Facilitator** — SMPTE color bars (left pane)
+- **Co-Facilitator B** — SMPTE color bars (left pane)
+- **Co-Facilitator C** — blue screen with name overlay (left pane)
 - **AlphaTech** — numbered test pattern (center pane)
 - **BetaCorp** — Mandelbrot fractal (center pane)
 
-Use Next/Previous to switch between startups — each has a visually distinct
-stream so you can confirm the center pane is switching correctly.
+Use Next/Previous to switch between startups — each has a visually
+distinct stream so you can confirm the center pane is switching
+correctly.
 
-Requires: Supabase, LiveKit, and Vite dev server running (via `test-infra.sh`).
-Optional: ffmpeg for distinct per-participant video streams (falls back to
-generic LiveKit demo streams without it).
+The script also supports `--role investor`, `--role startup`, and
+`--role all` to test from other perspectives. See [docs/demo.md](demo.md)
+for full details on each role mode, which participants are synthetic vs
+browser-controlled, and expected video behavior.
 
-Logs from each synthetic participant are saved in `test-results/demo-logs/`.
+Requires: Supabase, LiveKit, and Vite dev server running (via
+`test-infra.sh`). Optional: ffmpeg for distinct per-participant video
+streams (falls back to generic LiveKit demo streams without it).
+
+Logs from each synthetic participant are saved in
+`test-results/demo-logs/`.
 
 ---
 
@@ -160,20 +168,19 @@ projects: [
 
 Then run with `--headed`.
 
-### Option D: Test video manually in the browser
+### Option D: Test video manually with the demo script
 
-The most reliable way to verify video works is manual testing. With
-`test-infra.sh` running:
+The most reliable way to verify video works is manual testing via the
+demo script, which handles login, session setup, and synthetic
+participants for you:
 
-1. Open http://localhost:8080 in Chrome
-2. Log in as `facilitator@test.com` / `test123`
-3. Click "Start Call"
-4. Open a second tab, log in as `startup-a@test.com`
-5. Click "Join Call"
-6. You should see video feeds in both tabs
+```
+mac% ./scripts/demo_call.py --role all
+```
 
-If video works manually but not in Playwright, the issue is test timing
-or Chromium's fake media device, not the application.
+See [docs/demo.md](demo.md) for the full walkthrough. If video works
+via the demo but not in Playwright, the issue is test timing or
+Chromium's fake media device, not the application.
 
 ---
 

@@ -63,7 +63,7 @@ def get_synthetic_participants(role: str) -> list[tuple[str, str, str]]:
         "facilitator": {"facilitator@test.com"},
         "investor":    {"facilitator@test.com", "investor-1@test.com"},
         "startup":     {"facilitator@test.com", "startup-a@test.com"},
-        "all":         {"facilitator@test.com", "investor-1@test.com"},
+        "all":         {"facilitator@test.com", "investor-1@test.com", "startup-a@test.com"},
     }
     exclude = human_identities[role]
     return [p for p in ALL_SYNTHETIC_PARTICIPANTS if p[0] not in exclude]
@@ -214,14 +214,24 @@ def reset_test_session(participants):
     debug("Session status set to 'scheduled'")
     run_psql(f"UPDATE session_participants SET is_logged_in = false WHERE session_id = '{SESSION_ID}';")
     debug("Cleared login flags")
+    run_psql(f"DELETE FROM investments WHERE session_id = '{SESSION_ID}';")
+    debug("Cleared investments")
+
+    # Funding goals for startups (keyed by identity prefix)
+    funding_goals = {
+        "startup-a@test.com": 125000,
+        "startup-b@test.com": 200000,
+    }
 
     for ident, name, _ in participants:
         role = role_for_identity(ident)
         password_clause = "'test123'" if role == "facilitator" else "NULL"
+        goal = funding_goals.get(ident)
+        goal_clause = str(goal) if goal else "NULL"
         run_psql(
-            f"INSERT INTO session_participants (session_id, email, display_name, role, password_hash) "
-            f"VALUES ('{SESSION_ID}', '{ident}', '{name}', '{role}', {password_clause}) "
-            f"ON CONFLICT (session_id, email) DO NOTHING;"
+            f"INSERT INTO session_participants (session_id, email, display_name, role, password_hash, funding_goal) "
+            f"VALUES ('{SESSION_ID}', '{ident}', '{name}', '{role}', {password_clause}, {goal_clause}) "
+            f"ON CONFLICT (session_id, email) DO UPDATE SET funding_goal = EXCLUDED.funding_goal;"
         )
         debug(f"Ensured participant: {ident} ({role})")
 

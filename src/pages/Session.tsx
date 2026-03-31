@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useSessionStages } from '@/hooks/useSessionStages';
@@ -14,13 +14,18 @@ import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
 import { Button } from '@/components/ui/button';
-import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, Video } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, Video, Settings } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
+import { toast } from 'sonner';
 
 interface Startup {
   email: string;
   display_name: string | null;
   presentation_order: number | null;
+  funding_goal: number | null;
 }
 
 interface Facilitator {
@@ -31,12 +36,14 @@ interface Facilitator {
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user, logout } = useSessionUser();
-  const [totalFunded, setTotalFunded] = useState(0);
-  const [startupFunded, setStartupFunded] = useState(0);
+  const [fundingByStartup, setFundingByStartup] = useState<Record<string, number>>({});
   const [startups, setStartups] = useState<Startup[]>([]);
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [investOpen, setInvestOpen] = useState(false);
+  const [editStartupOpen, setEditStartupOpen] = useState(false);
+  const editAutoOpened = useRef(false);
   const [session, setSession] = useState<any>(null);
   const [callState, setCallState] = useState<CallState>('idle');
   const [stageIdentity, setStageIdentity] = useState<string | null>(null);
@@ -77,12 +84,22 @@ export default function SessionPage() {
         .single();
       setSession(sessionData);
 
-      const { data: startupData } = await supabase
+      let { data: startupData } = await supabase
         .from('session_participants')
-        .select('email, display_name, presentation_order')
+        .select('email, display_name, presentation_order, funding_goal')
         .eq('session_id', id)
         .eq('role', 'startup')
         .order('presentation_order', { ascending: true });
+      // Fallback: if funding_goal column doesn't exist yet, retry without it
+      if (!startupData) {
+        const fallback = await supabase
+          .from('session_participants')
+          .select('email, display_name, presentation_order')
+          .eq('session_id', id)
+          .eq('role', 'startup')
+          .order('presentation_order', { ascending: true });
+        startupData = fallback.data?.map(s => ({ ...s, funding_goal: null })) ?? null;
+      }
       if (startupData) setStartups(startupData);
 
       const { data: facilitatorData } = await supabase
@@ -97,7 +114,11 @@ export default function SessionPage() {
         .select('amount, startup_email')
         .eq('session_id', id);
       if (investData) {
-        setTotalFunded(investData.reduce((sum, i) => sum + Number(i.amount), 0));
+        const byStartup: Record<string, number> = {};
+        for (const inv of investData) {
+          byStartup[inv.startup_email] = (byStartup[inv.startup_email] || 0) + Number(inv.amount);
+        }
+        setFundingByStartup(byStartup);
       }
     };
     fetchData();
@@ -112,7 +133,10 @@ export default function SessionPage() {
         filter: `session_id=eq.${id}`,
       }, (payload) => {
         const inv = payload.new as any;
-        setTotalFunded(prev => prev + Number(inv.amount));
+        setFundingByStartup(prev => ({
+          ...prev,
+          [inv.startup_email]: (prev[inv.startup_email] || 0) + Number(inv.amount),
+        }));
       })
       .subscribe();
 
@@ -129,9 +153,30 @@ export default function SessionPage() {
       })
       .subscribe();
 
+    // Realtime: participant updates (funding_goal, dd_room_link, website_link changes)
+    const participantChannel = supabase
+      .channel(`participants-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'session_participants',
+        filter: `session_id=eq.${id}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (updated.role === 'startup') {
+          setStartups(prev => prev.map(s =>
+            s.email === updated.email
+              ? { ...s, funding_goal: updated.funding_goal != null ? Number(updated.funding_goal) : null }
+              : s
+          ));
+        }
+      })
+      .subscribe();
+
     return () => {
       supabase.removeChannel(investChannel);
       supabase.removeChannel(sessionChannel);
+      supabase.removeChannel(participantChannel);
     };
   }, [id, user, navigate]);
 
@@ -256,8 +301,30 @@ export default function SessionPage() {
     }
   }, [currentStageIndex, isPaused, stageIdentity, remainingSeconds, user?.role, broadcastStage]);
 
+  // Auto-open edit dialog for startups: on ?edit=true URL param, or if funding_goal not set
+  useEffect(() => {
+    if (user?.role !== 'startup' || editAutoOpened.current || startups.length === 0) return;
+    const myRecord = startups.find(s => s.email === user.email);
+    if (searchParams.get('edit') === 'true' || (myRecord && myRecord.funding_goal == null)) {
+      setEditStartupOpen(true);
+      editAutoOpened.current = true;
+      // Clean up the URL param
+      if (searchParams.has('edit')) {
+        searchParams.delete('edit');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [user?.role, user?.email, startups, searchParams, setSearchParams]);
+
   const currentStartup = activeStartupIndex !== undefined ? startups[activeStartupIndex] : undefined;
-  const currentStartupName = currentStartup?.display_name || currentStartup?.email || 'Startup';
+  const currentStartupName = currentStartup?.display_name || currentStartup?.email || '';
+
+  // Funding: per-startup during presentations, session total during intro/outro
+  const sessionTotalFunded = Object.values(fundingByStartup).reduce((sum, v) => sum + v, 0);
+  const currentStartupFunded = currentStartup
+    ? (fundingByStartup[currentStartup.email] || 0)
+    : sessionTotalFunded;
+  const currentFundingGoal = currentStartup?.funding_goal ?? null;
 
   const handleLogout = async () => {
     if (user && id) {
@@ -507,9 +574,9 @@ export default function SessionPage() {
     <div className="h-screen flex flex-col bg-background">
       <DemoModeBanner />
       <FundingMeter
-        totalFunded={totalFunded}
+        startupFunded={currentStartupFunded}
+        fundingGoal={currentFundingGoal}
         currentStartup={currentStartupName}
-        startupFunded={startupFunded}
       />
 
       {/* Session header bar */}
@@ -541,6 +608,17 @@ export default function SessionPage() {
               Joining...
             </Button>
           )}
+          {user.role === 'startup' && (
+            <Button
+              size="sm"
+              className="bg-amber-50 text-amber-900 border border-amber-200 hover:bg-amber-100"
+              onClick={() => setEditStartupOpen(true)}
+              data-testid="edit-startup-btn"
+            >
+              <Settings className="w-4 h-4 mr-1" />
+              Edit Your Startup Info
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">{user.displayName} ({user.role})</span>
@@ -568,6 +646,134 @@ export default function SessionPage() {
       ) : (
         sessionContent
       )}
+
+      {/* Startup metadata editing dialog */}
+      {user.role === 'startup' && (
+        <StartupEditDialog
+          open={editStartupOpen}
+          onOpenChange={setEditStartupOpen}
+          sessionId={id}
+          email={user.email}
+          onSaved={(updates) => {
+            setStartups(prev => prev.map(s =>
+              s.email === user.email ? { ...s, ...updates } : s
+            ));
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// ── Startup metadata editing dialog ──────────────────────────────────
+
+interface StartupEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sessionId: string;
+  email: string;
+  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null }) => void;
+}
+
+function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
+  const [fundingGoal, setFundingGoal] = useState('');
+  const [ddRoomLink, setDdRoomLink] = useState('');
+  const [websiteLink, setWebsiteLink] = useState('');
+  const [saving, setSaving] = useState(false);
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    if (!open) { loaded.current = false; return; }
+    if (loaded.current) return;
+    loaded.current = true;
+
+    supabase
+      .from('session_participants')
+      .select('funding_goal, dd_room_link, website_link')
+      .eq('session_id', sessionId)
+      .eq('email', email)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setFundingGoal(data.funding_goal != null ? String(data.funding_goal) : '');
+          setDdRoomLink(data.dd_room_link || '');
+          setWebsiteLink(data.website_link || '');
+        }
+      });
+  }, [open, sessionId, email]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const updates: any = {
+      funding_goal: fundingGoal ? parseFloat(fundingGoal) : null,
+      dd_room_link: ddRoomLink || null,
+      website_link: websiteLink || null,
+    };
+    const { error } = await supabase
+      .from('session_participants')
+      .update(updates)
+      .eq('session_id', sessionId)
+      .eq('email', email);
+
+    setSaving(false);
+    if (error) {
+      toast.error('Failed to save startup info');
+    } else {
+      toast.success('Startup info saved');
+      onSaved(updates);
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Startup Info</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="funding-goal">Funding Goal ($)</Label>
+            <Input
+              id="funding-goal"
+              type="number"
+              placeholder="125000"
+              value={fundingGoal}
+              onChange={(e) => setFundingGoal(e.target.value)}
+              data-testid="edit-funding-goal"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="dd-room-link">DD Room Link</Label>
+            <Input
+              id="dd-room-link"
+              type="url"
+              placeholder="https://..."
+              value={ddRoomLink}
+              onChange={(e) => setDdRoomLink(e.target.value)}
+              data-testid="edit-dd-room-link"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="website-link">Website</Label>
+            <Input
+              id="website-link"
+              type="url"
+              placeholder="https://..."
+              value={websiteLink}
+              onChange={(e) => setWebsiteLink(e.target.value)}
+              data-testid="edit-website-link"
+            />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving} data-testid="save-startup-info-btn">
+            {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
