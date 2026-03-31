@@ -2,7 +2,13 @@
 
 ## Summary
 
-FundFlow (one of the many names LLMs auto-generated for this app) is a real-time, browser-based funding and pitch session platform designed for demo-day-style events where startups present to investors and financing rounds can complete in minutes instead of years. A facilitator manages live sessions, controls the presentation flow, and oversees chat and investments while investors watch startup pitches and pledge funds in real time. The application features a demo mode with seeded data for quick evaluation, role-based login (no traditional auth required for investors/startups), and a clean, responsive UI.
+This is a real-time, browser-based funding platform designed for demo-day-style events where startups or charitable projects present to investors or donors and financing rounds can complete in minutes instead of what often takes years.  
+
+A facilitator manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time. 
+
+The application features a demo mode that is kind of awesome, in which you can try the app locally with fixture video streams and live streams.  It has seeded data for quick evaluation, role-based login (no traditional auth required for investors/startups), and a clean, responsive UI.
+
+This style of fundraising platform has been around, and has been very successful at times, but I couldn't find a free version I liked, so here you go.
 
 ## Features
 
