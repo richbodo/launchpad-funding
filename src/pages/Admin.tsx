@@ -224,13 +224,13 @@ export default function Admin() {
       .from('chat-archives')
       .list(sessionId, { sortBy: { column: 'created_at', order: 'desc' } });
     if (data) {
-      const files = data.map(f => {
-        const { data: urlData } = supabase.storage
+      const files = await Promise.all(data.map(async (f) => {
+        const { data: urlData } = await supabase.storage
           .from('chat-archives')
-          .getPublicUrl(`${sessionId}/${f.name}`);
-        return { name: f.name, url: urlData.publicUrl };
-      });
-      setChatArchives(files);
+          .createSignedUrl(`${sessionId}/${f.name}`, 3600);
+        return { name: f.name, url: urlData?.signedUrl || '' };
+      }));
+      setChatArchives(files.filter(f => f.url));
     } else {
       setChatArchives([]);
     }
