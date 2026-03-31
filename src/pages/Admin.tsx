@@ -171,19 +171,29 @@ export default function Admin() {
   };
 
   const handleAdminLogin = async () => {
+    // Find any session where this facilitator exists to verify password
     const { data: facilitators, error } = await supabase
       .from('session_participants')
-      .select('*')
+      .select('id, session_id')
       .eq('email', adminEmail.toLowerCase())
-      .eq('role', 'facilitator');
+      .eq('role', 'facilitator')
+      .limit(1);
 
     if (error || !facilitators || facilitators.length === 0) {
       toast.error('No facilitator account found with this email');
       return;
     }
 
-    const match = facilitators.find(f => f.password_hash === adminPassword);
-    if (!match) {
+    // Verify password server-side
+    const { data, error: loginErr } = await supabase.functions.invoke('participant-login', {
+      body: {
+        session_id: facilitators[0].session_id,
+        email: adminEmail.toLowerCase(),
+        password: adminPassword,
+      },
+    });
+
+    if (loginErr || !data?.success) {
       toast.error('Invalid credentials');
       return;
     }

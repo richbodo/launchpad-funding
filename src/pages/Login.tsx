@@ -224,8 +224,15 @@ export default function Login() {
     }
     setLoading(true);
     try {
-      if (pendingParticipant.password_hash !== password) {
-        toast.error('Incorrect password');
+      const { data, error } = await supabase.functions.invoke('participant-login', {
+        body: {
+          session_id: selectedSession,
+          email: pendingParticipant.email,
+          password,
+        },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Incorrect password');
         setLoading(false);
         return;
       }
