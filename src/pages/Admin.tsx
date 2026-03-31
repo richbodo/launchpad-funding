@@ -171,19 +171,29 @@ export default function Admin() {
   };
 
   const handleAdminLogin = async () => {
+    // Find any session where this facilitator exists to verify password
     const { data: facilitators, error } = await supabase
       .from('session_participants')
-      .select('*')
+      .select('id, session_id')
       .eq('email', adminEmail.toLowerCase())
-      .eq('role', 'facilitator');
+      .eq('role', 'facilitator')
+      .limit(1);
 
     if (error || !facilitators || facilitators.length === 0) {
       toast.error('No facilitator account found with this email');
       return;
     }
 
-    const match = facilitators.find(f => f.password_hash === adminPassword);
-    if (!match) {
+    // Verify password server-side
+    const { data, error: loginErr } = await supabase.functions.invoke('participant-login', {
+      body: {
+        session_id: facilitators[0].session_id,
+        email: adminEmail.toLowerCase(),
+        password: adminPassword,
+      },
+    });
+
+    if (loginErr || !data?.success) {
       toast.error('Invalid credentials');
       return;
     }
@@ -214,13 +224,13 @@ export default function Admin() {
       .from('chat-archives')
       .list(sessionId, { sortBy: { column: 'created_at', order: 'desc' } });
     if (data) {
-      const files = data.map(f => {
-        const { data: urlData } = supabase.storage
+      const files = await Promise.all(data.map(async (f) => {
+        const { data: urlData } = await supabase.storage
           .from('chat-archives')
-          .getPublicUrl(`${sessionId}/${f.name}`);
-        return { name: f.name, url: urlData.publicUrl };
-      });
-      setChatArchives(files);
+          .createSignedUrl(`${sessionId}/${f.name}`, 3600);
+        return { name: f.name, url: urlData?.signedUrl || '' };
+      }));
+      setChatArchives(files.filter(f => f.url));
     } else {
       setChatArchives([]);
     }

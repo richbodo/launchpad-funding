@@ -25,7 +25,6 @@ interface Startup {
   email: string;
   display_name: string | null;
   presentation_order: number | null;
-  funding_goal: number | null;
 }
 
 interface Facilitator {
@@ -84,22 +83,12 @@ export default function SessionPage() {
         .single();
       setSession(sessionData);
 
-      let { data: startupData } = await supabase
+      const { data: startupData } = await supabase
         .from('session_participants')
-        .select('email, display_name, presentation_order, funding_goal')
+        .select('email, display_name, presentation_order')
         .eq('session_id', id)
         .eq('role', 'startup')
         .order('presentation_order', { ascending: true });
-      // Fallback: if funding_goal column doesn't exist yet, retry without it
-      if (!startupData) {
-        const fallback = await supabase
-          .from('session_participants')
-          .select('email, display_name, presentation_order')
-          .eq('session_id', id)
-          .eq('role', 'startup')
-          .order('presentation_order', { ascending: true });
-        startupData = fallback.data?.map(s => ({ ...s, funding_goal: null })) ?? null;
-      }
       if (startupData) setStartups(startupData);
 
       const { data: facilitatorData } = await supabase
@@ -305,7 +294,7 @@ export default function SessionPage() {
   useEffect(() => {
     if (user?.role !== 'startup' || editAutoOpened.current || startups.length === 0) return;
     const myRecord = startups.find(s => s.email === user.email);
-    if (searchParams.get('edit') === 'true' || (myRecord && myRecord.funding_goal == null)) {
+    if (searchParams.get('edit') === 'true') {
       setEditStartupOpen(true);
       editAutoOpened.current = true;
       // Clean up the URL param
@@ -324,7 +313,7 @@ export default function SessionPage() {
   const currentStartupFunded = currentStartup
     ? (fundingByStartup[currentStartup.email] || 0)
     : sessionTotalFunded;
-  const currentFundingGoal = currentStartup?.funding_goal ?? null;
+  const currentFundingGoal = null;
 
   const handleLogout = async () => {
     if (user && id) {
@@ -672,11 +661,10 @@ interface StartupEditDialogProps {
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   email: string;
-  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null }) => void;
+  onSaved: (updates: { dd_room_link?: string | null; website_link?: string | null }) => void;
 }
 
 function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
-  const [fundingGoal, setFundingGoal] = useState('');
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
   const [saving, setSaving] = useState(false);
@@ -689,13 +677,12 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
 
     supabase
       .from('session_participants')
-      .select('funding_goal, dd_room_link, website_link')
+      .select('dd_room_link, website_link')
       .eq('session_id', sessionId)
       .eq('email', email)
       .single()
       .then(({ data }) => {
         if (data) {
-          setFundingGoal(data.funding_goal != null ? String(data.funding_goal) : '');
           setDdRoomLink(data.dd_room_link || '');
           setWebsiteLink(data.website_link || '');
         }
@@ -705,7 +692,6 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
   const handleSave = async () => {
     setSaving(true);
     const updates: any = {
-      funding_goal: fundingGoal ? parseFloat(fundingGoal) : null,
       dd_room_link: ddRoomLink || null,
       website_link: websiteLink || null,
     };
@@ -732,17 +718,6 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
           <DialogTitle>Edit Startup Info</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
-          <div className="space-y-2">
-            <Label htmlFor="funding-goal">Funding Goal ($)</Label>
-            <Input
-              id="funding-goal"
-              type="number"
-              placeholder="125000"
-              value={fundingGoal}
-              onChange={(e) => setFundingGoal(e.target.value)}
-              data-testid="edit-funding-goal"
-            />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="dd-room-link">DD Room Link</Label>
             <Input
