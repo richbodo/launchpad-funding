@@ -91,7 +91,8 @@ export default function Login() {
       sessionId: selectedSession,
     });
 
-    navigate(`/session/${selectedSession}`);
+    const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
+    navigate(`/session/${selectedSession}${editParam}`);
   };
 
   useEffect(() => {
@@ -257,7 +258,8 @@ export default function Login() {
       sessionId: selectedSession,
     });
 
-    navigate(`/session/${selectedSession}`);
+    const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
+    navigate(`/session/${selectedSession}${editParam}`);
   };
 
   const roles: { value: UserRole; label: string; icon: React.ReactNode; desc: string }[] = [

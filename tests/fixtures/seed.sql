@@ -22,14 +22,19 @@ VALUES
   ('00000000-0000-0000-0000-000000000001', 'facilitator@test.com', 'Test Facilitator', 'facilitator', 'test123', NULL),
   ('00000000-0000-0000-0000-000000000001', 'facilitator-b@test.com', 'Co-Facilitator', 'facilitator', 'test123', NULL);
 
--- Startups (in presentation order)
-INSERT INTO session_participants (session_id, email, display_name, role, presentation_order, website_link)
+-- Startups (in presentation order, with funding goals)
+INSERT INTO session_participants (session_id, email, display_name, role, presentation_order, website_link, funding_goal)
 VALUES
-  ('00000000-0000-0000-0000-000000000001', 'startup-a@test.com', 'AlphaTech', 'startup', 1, 'https://example.com/alpha'),
-  ('00000000-0000-0000-0000-000000000001', 'startup-b@test.com', 'BetaCorp',  'startup', 2, 'https://example.com/beta');
+  ('00000000-0000-0000-0000-000000000001', 'startup-a@test.com', 'AlphaTech', 'startup', 1, 'https://example.com/alpha', 125000.00),
+  ('00000000-0000-0000-0000-000000000001', 'startup-b@test.com', 'BetaCorp',  'startup', 2, 'https://example.com/beta', 200000.00);
 
 -- Investors
 INSERT INTO session_participants (session_id, email, display_name, role, presentation_order)
 VALUES
   ('00000000-0000-0000-0000-000000000001', 'investor-1@test.com', 'Investor One', 'investor', NULL),
   ('00000000-0000-0000-0000-000000000001', 'investor-2@test.com', 'Investor Two', 'investor', NULL);
+
+-- Sample investment (so the funding meter has data on page load)
+INSERT INTO investments (session_id, investor_email, investor_name, startup_email, startup_name, amount)
+VALUES
+  ('00000000-0000-0000-0000-000000000001', 'investor-1@test.com', 'Investor One', 'startup-a@test.com', 'AlphaTech', 25000.00);

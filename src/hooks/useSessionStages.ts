@@ -117,6 +117,7 @@ export function useSessionStages(startups: Startup[]): UseSessionStagesReturn {
     if (index >= 0 && index < stages.length) {
       setCurrentStageIndex(index);
       setRemainingSeconds(stages[index].durationSeconds);
+      setIsPaused(true);
     }
   }, [stages]);
 

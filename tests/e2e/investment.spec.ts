@@ -31,8 +31,8 @@ test.describe('investment flow', () => {
       await loginAs(investorPage, { email: 'investor-1@test.com', role: 'investor' });
 
       // Wait for pages to load and capture initial funding text
-      await expect(facilitatorPage.locator('text=Funds Committed')).toBeVisible();
-      const initialText = await facilitatorPage.locator('.text-2xl.font-bold.mono').textContent();
+      await expect(facilitatorPage.locator('[data-testid="funding-amount"]')).toBeVisible();
+      const initialText = await facilitatorPage.locator('[data-testid="funding-amount"]').textContent();
 
       // Insert an investment directly via Supabase (bypasses the disabled button)
       // This tests the realtime subscription pipeline end-to-end
@@ -70,7 +70,7 @@ test.describe('investment flow', () => {
       // The amount text should change from its initial value
       for (const page of [facilitatorPage, startupPage, investorPage]) {
         await expect(async () => {
-          const current = await page.locator('.text-2xl.font-bold.mono').textContent();
+          const current = await page.locator('[data-testid="funding-amount"]').textContent();
           expect(current).not.toBe('$0');
         }).toPass({ timeout: 10_000 });
       }
