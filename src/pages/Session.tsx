@@ -83,22 +83,12 @@ export default function SessionPage() {
         .single();
       setSession(sessionData);
 
-      let { data: startupData } = await supabase
+      const { data: startupData } = await supabase
         .from('session_participants')
-        .select('email, display_name, presentation_order, funding_goal')
+        .select('email, display_name, presentation_order')
         .eq('session_id', id)
         .eq('role', 'startup')
         .order('presentation_order', { ascending: true });
-      // Fallback: if funding_goal column doesn't exist yet, retry without it
-      if (!startupData) {
-        const fallback = await supabase
-          .from('session_participants')
-          .select('email, display_name, presentation_order')
-          .eq('session_id', id)
-          .eq('role', 'startup')
-          .order('presentation_order', { ascending: true });
-        startupData = fallback.data?.map(s => ({ ...s, funding_goal: null })) ?? null;
-      }
       if (startupData) setStartups(startupData);
 
       const { data: facilitatorData } = await supabase
