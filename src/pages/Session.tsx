@@ -313,7 +313,7 @@ export default function SessionPage() {
   const currentStartupFunded = currentStartup
     ? (fundingByStartup[currentStartup.email] || 0)
     : sessionTotalFunded;
-  const currentFundingGoal = currentStartup?.funding_goal ?? null;
+  const currentFundingGoal = null;
 
   const handleLogout = async () => {
     if (user && id) {
