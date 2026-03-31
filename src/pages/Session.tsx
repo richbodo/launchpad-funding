@@ -661,7 +661,7 @@ interface StartupEditDialogProps {
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   email: string;
-  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null }) => void;
+  onSaved: (updates: { dd_room_link?: string | null; website_link?: string | null }) => void;
 }
 
 function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
