@@ -719,17 +719,6 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
         </DialogHeader>
         <div className="space-y-4 py-2">
           <div className="space-y-2">
-            <Label htmlFor="funding-goal">Funding Goal ($)</Label>
-            <Input
-              id="funding-goal"
-              type="number"
-              placeholder="125000"
-              value={fundingGoal}
-              onChange={(e) => setFundingGoal(e.target.value)}
-              data-testid="edit-funding-goal"
-            />
-          </div>
-          <div className="space-y-2">
             <Label htmlFor="dd-room-link">DD Room Link</Label>
             <Input
               id="dd-room-link"
