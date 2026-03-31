@@ -294,7 +294,7 @@ export default function SessionPage() {
   useEffect(() => {
     if (user?.role !== 'startup' || editAutoOpened.current || startups.length === 0) return;
     const myRecord = startups.find(s => s.email === user.email);
-    if (searchParams.get('edit') === 'true' || (myRecord && myRecord.funding_goal == null)) {
+    if (searchParams.get('edit') === 'true') {
       setEditStartupOpen(true);
       editAutoOpened.current = true;
       // Clean up the URL param
