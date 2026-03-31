@@ -14,6 +14,9 @@ const testSession = {
 // Tracks the mock for participant lookup so individual tests can customize it
 let participantResult: any = { data: null, error: null };
 
+// Track the mock for supabase.functions.invoke so tests can customize it
+let loginFnResult: any = { data: { success: true }, error: null };
+
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: vi.fn((table: string) => {
@@ -71,6 +74,9 @@ vi.mock('@/integrations/supabase/client', () => ({
         }),
       };
     }),
+    functions: {
+      invoke: vi.fn().mockImplementation(() => Promise.resolve(loginFnResult)),
+    },
   },
 }));
 
@@ -107,6 +113,7 @@ describe('Login Page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     participantResult = { data: null, error: null };
+    loginFnResult = { data: { success: true }, error: null };
   });
 
   it('renders role selection buttons with "Join session as..." label', async () => {
@@ -150,6 +157,8 @@ describe('Login Page', () => {
       password_hash: 'correct_password',
       is_logged_in: false,
     });
+    // Server-side verification returns failure
+    loginFnResult = { data: { success: false, error: 'Invalid credentials' }, error: null };
     await enterEmailAndClickRole('Facilitator');
     await waitFor(() =>
       expect(screen.getByPlaceholderText('Enter your password')).toBeInTheDocument()
