@@ -9,7 +9,12 @@ vi.mock('@livekit/components-react', () => ({
     React.createElement('div', {
       'data-testid': `video-track-${trackRef?.participant?.identity ?? 'unknown'}`,
     }),
-  useLocalParticipant: vi.fn(() => ({ localParticipant: null })),
+  useLocalParticipant: vi.fn(() => ({
+    localParticipant: {
+      isMicrophoneEnabled: true,
+      setMicrophoneEnabled: vi.fn(),
+    },
+  })),
   RoomAudioRenderer: () => null,
 }));
 

@@ -1,4 +1,91 @@
-# Video Debugging Guide
+# Audio/Video Reference & Debugging Guide
+
+## How participants join and leave calls
+
+All video and audio runs through LiveKit (a WebRTC SFU). Each session
+maps to one LiveKit room (`session-{session_id}`). When a participant
+joins, the browser requests camera and microphone permissions.
+
+| Role | How they join | Publishes | Browser prompt |
+|------|--------------|-----------|----------------|
+| **Facilitator** | Clicks **Start Call** (first) or **Join Call** (subsequent) | Video + Audio | Camera + Mic |
+| **Startup** | Clicks **Join Video Chat** in header (when session is live) | Video + Audio | Camera + Mic |
+| **Investor** | Auto-joins when session goes live | Nothing (viewer only) | None |
+
+**Leaving:** The facilitator clicks **End Call** to end the session.
+All participants are disconnected automatically and the session moves
+to `completed` status. Individual participants can also leave by
+navigating away or closing the tab.
+
+---
+
+## Audio controls
+
+### Who can hear whom
+
+All facilitators and the on-stage startup publish audio. Their audio
+streams are mixed by each participant's browser. Investors never
+publish audio — they are listen-only.
+
+### Personal volume mute (all roles)
+
+Every participant has a **speaker icon** in the header bar (top right).
+Clicking it mutes all incoming audio from the app to the participant —
+like muting a YouTube video. This is entirely local and does not
+affect what anyone else hears.
+
+- Click speaker icon: all app audio silenced for you
+- Click again: audio restored
+- No effect on other participants
+- Use case: taking a phone call, talking to someone in the room
+
+### Mic toggle (facilitators and startups only)
+
+Facilitators and startups see a **microphone icon** in the center pane
+area (below the stage video, inside the LiveKit session). Clicking it
+toggles their own microphone on or off.
+
+- Click mic icon: your mic is muted (no one hears you)
+- Click again: your mic is live again
+- Investors do not have this control (they never publish audio)
+
+### Facilitator admin mute
+
+Facilitators see a **small mic icon** next to each participant in the
+left sidebar (beside the "Take Stage" button). Clicking it server-side
+mutes that participant's microphone for everyone via the LiveKit admin
+API.
+
+**Remote unmute is not supported.** This is a LiveKit security
+restriction — you can force-mute someone, but you cannot force-unmute
+them. Once a facilitator admin-mutes a participant:
+
+- The participant's admin mute button turns red and becomes disabled
+- The tooltip reads: "Muted (participant must unmute themselves)"
+- The muted participant must use their own **mic toggle** to unmute
+- The facilitator cannot unmute them remotely
+
+Use cases: a participant's mic is creating feedback or background
+noise, someone left their mic hot while away, or a facilitator needs
+to silence a disruptive audio source.
+
+### Stage etiquette nudge
+
+When the session advances to a startup's presentation or Q&A stage,
+any facilitator with their mic still enabled receives a toast:
+*"A startup is presenting — consider muting your mic."* This is a
+reminder only — the app does not auto-mute facilitators.
+
+### Screen sharing (Present mode)
+
+Any participant who is on stage (via Take Stage or during their
+presentation) sees a **Present** button below the stage video.
+Clicking it triggers the browser's screen share picker. The shared
+screen replaces the camera feed in the center pane for all
+participants. Click **Stop Presenting** to revert to camera. Screen
+sharing auto-stops when the stage advances.
+
+---
 
 ## Quick demo: one-command live call
 
@@ -239,8 +326,11 @@ LiveKit → app → VideoPane pipeline is working correctly.
 
 | Symptom | Cause | Fix |
 |---|---|---|
-| "LiveKit not configured on server" | Edge Functions missing secrets | Run `./scripts/test-infra.sh` |
+| "LiveKit not configured on server" | Edge Functions missing secrets | Run `supabase functions serve --env-file supabase/.env.local` |
 | Token fetched but no video | WebRTC negotiation incomplete | Increase timeout or test manually |
 | "Start Call" does nothing | Token fetch failed silently | Check browser console for errors |
 | Video works manually, not in tests | Fake media device timing | Add `waitForTimeout` or use `slowMo` |
 | No rooms listed in `lk room list` | No one has joined yet | Start a call first, then check |
+| "Failed to mute participant" | Edge Function can't reach LiveKit | Ensure `host.docker.internal` resolves (Docker/Colima issue) |
+| Admin mute works but unmute fails | LiveKit security restriction | Expected — participant must self-unmute via their mic toggle |
+| Run `./scripts/test-infra-test.sh` to verify all services | — | Checks Supabase, LiveKit, Edge Functions, Vite, and demo mode |
