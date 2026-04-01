@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useSessionStages } from '@/hooks/useSessionStages';
 import { useLiveKitToken } from '@/hooks/useLiveKitToken';
-import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react';
+import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant } from '@livekit/components-react';
 import '@livekit/components-styles';
 import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, Video, Settings } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
 
@@ -482,6 +482,19 @@ export default function SessionPage() {
             })()}
           </div>
 
+          {/* Present button — visible to the on-stage participant */}
+          {isConnected && (() => {
+            const onStageEmail = stageIdentity || currentStartup?.email;
+            if (onStageEmail && onStageEmail === user.email) {
+              return (
+                <div className="flex justify-center mt-2">
+                  <ScreenShareButton currentStageIndex={currentStageIndex} />
+                </div>
+              );
+            }
+            return null;
+          })()}
+
           {/* Facilitator controls */}
           {isFacilitator && (
             <div className="flex flex-col items-center gap-2 mt-3">
@@ -662,6 +675,48 @@ export default function SessionPage() {
         />
       )}
     </div>
+  );
+}
+
+// ── Screen share button (must be rendered inside LiveKitRoom) ────────
+
+function ScreenShareButton({ currentStageIndex }: { currentStageIndex: number }) {
+  const { localParticipant } = useLocalParticipant();
+  const isSharing = localParticipant.isScreenShareEnabled;
+  const stageRef = useRef(currentStageIndex);
+
+  // Auto-stop screen share when stage changes
+  useEffect(() => {
+    if (stageRef.current !== currentStageIndex) {
+      stageRef.current = currentStageIndex;
+      if (localParticipant.isScreenShareEnabled) {
+        localParticipant.setScreenShareEnabled(false);
+      }
+    }
+  }, [currentStageIndex, localParticipant]);
+
+  const handleToggle = async () => {
+    try {
+      await localParticipant.setScreenShareEnabled(!isSharing);
+    } catch {
+      // User cancelled the screen share picker — not an error
+    }
+  };
+
+  return (
+    <Button
+      data-testid="present-btn"
+      variant={isSharing ? 'destructive' : 'outline'}
+      size="sm"
+      onClick={handleToggle}
+      title={isSharing ? 'Stop sharing your screen' : 'Share your screen'}
+    >
+      {isSharing ? (
+        <><MonitorOff className="w-4 h-4 mr-1" /> Stop Presenting</>
+      ) : (
+        <><Monitor className="w-4 h-4 mr-1" /> Present</>
+      )}
+    </Button>
   );
 }
 
