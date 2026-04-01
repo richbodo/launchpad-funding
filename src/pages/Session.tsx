@@ -4,7 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useSessionStages } from '@/hooks/useSessionStages';
 import { useLiveKitToken } from '@/hooks/useLiveKitToken';
-import { LiveKitRoom, RoomAudioRenderer } from '@livekit/components-react';
+import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useTracks } from '@livekit/components-react';
+import { Track } from 'livekit-client';
 import '@livekit/components-styles';
 import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
@@ -17,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, Video, Settings } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, Video, Settings, Volume2, VolumeOff, Mic, MicOff } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
 
@@ -47,6 +48,7 @@ export default function SessionPage() {
   const [session, setSession] = useState<any>(null);
   const [callState, setCallState] = useState<CallState>('idle');
   const [stageIdentity, setStageIdentity] = useState<string | null>(null);
+  const [localMuted, setLocalMuted] = useState(false);
 
   const {
     stages,
@@ -376,17 +378,23 @@ export default function SessionPage() {
                     />
                   </div>
                   {isFacilitator && isConnected && (
-                    <Button
-                      data-testid={`take-stage-btn-${f.email}`}
-                      variant={isOnStage ? 'secondary' : 'outline'}
-                      size="sm"
-                      className="mt-1 w-full"
-                      onClick={() => setStageIdentity(f.email)}
-                      disabled={isOnStage}
-                    >
-                      <Monitor className="w-4 h-4 mr-1" />
-                      {isOnStage ? 'On Stage' : 'Take Stage'}
-                    </Button>
+                    <div className="flex gap-1 mt-1">
+                      <Button
+                        data-testid={`take-stage-btn-${f.email}`}
+                        variant={isOnStage ? 'secondary' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setStageIdentity(f.email)}
+                        disabled={isOnStage}
+                      >
+                        <Monitor className="w-4 h-4 mr-1" />
+                        {isOnStage ? 'On Stage' : 'Take Stage'}
+                      </Button>
+                      <AdminMuteButton
+                        identity={f.email}
+                        roomName={`session-${id}`}
+                      />
+                    </div>
                   )}
                 </div>
               );
@@ -415,17 +423,23 @@ export default function SessionPage() {
                         callState={callState}
                       />
                     </div>
-                    <Button
-                      data-testid={`take-stage-btn-${s.email}`}
-                      variant={isOnStage ? 'secondary' : 'outline'}
-                      size="sm"
-                      className="mt-1 w-full"
-                      onClick={() => setStageIdentity(s.email)}
-                      disabled={isOnStage}
-                    >
-                      <Monitor className="w-4 h-4 mr-1" />
-                      {isOnStage ? 'On Stage' : 'Take Stage'}
-                    </Button>
+                    <div className="flex gap-1 mt-1">
+                      <Button
+                        data-testid={`take-stage-btn-${s.email}`}
+                        variant={isOnStage ? 'secondary' : 'outline'}
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => setStageIdentity(s.email)}
+                        disabled={isOnStage}
+                      >
+                        <Monitor className="w-4 h-4 mr-1" />
+                        {isOnStage ? 'On Stage' : 'Take Stage'}
+                      </Button>
+                      <AdminMuteButton
+                        identity={s.email}
+                        roomName={`session-${id}`}
+                      />
+                    </div>
                   </div>
                 );
               })}
@@ -480,6 +494,24 @@ export default function SessionPage() {
                 />
               );
             })()}
+          </div>
+
+          {/* Audio controls — below the stage */}
+          <div className="flex justify-center gap-2 mt-2">
+            {/* Mic toggle — facilitators and startups only, inside LiveKitRoom context */}
+            {isConnected && user.role !== 'investor' && (
+              <MicToggleButton currentStageIndex={currentStageIndex} currentStageType={currentStage?.type} userRole={user.role} />
+            )}
+            {/* Personal volume mute — all roles, no LiveKit hooks needed */}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setLocalMuted(m => !m)}
+              title={localMuted ? 'Unmute app audio' : 'Mute app audio'}
+              data-testid="personal-mute-btn"
+            >
+              {localMuted ? <VolumeOff className="w-4 h-4 text-destructive" /> : <Volume2 className="w-4 h-4" />}
+            </Button>
           </div>
 
           {/* Facilitator controls */}
@@ -641,7 +673,7 @@ export default function SessionPage() {
           onError={(err) => console.error('LiveKit error:', err)}
         >
           {sessionContent}
-          <RoomAudioRenderer />
+          <RoomAudioRenderer muted={localMuted} />
         </LiveKitRoom>
       ) : (
         sessionContent
@@ -662,6 +694,99 @@ export default function SessionPage() {
         />
       )}
     </div>
+  );
+}
+
+// ── Mic toggle button (must be rendered inside LiveKitRoom) ──────────
+
+function MicToggleButton({ currentStageIndex, currentStageType, userRole }: {
+  currentStageIndex: number;
+  currentStageType?: string;
+  userRole: string;
+}) {
+  const { localParticipant } = useLocalParticipant();
+  const isMicOn = localParticipant.isMicrophoneEnabled;
+  const prevStageIndex = useRef(currentStageIndex);
+
+  // Stage etiquette nudge: when entering a startup presentation/Q&A, remind facilitators to mute
+  useEffect(() => {
+    if (prevStageIndex.current !== currentStageIndex) {
+      prevStageIndex.current = currentStageIndex;
+      if (
+        userRole === 'facilitator' &&
+        (currentStageType === 'presentation' || currentStageType === 'qa') &&
+        localParticipant.isMicrophoneEnabled
+      ) {
+        toast.info('A startup is presenting — consider muting your mic', {
+          duration: 5000,
+        });
+      }
+    }
+  }, [currentStageIndex, currentStageType, userRole, localParticipant]);
+
+  const handleToggle = async () => {
+    try {
+      await localParticipant.setMicrophoneEnabled(!isMicOn);
+    } catch {
+      // Ignore errors (e.g. permission denied)
+    }
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleToggle}
+      title={isMicOn ? 'Mute your mic' : 'Unmute your mic'}
+      data-testid="mic-toggle-btn"
+    >
+      {isMicOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4 text-destructive" />}
+    </Button>
+  );
+}
+
+// ── Admin mute button (facilitator mutes another participant) ────────
+
+function AdminMuteButton({ identity, roomName }: { identity: string; roomName: string }) {
+  const tracks = useTracks([Track.Source.Microphone]);
+  const micTrack = tracks.find(t => t.participant.identity === identity);
+  const isMuted = !micTrack || micTrack.publication?.isMuted;
+  const [loading, setLoading] = useState(false);
+
+  const handleAdminMute = async () => {
+    if (isMuted) return; // Can't remote-unmute (LiveKit security restriction)
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('mute-participant', {
+        body: { room_name: roomName, identity, muted: true },
+      });
+      if (error || !data?.success) {
+        toast.error('Failed to mute participant');
+      }
+    } catch {
+      toast.error('Failed to mute participant');
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleAdminMute}
+      disabled={loading || isMuted}
+      title={isMuted ? `Muted (participant must unmute themselves)` : `Mute ${identity}`}
+      data-testid={`admin-mute-btn-${identity}`}
+      className="px-2"
+    >
+      {loading ? (
+        <Loader2 className="w-4 h-4 animate-spin" />
+      ) : isMuted ? (
+        <MicOff className="w-4 h-4 text-destructive" />
+      ) : (
+        <Mic className="w-4 h-4" />
+      )}
+    </Button>
   );
 }
 
