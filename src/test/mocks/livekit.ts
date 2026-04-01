@@ -19,5 +19,5 @@ vi.mock('@livekit/components-react', () => ({
 }));
 
 vi.mock('livekit-client', () => ({
-  Track: { Source: { Camera: 'camera', Microphone: 'microphone' } },
+  Track: { Source: { Camera: 'camera', Microphone: 'microphone', ScreenShare: 'screen_share' } },
 }));

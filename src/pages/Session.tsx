@@ -18,7 +18,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, Video, Settings, Volume2, VolumeOff, Mic, MicOff } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
 
@@ -496,6 +496,19 @@ export default function SessionPage() {
             })()}
           </div>
 
+          {/* Present button — visible to the on-stage participant */}
+          {isConnected && (() => {
+            const onStageEmail = stageIdentity || currentStartup?.email;
+            if (onStageEmail && onStageEmail === user.email) {
+              return (
+                <div className="flex justify-center mt-2">
+                  <ScreenShareButton currentStageIndex={currentStageIndex} />
+                </div>
+              );
+            }
+            return null;
+          })()}
+
           {/* Audio controls — below the stage */}
           <div className="flex justify-center gap-2 mt-2">
             {/* Mic toggle — facilitators and startups only, inside LiveKitRoom context */}
@@ -741,6 +754,48 @@ function MicToggleButton({ currentStageIndex, currentStageType, userRole }: {
       data-testid="mic-toggle-btn"
     >
       {isMicOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4 text-destructive" />}
+    </Button>
+  );
+}
+
+// ── Screen share button (must be rendered inside LiveKitRoom) ────────
+
+function ScreenShareButton({ currentStageIndex }: { currentStageIndex: number }) {
+  const { localParticipant } = useLocalParticipant();
+  const isSharing = localParticipant.isScreenShareEnabled;
+  const stageRef = useRef(currentStageIndex);
+
+  // Auto-stop screen share when stage changes
+  useEffect(() => {
+    if (stageRef.current !== currentStageIndex) {
+      stageRef.current = currentStageIndex;
+      if (localParticipant.isScreenShareEnabled) {
+        localParticipant.setScreenShareEnabled(false);
+      }
+    }
+  }, [currentStageIndex, localParticipant]);
+
+  const handleToggle = async () => {
+    try {
+      await localParticipant.setScreenShareEnabled(!isSharing);
+    } catch {
+      // User cancelled the screen share picker — not an error
+    }
+  };
+
+  return (
+    <Button
+      data-testid="present-btn"
+      variant={isSharing ? 'destructive' : 'outline'}
+      size="sm"
+      onClick={handleToggle}
+      title={isSharing ? 'Stop sharing your screen' : 'Share your screen'}
+    >
+      {isSharing ? (
+        <><MonitorOff className="w-4 h-4 mr-1" /> Stop Presenting</>
+      ) : (
+        <><Monitor className="w-4 h-4 mr-1" /> Present</>
+      )}
     </Button>
   );
 }

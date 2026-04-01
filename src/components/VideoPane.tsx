@@ -67,10 +67,17 @@ function LiveVideoPane({
   isActive: boolean;
   participantIdentity: string;
 }) {
-  const tracks = useTracks([Track.Source.Camera]);
-  const trackRef = tracks.find(
-    (t) => t.participant.identity === participantIdentity,
+  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare]);
+
+  // Prefer screen share track over camera for the matched participant
+  const screenTrack = tracks.find(
+    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.ScreenShare,
   );
+  const cameraTrack = tracks.find(
+    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.Camera,
+  );
+  const trackRef = screenTrack || cameraTrack;
+  const isScreenShare = !!screenTrack;
 
   if (!trackRef) {
     return (
@@ -88,7 +95,7 @@ function LiveVideoPane({
     <div className="relative w-full h-full bg-black rounded-lg overflow-hidden border border-border">
       <VideoTrack
         trackRef={trackRef}
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        style={{ width: '100%', height: '100%', objectFit: isScreenShare ? 'contain' : 'cover' }}
       />
 
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent px-3 py-2">
@@ -96,12 +103,20 @@ function LiveVideoPane({
         {sublabel && <p className="text-[11px] text-white/70">{sublabel}</p>}
       </div>
 
-      {isActive && (
-        <div className="absolute top-3 right-3 flex items-center gap-1.5">
-          <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
-          <span className="text-[10px] uppercase tracking-wider text-white font-medium">Live</span>
-        </div>
-      )}
+      <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        {isScreenShare && (
+          <>
+            <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+            <span className="text-[10px] uppercase tracking-wider text-white font-medium mr-2">Presenting</span>
+          </>
+        )}
+        {isActive && (
+          <>
+            <div className="w-2 h-2 rounded-full bg-destructive animate-pulse" />
+            <span className="text-[10px] uppercase tracking-wider text-white font-medium">Live</span>
+          </>
+        )}
+      </div>
     </div>
   );
 }

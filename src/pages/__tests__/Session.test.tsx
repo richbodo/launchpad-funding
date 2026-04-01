@@ -55,6 +55,7 @@ vi.mock('@/integrations/supabase/client', () => ({
                       ],
                       error: null,
                     }),
+                    // StartupEditDialog: .select().eq().eq().single()
                     single: vi.fn().mockResolvedValue({
                       data: { funding_goal: 125000, dd_room_link: null, website_link: null },
                       error: null,
@@ -68,6 +69,7 @@ vi.mock('@/integrations/supabase/client', () => ({
                   ],
                   error: null,
                 });
+                // Also support .single() chain for participant lookups
                 (result as any).single = vi.fn().mockResolvedValue({
                   data: { funding_goal: null, dd_room_link: null, website_link: null },
                   error: null,
