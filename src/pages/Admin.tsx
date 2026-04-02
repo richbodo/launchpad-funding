@@ -35,6 +35,7 @@ interface ParticipantRow {
   presentation_order: number | null;
   dd_room_link: string | null;
   website_link: string | null;
+  funding_goal: number | null;
 }
 
 interface EmailLogRow {
@@ -93,6 +94,7 @@ export default function Admin() {
   const [metaParticipant, setMetaParticipant] = useState<ParticipantRow | null>(null);
   const [metaDDRoom, setMetaDDRoom] = useState('');
   const [metaWebsite, setMetaWebsite] = useState('');
+  const [metaFundingGoal, setMetaFundingGoal] = useState('');
 
   // Send email dialog
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -582,6 +584,7 @@ export default function Admin() {
       .update({
         dd_room_link: metaDDRoom || null,
         website_link: metaWebsite || null,
+        funding_goal: metaFundingGoal ? parseFloat(metaFundingGoal) : null,
       })
       .eq('id', metaParticipant.id);
     if (error) {
@@ -597,6 +600,7 @@ export default function Admin() {
     setMetaParticipant(p);
     setMetaDDRoom(p.dd_room_link || '');
     setMetaWebsite(p.website_link || '');
+    setMetaFundingGoal(p.funding_goal != null ? String(p.funding_goal) : '');
   };
 
   const toggleSort = (col: 'role' | 'display_name') => {
@@ -1288,6 +1292,16 @@ export default function Admin() {
             <DialogTitle>Startup Metadata — {metaParticipant?.display_name || metaParticipant?.email}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <div>
+              <Label>Funding Goal ($)</Label>
+              <Input
+                type="number"
+                value={metaFundingGoal}
+                onChange={e => setMetaFundingGoal(e.target.value)}
+                placeholder="125000"
+                className="mt-1"
+              />
+            </div>
             <div>
               <Label>DD Room Link</Label>
               <Input
