@@ -98,9 +98,9 @@ Deno.serve(async (req) => {
     // Session B (completed yesterday) participants
     const betaParticipants = [
       ...facilitators.map(f => ({ ...f, session_id: beta.id })),
-      { session_id: beta.id, email: "cloud@demo.com", display_name: "CloudSync", role: "startup" as const, presentation_order: 1, website_link: "https://cloudsync.dev", dd_room_link: "https://drive.google.com/cloudsync" },
-      { session_id: beta.id, email: "forge@demo.com", display_name: "DataForge", role: "startup" as const, presentation_order: 2, website_link: "https://dataforge.ai", dd_room_link: "https://drive.google.com/dataforge" },
-      { session_id: beta.id, email: "pixel@demo.com", display_name: "PixelAI", role: "startup" as const, presentation_order: 3, website_link: "https://pixelai.co", dd_room_link: "https://drive.google.com/pixelai" },
+      { session_id: beta.id, email: "cloud@demo.com", display_name: "CloudSync", role: "startup" as const, presentation_order: 1, website_link: "https://cloudsync.dev", dd_room_link: "https://drive.google.com/cloudsync", funding_goal: 1500000 },
+      { session_id: beta.id, email: "forge@demo.com", display_name: "DataForge", role: "startup" as const, presentation_order: 2, website_link: "https://dataforge.ai", dd_room_link: "https://drive.google.com/dataforge", funding_goal: 4000000 },
+      { session_id: beta.id, email: "pixel@demo.com", display_name: "PixelAI", role: "startup" as const, presentation_order: 3, website_link: "https://pixelai.co", dd_room_link: "https://drive.google.com/pixelai", funding_goal: 2500000 },
       { session_id: beta.id, email: "eve@investor.com", display_name: "Eve Park", role: "investor" as const },
       { session_id: beta.id, email: "frank@investor.com", display_name: "Frank Liu", role: "investor" as const },
     ];
