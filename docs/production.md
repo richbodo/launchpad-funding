@@ -22,3 +22,26 @@ Supabase Realtime only delivers change events for tables that have been explicit
 3. Remember that migrations deploy instantly to production — no frontend publish required.
 
 **Why this is easy to miss locally:** During development the tab that performs an update (e.g. the startup editing their funding goal) also calls `setStartups(...)` directly, so the UI updates immediately. Other browser windows relying on Realtime will *not* update if the table isn't published, but you may never open multiple windows during local testing.
+
+### Stale seed data after schema changes
+
+When you add a new column to the seed function (e.g. `funding_goal` on `session_participants`), **existing demo sessions in production won't pick up the new values** — the seed only writes columns on fresh inserts. Symptoms: the feature works in a newly-seeded local environment but fails in production because the rows were created by an older version of the seed.
+
+**Fix:** Re-run the seed function after any schema or seed-data change:
+
+```bash
+# Via the edge function endpoint (demo mode must be enabled)
+curl -X POST https://<project-ref>.supabase.co/functions/v1/seed-demo-data \
+  -H "Authorization: Bearer <anon-key>"
+```
+
+This deletes all `[DEMO]` sessions and recreates them with the latest data — **session IDs will change**, so all participants must log in again via the Demo Logins page.
+
+**Best practice:** After changing the seed function, always re-seed production *and* verify the new data landed:
+
+```sql
+SELECT email, display_name, funding_goal
+FROM session_participants
+WHERE role = 'startup'
+ORDER BY session_id, presentation_order;
+```
