@@ -1,0 +1,1 @@
+ALTER TABLE public.session_participants ADD COLUMN IF NOT EXISTS funding_goal NUMERIC;
