@@ -108,9 +108,9 @@ Deno.serve(async (req) => {
     // Session C (completed 2 days ago) participants
     const gammaParticipants = [
       ...facilitators.map(f => ({ ...f, session_id: gamma.id })),
-      { session_id: gamma.id, email: "solar@demo.com", display_name: "SolarWave", role: "startup" as const, presentation_order: 1, website_link: "https://solarwave.energy", dd_room_link: "https://drive.google.com/solarwave" },
-      { session_id: gamma.id, email: "finly@demo.com", display_name: "Finly", role: "startup" as const, presentation_order: 2, website_link: "https://finly.io", dd_room_link: "https://drive.google.com/finly" },
-      { session_id: gamma.id, email: "mediq@demo.com", display_name: "MediQ", role: "startup" as const, presentation_order: 3, website_link: "https://mediq.health", dd_room_link: "https://drive.google.com/mediq" },
+      { session_id: gamma.id, email: "solar@demo.com", display_name: "SolarWave", role: "startup" as const, presentation_order: 1, website_link: "https://solarwave.energy", dd_room_link: "https://drive.google.com/solarwave", funding_goal: 6000000 },
+      { session_id: gamma.id, email: "finly@demo.com", display_name: "Finly", role: "startup" as const, presentation_order: 2, website_link: "https://finly.io", dd_room_link: "https://drive.google.com/finly", funding_goal: 1000000 },
+      { session_id: gamma.id, email: "mediq@demo.com", display_name: "MediQ", role: "startup" as const, presentation_order: 3, website_link: "https://mediq.health", dd_room_link: "https://drive.google.com/mediq", funding_goal: 8000000 },
       { session_id: gamma.id, email: "ivan@investor.com", display_name: "Ivan Petrov", role: "investor" as const },
       { session_id: gamma.id, email: "julia@investor.com", display_name: "Julia Santos", role: "investor" as const },
       { session_id: gamma.id, email: "kyle@investor.com", display_name: "Kyle Brown", role: "investor" as const },
