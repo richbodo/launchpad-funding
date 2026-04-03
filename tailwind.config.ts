@@ -47,6 +47,11 @@ export default {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        funding: {
+          DEFAULT: "hsl(var(--funding))",
+          glow: "hsl(var(--funding-glow))",
+          bg: "hsl(var(--funding-bg))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",
