@@ -19,17 +19,17 @@ The application features a demo mode that is kind of awesome, in which you can t
 
 ## Features
 
-- **Live funding sessions** — Facilitators create, schedule, and run live pitch events with timed stages
-- **Real-time investment tracking** — Investors pledge funds during presentations; a funding meter updates in real time for all participants
+- **Live funding sessions** — Facilitators create, schedule, and run live pitch events with timed stages that Startups present to and Investors invest in.  
+- **Email/Calendar integration** - Editable email templates for session invite, investment, etc.
+- **Live chat** — All participants can communicate during sessions via a real-time chat panel while the video session is going, getting all questions answered.
+- **Presentation and AV controls** - All the usual controls you expect in a video conferencing app of this kind - present, mute, etc. appropriate for each participant type.
+- **Real-time investment tracking** — Investors pledge funds during presentations; a funding meter updates in real time for all participants.
 - **Role-based access** — Three distinct roles: Facilitator (admin/host), Startup (presenter), and Investor (viewer/pledger)
-- **Session timer & stage control** — Facilitators advance through intro, pitch, Q&A, and outro stages with play/pause controls
-- **Live chat** — All participants can communicate during sessions via a real-time chat panel
-- **Demo mode** — Toggle demo mode from the admin panel to seed sample sessions and participants for testing
+- **Session timer & stage control** — Facilitators advance through intro, pitch, Q&A, and outro stages with play/pause/stage-change controls
+- **Demo mode** — Toggle demo mode from the admin panel to seed sample sessions and participants for testing - local demo scripts launch browers for fixture participants.
 - **Randomize login** — In demo mode, quickly log in as a random available participant with one click
-- **Admin dashboard** — Facilitators manage sessions, participants, presentation order, metadata (DD room links, websites), and chat archives
+- **Admin dashboard** — Facilitators manage sessions, participants, presentation order, metadata (DD room links, websites), and chat archives, debugging, etc.
 - **Chat archiving** — Export and download chat transcripts from completed sessions
-- **Demo logins page** — A reference page listing all demo credentials with session times and live status indicators
-- **Funding meter** — A prominent, animated progress bar showing total funds raised and per-startup breakdowns
 - **Responsive design** — Works on desktop and tablet with a 3-pane session layout (facilitator video, startup presentation, chat)
 
 ## How to Use
