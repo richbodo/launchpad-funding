@@ -333,4 +333,5 @@ LiveKit → app → VideoPane pipeline is working correctly.
 | No rooms listed in `lk room list` | No one has joined yet | Start a call first, then check |
 | "Failed to mute participant" | Edge Function can't reach LiveKit | Ensure `host.docker.internal` resolves (Docker/Colima issue) |
 | Admin mute works but unmute fails | LiveKit security restriction | Expected — participant must self-unmute via their mic toggle |
-| Run `./scripts/test-infra-test.sh` to verify all services | — | Checks Supabase, LiveKit, Edge Functions, Vite, and demo mode |
+
+**Tip:** Run `./scripts/test-infra-test.sh` to verify all services (Supabase, LiveKit, Edge Functions, Vite, and demo mode).

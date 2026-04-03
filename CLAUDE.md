@@ -12,7 +12,7 @@ Licensed under GPL. **Status**: Front-end demo complete; backend is Supabase (no
 
 - **Frontend**: React 18, TypeScript, Vite (port 8080), React Router v6
 - **Styling**: Tailwind CSS 3, shadcn/ui (default style, slate base, CSS variables), Framer Motion for animations
-- **State**: React Context (`SessionProvider`), TanStack React Query, component-level state
+- **State**: React Context (`SessionProvider`), component-level state
 - **Backend**: Supabase (Postgres, Realtime subscriptions, Edge Functions, Storage)
 - **Testing**: Vitest + jsdom + React Testing Library
 - **Icons**: lucide-react
@@ -33,16 +33,16 @@ Tests live in `src/**/*.{test,spec}.{ts,tsx}` and use jsdom environment with glo
 
 ```
 src/
-  pages/             # Route-level components (Index, Login, Session, Admin, DemoLogins, NotFound)
-  components/        # Feature components (ChatPanel, FundingMeter, InvestDialog, SessionTimer, StageSelector, VideoPane, etc.)
+  pages/             # Route-level components (Index, Login, Session, Admin, DemoLogins, Unsubscribe, NotFound)
+  components/        # Feature components (ChatPanel, DemoModeBanner, FundingMeter, HelpButton, InvestDialog, NavLink, SessionTimer, StageSelector, VideoPane)
   components/ui/     # shadcn/ui primitives (DO NOT manually edit — managed by shadcn CLI)
-  hooks/             # Custom hooks (useDemoMode, useSessionStages, use-mobile, use-toast)
+  hooks/             # Custom hooks (useDemoMode, useLiveKitToken, useSessionStages, use-mobile, use-toast)
   lib/               # sessionContext (auth context), utils (cn helper)
   integrations/
     supabase/        # Auto-generated Supabase client & types (client.ts, types.ts)
   test/              # Test setup
 supabase/
-  functions/         # Deno Edge Functions (seed-demo-data, archive-chat)
+  functions/         # Deno Edge Functions (archive-chat, email-logs, handle-email-suppression, handle-email-unsubscribe, livekit-token, mute-participant, participant-login, preview-transactional-email, process-email-queue, seed-demo-data, send-transactional-email)
   migrations/        # SQL migration files
 ```
 
@@ -63,12 +63,13 @@ supabase/
 - Sessions go through: `draft` → `scheduled` → `live` → `completed`
 - The `useSessionStages` hook builds stages dynamically from startup list: Intro → (Presentation + Q&A per startup) → Outro
 - Each stage has a countdown timer; facilitator controls playback
-- During intro/outro, facilitators can "Take Stage" to mirror their video to the center pane (the stage). State is local to `Session.tsx` via `stageIdentity`, auto-clears when advancing to a presentation/Q&A stage.
+- During intro/outro, facilitators can "Take Stage" to mirror any participant's (facilitator or startup) video to the center pane (the stage). The `stageIdentity` originates in `Session.tsx` and is broadcast to all participants via Supabase Realtime; auto-clears when advancing to a presentation/Q&A stage.
 
 ### Real-time Features
+- Stage sync: Facilitator broadcasts stage state (index, paused, remaining time, stage identity) to all participants via Supabase Realtime Broadcast + Presence. Late joiners read current state from Presence on first connection.
 - Chat messages: Supabase Realtime postgres_changes on `chat_messages` table
 - Investments: Supabase Realtime postgres_changes on `investments` table
-- Both subscribe per session ID
+- All subscribe per session ID
 
 ### Demo Mode
 - Toggled via `app_settings` table (`key: 'mode'`, `value: 'demo'|'production'`)
@@ -79,11 +80,15 @@ supabase/
 ## Database Tables
 
 - `sessions` — funding sessions with status lifecycle
-- `session_participants` — users per session (email, role, display_name, presentation_order, password_hash, dd_room_link, website_link)
+- `session_participants` — users per session (email, role, display_name, presentation_order, password_hash, dd_room_link, website_link, funding_goal, is_logged_in)
 - `investments` — soft commitments (investor → startup, amount)
 - `chat_messages` — real-time Q&A messages
 - `session_logs` — audit trail (login, logout, investment events)
 - `app_settings` — key-value config (demo mode flag)
+- `email_send_log` — transactional email send history
+- `email_send_state` — email queue state tracking
+- `suppressed_emails` — suppressed/bounced email addresses
+- `email_unsubscribe_tokens` — email unsubscribe token management
 
 ### Enums
 - `participant_role`: facilitator, startup, investor
@@ -100,10 +105,9 @@ supabase/
 
 ## Environment Variables
 
-Required in `.env` (Vite exposes via `import.meta.env`):
+Required in `.env` or `.env.test` (Vite exposes via `import.meta.env`):
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
-- `VITE_LIVEKIT_WS_URL` — LiveKit WebSocket server URL
 
 Required as Supabase secrets (for `livekit-token` Edge Function):
 - `LIVEKIT_API_KEY`

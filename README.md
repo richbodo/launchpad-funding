@@ -4,11 +4,18 @@
 
 This is a real-time, browser-based funding platform designed for demo-day-style events where startups or charitable projects present to investors or donors and financing rounds can complete in minutes instead of what often takes years.  
 
-A facilitator manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time. 
+## How it works
+
+A facilitator manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time.  Startups and investors get emails when investments are soft-committed, and they complete their transaction with no middle-man.
+
+This style of fundraising platform has been around, and has been very successful at times, but I couldn't find an OSS version I liked, so here's one. :)
+
+## Developer Demo
 
 The application features a demo mode that is kind of awesome, in which you can try the app locally with fixture video streams and live streams.  It has seeded data for quick evaluation, role-based login (no traditional auth required for investors/startups), and a clean, responsive UI.
 
-This style of fundraising platform has been around, and has been very successful at times, but I couldn't find a free version I liked, so here you go.
+[This is a little youtube video that shows the demo mode](https://youtu.be/Pm-bSHjzEvA)
+
 
 ## Features
 
@@ -71,20 +78,24 @@ mac% ./scripts/test-infra.sh --seed
 mac% npm test
 ```
 
-40 tests covering stage logic, hook behavior, VideoPane states, Session page layout, and Login flows. No infrastructure required — these run against mocks.
+53 tests covering stage logic, hook behavior, VideoPane states, Session page layout, and Login flows. No infrastructure required — these run against mocks.
 
 ### Run E2E tests
 
 E2E tests require Supabase and LiveKit running (via `test-infra.sh` above). Playwright starts the Vite dev server automatically.
 
 ```
-mac% npx playwright test                                  # all E2E tests
-mac% npx playwright test tests/e2e/login.spec.ts          # login flows only
-mac% npx playwright test tests/e2e/stageFlow.spec.ts      # stage navigation
-mac% npx playwright test tests/e2e/chat.spec.ts           # realtime chat
-mac% npx playwright test tests/e2e/investment.spec.ts     # investment + realtime
-mac% npx playwright test tests/e2e/videoCall.spec.ts      # video call lifecycle
-mac% npx playwright test tests/e2e/videoVisibility.spec.ts # multi-role video
+mac% npx playwright test                                    # all E2E tests
+mac% npx playwright test tests/e2e/login.spec.ts            # login flows only
+mac% npx playwright test tests/e2e/stageFlow.spec.ts        # stage navigation
+mac% npx playwright test tests/e2e/chat.spec.ts             # realtime chat
+mac% npx playwright test tests/e2e/investment.spec.ts       # investment + realtime
+mac% npx playwright test tests/e2e/funding.spec.ts          # funding meter
+mac% npx playwright test tests/e2e/audioControls.spec.ts    # audio mute/unmute
+mac% npx playwright test tests/e2e/takeStage.spec.ts        # take stage controls
+mac% npx playwright test tests/e2e/sessionStatus.spec.ts    # session lifecycle
+mac% npx playwright test tests/e2e/videoCall.spec.ts        # video call lifecycle
+mac% npx playwright test tests/e2e/videoVisibility.spec.ts  # multi-role video
 ```
 
 The video tests (`videoCall`, `videoVisibility`) additionally require LiveKit to be running.

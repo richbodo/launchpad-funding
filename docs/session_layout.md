@@ -46,8 +46,11 @@ A session progresses through these stages in order:
 | N | Outro | `outro` | 5 min | Facilitator video (if taken stage) or placeholder |
 
 The facilitator advances through stages via Next/Previous controls.
-Stage state is local to the facilitator's browser (not synced via
-Supabase).
+Stage state (index, pause/play, remaining time, and stage override) is
+broadcast to all participants via Supabase Realtime Broadcast +
+Presence. Non-facilitators apply the received state automatically.
+Late joiners read the facilitator's current state from Presence on
+first connection.
 
 ---
 
@@ -134,25 +137,32 @@ stage, or the placeholder is shown.
 - **Placeholder (no startup)** — During intro/outro when no startup
   should be presenting and no facilitator has taken the stage.
 
+### Startup thumbnails (facilitator view only)
+
+Below the facilitator video panes, facilitators see a scrollable list of
+startup thumbnails. Each thumbnail shows the startup's name and has a
+**"Take Stage"** button. This list is not visible to investors or
+startups.
+
 ### Take Stage
 
-During intro and outro stages, each facilitator's left-pane slot shows a
+Each facilitator's left-pane slot and each startup thumbnail shows a
 **"Take Stage"** button (visible only when the call is connected). Clicking
-it mirrors that facilitator's video to the stage (center pane). The
+it mirrors that participant's video to the stage (center pane). The
 facilitator's left-pane video continues playing simultaneously.
 
-- Only one facilitator can be on stage at a time. Clicking "Take Stage"
-  on a different facilitator replaces the current one.
-- The button shows "On Stage" (disabled) for the facilitator currently
+- Only one participant can be on stage at a time. Clicking "Take Stage"
+  on a different participant replaces the current one.
+- The button shows "On Stage" (disabled) for the participant currently
   on stage.
-- Any facilitator can put any facilitator on stage (including a co-host).
+- Any facilitator can put any participant (facilitator or startup) on stage.
 - When the session advances to a presentation or Q&A stage, the stage
   identity is automatically cleared — the startup takes over the center
   pane.
 - When returning to intro/outro (via Previous or stage selector), the
   facilitator must explicitly click "Take Stage" again.
-- State is local to `Session.tsx` (`stageIdentity`), not synced across
-  participants.
+- The `stageIdentity` originates in `Session.tsx` and is broadcast to
+  all participants via Supabase Realtime.
 
 ---
 
@@ -203,11 +213,6 @@ disconnected automatically.
 ---
 
 ## Known limitations
-
-- **Stage state is local**: Only the facilitator's browser knows which
-  stage is active. Other participants each run their own independent
-  stage/timer state. A future enhancement will sync stage state via
-  Supabase Realtime.
 
 - **Mobile layout**: Not documented here. The current responsive layout
   stacks panes vertically on small screens but has not been tested or

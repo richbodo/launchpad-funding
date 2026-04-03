@@ -2,19 +2,17 @@
 
 ## How this works
 
-Everything runs on your Mac host — there are no VMs or containers to
+Everything runs on your Mac or Linux host — there are no VMs or containers to
 shell into. The developer runs three tools as their normal macOS user:
 
 1. **Docker runtime** — only used as a backend by the Supabase CLI. You never
-   run `docker run`, `docker exec`, or interact with containers directly.
+  run `docker run`, `docker exec`, or interact with containers directly.
    The Supabase CLI manages its own containers (Postgres, Realtime, PostgREST,
    Edge Functions) automatically.
-
 2. **Supabase CLI** (`supabase`) — runs on your Mac. Talks to Docker behind
-   the scenes. Exposes local Supabase services on `localhost` ports.
-
+  the scenes. Exposes local Supabase services on `localhost` ports.
 3. **LiveKit server** (`livekit-server`) — runs natively on your Mac as a
-   regular process. No Docker involved.
+  regular process. No Docker involved.
 
 All three tools run as your normal Mac user. No root, no `sudo`, no special
 service accounts (except one symlink setup in step 1). Every developer gets
@@ -207,6 +205,7 @@ Server URL: ws://localhost:7880
 in step 6.
 
 LiveKit uses three ports (all on localhost):
+
 - `7880` — HTTP / WebSocket signaling
 - `7881` — TCP media
 - `7882/udp` — UDP media (WebRTC)
@@ -267,14 +266,16 @@ mac% psql "postgresql://postgres:postgres@localhost:54322/postgres" \
 
 This creates a deterministic test session with known credentials:
 
-| Email | Role | Password |
-|---|---|---|
-| `facilitator@test.com` | facilitator | `test123` |
+
+| Email                    | Role        | Password  |
+| ------------------------ | ----------- | --------- |
+| `facilitator@test.com`   | facilitator | `test123` |
 | `facilitator-b@test.com` | facilitator | `test123` |
-| `startup-a@test.com` | startup | — |
-| `startup-b@test.com` | startup | — |
-| `investor-1@test.com` | investor | — |
-| `investor-2@test.com` | investor | — |
+| `startup-a@test.com`     | startup     | —         |
+| `startup-b@test.com`     | startup     | —         |
+| `investor-1@test.com`    | investor    | —         |
+| `investor-2@test.com`    | investor    | —         |
+
 
 ---
 
@@ -289,7 +290,8 @@ mac% npx vite --mode test --port 8080
 
 The `--mode test` flag tells Vite to load `.env.test` instead of `.env`.
 
-Open http://localhost:8080 and verify:
+Open [http://localhost:8080](http://localhost:8080) and verify:
+
 1. The login page loads and shows the "[TEST] E2E Session"
 2. Enter `facilitator@test.com`, click Facilitator, enter password `test123`
 3. You reach the session page with the 3-pane layout
@@ -317,18 +319,19 @@ mac% ./scripts/demo_call.py
 ```
 
 This script:
+
 1. Generates video fixture files on first run (cached for future runs,
-   requires ffmpeg; falls back to generic LiveKit demo streams without it)
+  requires ffmpeg; falls back to generic LiveKit demo streams without it)
 2. Resets the test session to a clean state
 3. Opens your browser and **auto-logs you in** as the facilitator (demo
-   mode bypasses password)
+  mode bypasses password)
 4. You click "Start Call", allow camera+mic, and press ENTER in the terminal
 5. The script injects three synthetic video participants via the `lk` CLI:
-   - **Co-Facilitator** (left pane, SMPTE color bars)
-   - **AlphaTech** startup (center pane, numbered test pattern)
-   - **BetaCorp** startup (center pane, Mandelbrot fractal)
+  - **Co-Facilitator** (left pane, SMPTE color bars)
+  - **AlphaTech** startup (center pane, numbered test pattern)
+  - **BetaCorp** startup (center pane, Mandelbrot fractal)
 6. You see a live multi-person call: your camera + co-facilitator in the
-   left pane, the active startup's video in the center pane
+  left pane, the active startup's video in the center pane
 
 Use **Next/Previous** to switch between startup presentations and see each
 startup's distinct video stream change in the center pane. Press ENTER in
