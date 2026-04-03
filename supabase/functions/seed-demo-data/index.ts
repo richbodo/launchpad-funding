@@ -86,9 +86,9 @@ Deno.serve(async (req) => {
     // Session A participants
     const alphaParticipants = [
       ...facilitators.map(f => ({ ...f, session_id: alpha.id })),
-      { session_id: alpha.id, email: "acme@demo.com", display_name: "AcmeTech", role: "startup" as const, presentation_order: 1, website_link: "https://acmetech.io", dd_room_link: "https://drive.google.com/acme" },
-      { session_id: alpha.id, email: "nova@demo.com", display_name: "NovaPay", role: "startup" as const, presentation_order: 2, website_link: "https://novapay.com", dd_room_link: "https://drive.google.com/nova" },
-      { session_id: alpha.id, email: "green@demo.com", display_name: "GreenGrid", role: "startup" as const, presentation_order: 3, website_link: "https://greengrid.co", dd_room_link: "https://drive.google.com/green" },
+      { session_id: alpha.id, email: "acme@demo.com", display_name: "AcmeTech", role: "startup" as const, presentation_order: 1, website_link: "https://acmetech.io", dd_room_link: "https://drive.google.com/acme", funding_goal: 2000000 },
+      { session_id: alpha.id, email: "nova@demo.com", display_name: "NovaPay", role: "startup" as const, presentation_order: 2, website_link: "https://novapay.com", dd_room_link: "https://drive.google.com/nova", funding_goal: 5000000 },
+      { session_id: alpha.id, email: "green@demo.com", display_name: "GreenGrid", role: "startup" as const, presentation_order: 3, website_link: "https://greengrid.co", dd_room_link: "https://drive.google.com/green", funding_goal: 3000000 },
       { session_id: alpha.id, email: "alice@investor.com", display_name: "Alice Chen", role: "investor" as const },
       { session_id: alpha.id, email: "bob@investor.com", display_name: "Bob Martinez", role: "investor" as const },
       { session_id: alpha.id, email: "carol@investor.com", display_name: "Carol Nguyen", role: "investor" as const },
