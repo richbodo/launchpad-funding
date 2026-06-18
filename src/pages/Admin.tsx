@@ -331,15 +331,21 @@ export default function Admin() {
    */
   const sendAllQueuedCommitmentEmails = async () => {
     if (!selectedSession) return;
-    const queued = investments.filter(i => i.email_status === 'queued');
-    if (queued.length === 0) {
-      toast.info('No emails are waiting for approval.');
+    // Treat both 'draft' (never-flipped) and 'queued' as pending so this
+    // button always works even when the end-of-call queue transition was
+    // skipped or blocked.
+    const pending = investments.filter(
+      i => i.email_status === 'queued' || i.email_status === 'draft',
+    );
+    if (pending.length === 0) {
+      toast.info('No commitment emails to send.');
       return;
     }
     setSendingQueuedEmails(true);
     let sent = 0;
     let failed = 0;
-    for (const inv of queued) {
+    const sentIds: string[] = [];
+    for (const inv of pending) {
       try {
         const investorName = inv.investor_name || participantDisplay(inv.investor_email);
         const startupName = inv.startup_name || participantDisplay(inv.startup_email);
@@ -360,15 +366,19 @@ export default function Admin() {
           },
         });
         if (error || data?.error) throw new Error(error?.message || data?.error || 'send failed');
-        await supabase
-          .from('investments')
-          .update({ email_status: 'sent', email_sent_at: new Date().toISOString() })
-          .eq('id', inv.id);
+        sentIds.push(inv.id);
         sent++;
       } catch (err) {
         console.error('Failed to send commitment email', inv.id, err);
         failed++;
       }
+    }
+    if (sentIds.length > 0) {
+      const { error: updErr } = await invokeAdmin('update_investment_email_status', {
+        ids: sentIds,
+        status: 'sent',
+      });
+      if (updErr) console.error('Failed to flag commitments as sent', updErr);
     }
     setSendingQueuedEmails(false);
     await fetchInvestments(selectedSession.id);
@@ -379,25 +389,28 @@ export default function Admin() {
   };
 
   /**
-   * Cancel every queued email for this session. The investment rows stay in
+   * Cancel every pending email for this session. The investment rows stay in
    * the database (audit log preserved) — only the email status flips to
-   * `cancelled` so the queue UI clears.
+   * `cancelled` so the pending banner clears.
    */
   const cancelAllQueuedCommitmentEmails = async () => {
     if (!selectedSession) return;
-    const queued = investments.filter(i => i.email_status === 'queued');
-    if (queued.length === 0) return;
+    const pending = investments.filter(
+      i => i.email_status === 'queued' || i.email_status === 'draft',
+    );
+    if (pending.length === 0) return;
     setCancellingQueuedEmails(true);
-    const { error } = await supabase
-      .from('investments')
-      .update({ email_status: 'cancelled', email_cancelled_at: new Date().toISOString() })
-      .eq('session_id', selectedSession.id)
-      .eq('email_status', 'queued');
+    const { error, data } = await invokeAdmin('update_investment_email_status', {
+      session_id: selectedSession.id,
+      from_statuses: ['draft', 'queued'],
+      status: 'cancelled',
+    });
     setCancellingQueuedEmails(false);
-    if (error) {
-      toast.error(`Failed to cancel: ${error.message}`);
+    if (error || data?.error) {
+      toast.error(`Failed to cancel: ${error?.message || data?.error}`);
       return;
     }
+
     await fetchInvestments(selectedSession.id);
     toast.success('Queued emails cancelled. Investment log preserved.');
   };
@@ -1687,7 +1700,9 @@ export default function Admin() {
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {(() => {
-                      const queuedCount = investments.filter(i => i.email_status === 'queued').length;
+                      const queuedCount = investments.filter(
+                        i => i.email_status === 'queued' || i.email_status === 'draft',
+                      ).length;
                       if (queuedCount === 0) return null;
                       return (
                         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
@@ -1727,6 +1742,7 @@ export default function Admin() {
                       );
                     })()}
 
+
                     {investments.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
                         No investment commitments yet for this session.
@@ -1748,13 +1764,16 @@ export default function Admin() {
                             const statusClass =
                               status === 'sent' ? 'bg-emerald-500/10 text-emerald-600' :
                               status === 'queued' ? 'bg-amber-500/10 text-amber-600' :
+                              status === 'draft' ? 'bg-amber-500/10 text-amber-600' :
                               status === 'cancelled' ? 'bg-muted text-muted-foreground' :
                               'bg-blue-500/10 text-blue-500';
                             const statusLabel =
                               status === 'sent' ? 'Sent' :
                               status === 'queued' ? 'Pending approval' :
+                              status === 'draft' ? 'Pending approval' :
                               status === 'cancelled' ? 'Cancelled' :
-                              'Draft';
+                              status;
+
                             return (
                               <TableRow key={inv.id}>
                                 <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
