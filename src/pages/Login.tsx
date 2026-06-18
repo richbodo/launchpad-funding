@@ -471,6 +471,75 @@ export default function Login() {
                   </>
                 )}
               </motion.div>
+            ) : step === 'facilitator-create-password' ? (
+              <motion.div
+                key="create-password"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="space-y-5"
+              >
+                <div className="text-center pb-2">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-accent/10 mb-3">
+                    <Lock className="w-6 h-6 text-accent" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Set your facilitator password</p>
+                  <p className="font-semibold">{email}</p>
+                  {activeSessions.length === 1 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      for <span className="font-medium">{activeSessions[0].name}</span>
+                    </p>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground text-center">
+                  Welcome! Facilitators need a password to sign in. Choose one now —
+                  you'll use it every time you log in.
+                </p>
+
+                <div>
+                  <Label htmlFor="newPassword">New password</Label>
+                  <Input
+                    id="newPassword"
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="At least 8 characters"
+                    autoFocus
+                    className="mt-1.5"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="confirmPassword">Confirm password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type={showPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Re-enter password"
+                    className="mt-1.5"
+                  />
+                </div>
+
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showPassword}
+                    onChange={(e) => setShowPassword(e.target.checked)}
+                  />
+                  Show password
+                </label>
+
+                <Button
+                  onClick={handleCreatePassword}
+                  disabled={loading || !newPassword || !confirmPassword}
+                  className="w-full bg-accent text-accent-foreground hover:bg-accent/90 font-semibold"
+                >
+                  {loading ? 'Saving...' : 'Create password'}
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </motion.div>
             ) : (
               <motion.div
                 key="password"
@@ -485,6 +554,11 @@ export default function Login() {
                   </div>
                   <p className="text-sm text-muted-foreground">Facilitator access</p>
                   <p className="font-semibold">{email}</p>
+                  {activeSessions.length === 1 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      for <span className="font-medium">{activeSessions[0].name}</span>
+                    </p>
+                  )}
                 </div>
 
                 <div>
