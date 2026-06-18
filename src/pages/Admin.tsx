@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check, Copy } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -543,7 +543,10 @@ export default function Admin() {
         body: {
           templateName: 'session-invitation',
           recipientEmail: email,
-          idempotencyKey: `session-invite-${selectedSession.id}-${email}`,
+          // Unique per send: the email provider dedupes delivery on idempotencyKey,
+          // so a stable key would make an explicit resend silently not re-deliver.
+          // Accidental double-sends within one action are prevented by `sendingEmail`.
+          idempotencyKey: `session-invite-${selectedSession.id}-${email}-${Date.now()}`,
           templateData: {
             recipientName: name || undefined,
             roleName: role,
@@ -586,6 +589,21 @@ export default function Admin() {
     await supabase.from('session_participants').delete().eq('id', id);
     if (selectedSession) fetchParticipants(selectedSession.id);
     toast.success('Participant removed');
+  };
+
+  const copyAllEmails = async () => {
+    if (participants.length === 0) {
+      toast.info('No participants to copy');
+      return;
+    }
+    const emails = participants.map(p => p.email).join(', ');
+    try {
+      await navigator.clipboard.writeText(emails);
+      toast.success(`Copied ${participants.length} email${participants.length === 1 ? '' : 's'} to clipboard`);
+    } catch (err) {
+      reportError('Failed to copy emails to clipboard', err);
+      toast.error('Failed to copy emails');
+    }
   };
 
   const changeStartupOrder = async (participantId: string, newOrder: number) => {
@@ -921,9 +939,21 @@ export default function Admin() {
                 {/* Participants */}
                 <Card>
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="w-5 h-5" /> Participants
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-2">
+                      <CardTitle className="flex items-center gap-2">
+                        <Users className="w-5 h-5" /> Participants
+                      </CardTitle>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={copyAllEmails}
+                        disabled={participants.length === 0}
+                        title="Copy all participant emails to the clipboard"
+                      >
+                        <Copy className="w-4 h-4 mr-1" /> Copy emails
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent>
                     {/* Add participant form */}
@@ -1027,7 +1057,19 @@ export default function Admin() {
                                       <Settings2 className="w-3.5 h-3.5" />
                                     </Button>
                                   )}
-                                  <Button variant="ghost" size="sm" onClick={() => removeParticipant(p.id)}>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setPendingParticipant({ email: p.email, name: p.display_name || '', role: p.role });
+                                      setEmailDialogOpen(true);
+                                    }}
+                                    title="Resend invitation email"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button variant="ghost" size="sm" onClick={() => removeParticipant(p.id)} title="Remove participant">
                                     <X className="w-3 h-3" />
                                   </Button>
                                 </div>
