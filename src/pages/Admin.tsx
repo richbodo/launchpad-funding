@@ -215,10 +215,15 @@ export default function Admin() {
   };
 
   const fetchSessions = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('sessions')
       .select('*')
       .order('start_time', { ascending: false });
+    // Hide [DEMO]-prefixed sessions when not in demo mode — they're test fixtures only.
+    if (!isDemoModeActive) {
+      query = query.not('name', 'like', '[DEMO]%');
+    }
+    const { data } = await query;
     if (data) setSessions(data);
   };
 
@@ -377,12 +382,16 @@ export default function Admin() {
       return;
     }
 
+    // Conflict check: only flag overlap with other *scheduled* sessions.
+    // A currently 'live' session is the facilitator's active call — it doesn't
+    // block scheduling future sessions (and 'completed' sessions are already
+    // excluded for obvious reasons).
     const { data: overlapping, error: overlapError } = await supabase
       .from('sessions')
       .select('id, name')
       .lt('start_time', endISO)
       .gt('end_time', startISO)
-      .neq('status', 'completed');
+      .eq('status', 'scheduled');
 
     if (overlapError) {
       reportError('Could not check for scheduling conflicts', overlapError);
@@ -390,7 +399,7 @@ export default function Admin() {
     }
 
     if (overlapping && overlapping.length > 0) {
-      toast.error(`Time conflict with "${overlapping[0].name}". Only one session can be active at a time.`);
+      toast.error(`Time conflict with "${overlapping[0].name}". Only one scheduled session can occupy a given time slot.`);
       return;
     }
 
