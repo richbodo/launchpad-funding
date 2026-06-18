@@ -624,6 +624,9 @@ export default function Admin() {
       return;
     }
     toast.success(`Session ${status}`);
+    if (selectedSession && selectedSession.id === id) {
+      setSelectedSession({ ...selectedSession, status });
+    }
     fetchSessions();
   };
 
