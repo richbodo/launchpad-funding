@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useDemoMode } from '@/hooks/useDemoMode';
+import { setAdminToken, getAdminToken, clearAdminToken } from '@/lib/adminAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -26,6 +27,24 @@ import {
   formatDateInTimeZone,
   formatTimeInTimeZone,
 } from '@/lib/timezone';
+
+/**
+ * Invoke an admin edge function with the stored facilitator bearer token.
+ * Returns `{ data, error }` mirroring supabase.functions.invoke's shape so
+ * callers can check `error || data?.error` uniformly.
+ */
+async function invokeAdmin(action: string, payload: Record<string, unknown> = {}) {
+  return supabase.functions.invoke('admin-action', {
+    body: { admin_token: getAdminToken(), action, payload },
+  });
+}
+
+/** Same pattern, dedicated to the small app_settings upsert surface. */
+async function invokeAdminSetting(key: string, value: string) {
+  return supabase.functions.invoke('admin-settings', {
+    body: { admin_token: getAdminToken(), key, value },
+  });
+}
 
 interface SessionRow {
   id: string;
@@ -152,11 +171,8 @@ export default function Admin() {
 
   const saveEmailSetting = async (key: string, value: string) => {
     setSavingSettings(true);
-    const { error } = await supabase.from('app_settings').upsert(
-      { key, value, updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    );
-    if (error) toast.error('Failed to save setting');
+    const { data, error } = await invokeAdminSetting(key, value);
+    if (error || data?.error) toast.error('Failed to save setting');
     else toast.success('Setting saved');
     setSavingSettings(false);
     setEditingField(null);
@@ -206,7 +222,8 @@ export default function Admin() {
       return;
     }
 
-    // Verify password server-side
+    // Verify password server-side; participant-login returns an admin_token
+    // we stash for subsequent admin-action calls.
     const { data, error: loginErr } = await supabase.functions.invoke('participant-login', {
       body: {
         session_id: facilitators[0].session_id,
@@ -220,6 +237,7 @@ export default function Admin() {
       return;
     }
 
+    if (data.admin_token) setAdminToken(data.admin_token);
     setIsAuthenticated(true);
     fetchSessions();
   };
@@ -247,20 +265,16 @@ export default function Admin() {
   };
 
   const fetchChatArchives = async (sessionId: string) => {
-    const { data } = await supabase.storage
-      .from('chat-archives')
-      .list(sessionId, { sortBy: { column: 'created_at', order: 'desc' } });
-    if (data) {
-      const files = await Promise.all(data.map(async (f) => {
-        const { data: urlData } = await supabase.storage
-          .from('chat-archives')
-          .createSignedUrl(`${sessionId}/${f.name}`, 3600);
-        return { name: f.name, url: urlData?.signedUrl || '' };
-      }));
-      setChatArchives(files.filter(f => f.url));
-    } else {
+    // chat-archives bucket is now private — pull list + signed URLs via the
+    // facilitator-gated edge function.
+    const { data, error } = await supabase.functions.invoke('chat-archives-list', {
+      body: { admin_token: getAdminToken(), session_id: sessionId },
+    });
+    if (error || data?.error) {
       setChatArchives([]);
+      return;
     }
+    setChatArchives(data.files || []);
   };
 
   const archiveChat = async (sessionId: string) => {
@@ -291,28 +305,18 @@ export default function Admin() {
   const toggleDemoMode = async (enabled: boolean) => {
     setSeedingDemo(true);
     try {
-      await supabase
-        .from('app_settings')
-        .update({ value: enabled ? 'demo' : 'production', updated_at: new Date().toISOString() })
-        .eq('key', 'mode');
+      // 1. Flip the mode flag (writes to app_settings via admin-settings).
+      await invokeAdminSetting('mode', enabled ? 'demo' : 'production');
 
       if (enabled) {
         const { data, error } = await supabase.functions.invoke('seed-demo-data');
         if (error) throw error;
         toast.success(`Demo data seeded: ${data?.summary?.sessions_created} sessions, ${data?.summary?.participants_created} participants`);
       } else {
-        const { data: demoSessions } = await supabase
-          .from('sessions')
-          .select('id')
-          .like('name', '[DEMO]%');
-        if (demoSessions && demoSessions.length > 0) {
-          const ids = demoSessions.map(s => s.id);
-          await supabase.from('chat_messages').delete().in('session_id', ids);
-          await supabase.from('investments').delete().in('session_id', ids);
-          await supabase.from('session_logs').delete().in('session_id', ids);
-          await supabase.from('session_participants').delete().in('session_id', ids);
-          await supabase.from('sessions').delete().like('name', '[DEMO]%');
-        }
+        // Atomic cleanup via admin-action so all locked-down writes happen
+        // server-side with service_role.
+        const { data, error } = await invokeAdmin('cleanup_demo');
+        if (error || data?.error) throw new Error(data?.error || 'Cleanup failed');
         toast.success('Demo mode disabled, demo data cleaned up');
       }
       setDemoMode(enabled);
@@ -413,15 +417,15 @@ export default function Admin() {
       return;
     }
 
-    const { error } = await supabase.from('sessions').insert({
+    const { data: inserted, error } = await invokeAdmin('create_session', {
       name: newName,
       start_time: startISO,
       end_time: endISO,
       timezone: newTimezone,
-      status: 'scheduled' as const,
+      status: 'scheduled',
     });
-    if (error) {
-      reportError('Failed to create session', error);
+    if (error || inserted?.error) {
+      reportError('Failed to create session', error || new Error(inserted?.error));
       return;
     }
     toast.success('Session created!');
@@ -433,9 +437,9 @@ export default function Admin() {
   };
 
   const deleteSession = async (id: string) => {
-    const { error } = await supabase.from('sessions').delete().eq('id', id);
-    if (error) {
-      reportError('Failed to delete session', error);
+    const { data, error } = await invokeAdmin('delete_session', { id });
+    if (error || data?.error) {
+      reportError('Failed to delete session', error || new Error(data?.error));
       return;
     }
     toast.success('Session deleted');
@@ -444,9 +448,9 @@ export default function Admin() {
   };
 
   const updateSessionStatus = async (id: string, status: "draft" | "scheduled" | "live" | "completed") => {
-    const { error } = await supabase.from('sessions').update({ status }).eq('id', id);
-    if (error) {
-      reportError(`Failed to set session to ${status}`, error);
+    const { data, error } = await invokeAdmin('update_session', { id, status });
+    if (error || data?.error) {
+      reportError(`Failed to set session to ${status}`, error || new Error(data?.error));
       return;
     }
     toast.success(`Session ${status}`);
@@ -533,26 +537,22 @@ export default function Admin() {
       return;
     }
 
-    const { data: updated, error } = await supabase
-      .from('sessions')
-      .update({
-        name: editName.trim(),
-        start_time: startISO,
-        end_time: endISO,
-        timezone: editTimezone,
-      })
-      .eq('id', selectedSession.id)
-      .select()
-      .single();
+    const { data: updated, error } = await invokeAdmin('update_session', {
+      id: selectedSession.id,
+      name: editName.trim(),
+      start_time: startISO,
+      end_time: endISO,
+      timezone: editTimezone,
+    });
 
     setSavingEdit(false);
-    if (error) {
-      reportError('Failed to update session', error);
+    if (error || updated?.error) {
+      reportError('Failed to update session', error || new Error(updated?.error));
       return;
     }
     toast.success('Session updated');
     setIsEditingSession(false);
-    if (updated) setSelectedSession(updated as SessionRow);
+    if (updated?.session) setSelectedSession(updated.session as SessionRow);
     fetchSessions();
   };
 
@@ -606,24 +606,24 @@ export default function Admin() {
       nextOrder = startupOrders.length > 0 ? Math.max(...startupOrders) + 1 : 1;
     }
 
-    const { error } = await supabase.from('session_participants').insert([{
+    const { data: result, error } = await invokeAdmin('add_participant', {
       session_id: selectedSession.id,
       email: normalizedEmail,
-      role: addRole as "facilitator" | "investor" | "startup",
+      role: addRole,
       display_name: addName || null,
-      password_hash: addRole === 'facilitator' ? addPassword : null,
+      password: addRole === 'facilitator' ? addPassword : null,
       presentation_order: nextOrder,
-    }]);
+    });
 
-    if (error) {
-      if (error.code === '23505' || error.message.includes('session_participants_session_id_email_key')) {
+    if (error || result?.error) {
+      const msg = result?.error || error?.message || 'Failed to add participant';
+      if (result?.error === 'duplicate' || /23505|session_id_email_key/.test(msg)) {
         setPendingParticipant({ email: normalizedEmail, name: addName, role: addRole });
         setEmailDialogOpen(true);
         toast.info('Participant already exists — opening email dialog to resend invite.', { duration: 10000 });
         return;
       }
-
-      toast.error(error.message || 'Failed to add participant', { duration: 15000 });
+      toast.error(msg, { duration: 15000 });
       return;
     }
 
@@ -706,7 +706,11 @@ export default function Admin() {
   };
 
   const removeParticipant = async (id: string) => {
-    await supabase.from('session_participants').delete().eq('id', id);
+    const { data, error } = await invokeAdmin('delete_participant', { id });
+    if (error || data?.error) {
+      toast.error('Failed to remove participant');
+      return;
+    }
     if (selectedSession) fetchParticipants(selectedSession.id);
     toast.success('Participant removed');
   };
@@ -727,28 +731,23 @@ export default function Admin() {
 
     const updates = without.map((s, i) => ({
       id: s.id,
-      newOrder: i + 1,
+      presentation_order: i + 1,
     }));
 
-    for (const u of updates) {
-      await supabase.from('session_participants')
-        .update({ presentation_order: u.newOrder })
-        .eq('id', u.id);
-    }
+    await invokeAdmin('bulk_update_participant_order', { updates });
 
     if (selectedSession) fetchParticipants(selectedSession.id);
   };
 
   const saveMetadata = async () => {
     if (!metaParticipant) return;
-    const { error } = await supabase.from('session_participants')
-      .update({
-        dd_room_link: metaDDRoom || null,
-        website_link: metaWebsite || null,
-        funding_goal: metaFundingGoal ? parseFloat(metaFundingGoal) : null,
-      })
-      .eq('id', metaParticipant.id);
-    if (error) {
+    const { data, error } = await invokeAdmin('update_participant', {
+      id: metaParticipant.id,
+      dd_room_link: metaDDRoom || null,
+      website_link: metaWebsite || null,
+      funding_goal: metaFundingGoal ? parseFloat(metaFundingGoal) : null,
+    });
+    if (error || data?.error) {
       toast.error('Failed to save metadata');
       return;
     }
@@ -924,7 +923,7 @@ export default function Admin() {
           </Button>
           <h1 className="text-lg font-bold">Session Admin</h1>
         </div>
-        <Button variant="ghost" size="sm" onClick={() => { setIsAuthenticated(false); setAdminEmail(''); setAdminPassword(''); }}>
+        <Button variant="ghost" size="sm" onClick={() => { clearAdminToken(); setIsAuthenticated(false); setAdminEmail(''); setAdminPassword(''); }}>
           Sign Out
         </Button>
       </div>
