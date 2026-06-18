@@ -27,6 +27,25 @@ interface Startup {
   display_name: string | null;
   presentation_order: number | null;
   funding_goal: number | null;
+  dd_room_link: string | null;
+  website_link: string | null;
+}
+
+/**
+ * Normalize a user-entered URL so it is safe to put in an `href` and opens in
+ * a new tab. Strips whitespace and adds an `https://` scheme when the user
+ * typed a bare host like `acme.io`. Returns null for empty/invalid input so
+ * callers can disable the link.
+ */
+function normalizeExternalUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  // Block dangerous schemes (javascript:, data:, etc.)
+  if (/^(javascript|data|vbscript|file):/i.test(trimmed)) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  // No scheme — assume https
+  return `https://${trimmed.replace(/^\/+/, '')}`;
 }
 
 interface Facilitator {
