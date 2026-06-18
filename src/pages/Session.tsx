@@ -747,7 +747,7 @@ export default function SessionPage() {
           />
           {/* End Call — next to timer, facilitator only */}
           {isFacilitator && callState === 'connected' && (
-            <Button data-testid="end-call-btn" variant="destructive" size="sm" onClick={handleEndCall}>
+            <Button data-testid="end-call-btn" variant="destructive" size="sm" onClick={() => setEndCallConfirmOpen(true)}>
               <PhoneOff className="w-4 h-4 mr-1" />
               End Call
             </Button>
