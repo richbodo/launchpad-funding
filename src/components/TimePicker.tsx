@@ -35,6 +35,7 @@ interface TimePickerProps {
   onChange: (value: string) => void;
   /** Granularity of the options in minutes. Defaults to 15. */
   stepMinutes?: number;
+  disabled?: boolean;
   id?: string;
   className?: string;
 }
@@ -49,6 +50,7 @@ export default function TimePicker({
   value,
   onChange,
   stepMinutes = 15,
+  disabled = false,
   id,
   className,
 }: TimePickerProps) {
@@ -61,7 +63,7 @@ export default function TimePicker({
     : [{ value, label: to12Hour(value) }, ...options];
 
   return (
-    <Select value={value} onValueChange={onChange}>
+    <Select value={value} onValueChange={onChange} disabled={disabled}>
       <SelectTrigger id={id} className={className ?? 'mt-1'} aria-label="Select time">
         <Clock className="mr-2 h-4 w-4 shrink-0 opacity-60" />
         <SelectValue placeholder="Select time" />

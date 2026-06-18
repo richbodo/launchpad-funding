@@ -20,6 +20,11 @@ import DemoModeBanner from '@/components/DemoModeBanner';
 import TimePicker from '@/components/TimePicker';
 import TimezonePicker from '@/components/TimezonePicker';
 import { reportError } from '@/lib/logError';
+import {
+  zonedWallTimeToUtcISO,
+  formatDateInTimeZone,
+  formatTimeInTimeZone,
+} from '@/lib/timezone';
 
 interface SessionRow {
   id: string;
@@ -81,13 +86,9 @@ export default function Admin() {
   const [newDate, setNewDate] = useState('');
   const [newStartTime, setNewStartTime] = useState('09:00');
   const [newEndTime, setNewEndTime] = useState('11:00');
-  const [newTimezone, setNewTimezone] = useState(() => {
-    try {
-      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
-    } catch {
-      return 'America/New_York';
-    }
-  });
+  // Start empty so the facilitator must consciously pick the session's timezone
+  // before choosing times — the times are interpreted in this zone.
+  const [newTimezone, setNewTimezone] = useState('');
 
   // Add participant form
   const [addEmail, setAddEmail] = useState('');
@@ -356,15 +357,21 @@ export default function Admin() {
   }, [isAuthenticated]);
 
   const createSession = async () => {
+    if (!newTimezone) {
+      toast.error('Please pick a timezone first');
+      return;
+    }
     if (!newName || !newDate || !newStartTime || !newEndTime) {
       toast.error('Please fill all fields');
       return;
     }
+    // Interpret the chosen wall-clock times as being in the session's timezone,
+    // then store the absolute UTC instants.
     let startISO: string;
     let endISO: string;
     try {
-      startISO = new Date(`${newDate}T${newStartTime}`).toISOString();
-      endISO = new Date(`${newDate}T${newEndTime}`).toISOString();
+      startISO = zonedWallTimeToUtcISO(newDate, newStartTime, newTimezone);
+      endISO = zonedWallTimeToUtcISO(newDate, newEndTime, newTimezone);
     } catch (err) {
       reportError('Invalid date or time', err);
       return;
@@ -516,11 +523,13 @@ export default function Admin() {
       const welcomeMsg = role === 'facilitator' ? welcomeFacilitator
         : role === 'startup' ? welcomeStartup : welcomeInvestor;
 
-      const sessionDate = new Date(selectedSession.start_time).toLocaleDateString('en-US', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
-      });
-      const startT = new Date(selectedSession.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-      const endT = new Date(selectedSession.end_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZoneName: 'short' });
+      // Render the date/time in the session's own timezone so attendees see the
+      // correct local time and zone (e.g. "9:00 AM — 11:00 AM EDT"), regardless
+      // of the facilitator's browser timezone.
+      const tz = selectedSession.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+      const sessionDate = formatDateInTimeZone(selectedSession.start_time, tz);
+      const startT = formatTimeInTimeZone(selectedSession.start_time, tz);
+      const endT = formatTimeInTimeZone(selectedSession.end_time, tz, true);
       const sessionTime = `${startT} — ${endT}`;
 
       const loginUrl = `${window.location.origin}/login?session=${selectedSession.id}&email=${encodeURIComponent(email)}&role=${role}${role === 'startup' ? '&edit=true' : ''}`;
@@ -820,19 +829,22 @@ export default function Admin() {
                   <Label>Date</Label>
                   <Input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="mt-1" />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="start-time">Start Time</Label>
-                    <TimePicker id="start-time" value={newStartTime} onChange={setNewStartTime} />
-                  </div>
-                  <div>
-                    <Label htmlFor="end-time">End Time</Label>
-                    <TimePicker id="end-time" value={newEndTime} onChange={setNewEndTime} />
-                  </div>
-                </div>
                 <div>
                   <Label htmlFor="timezone">Timezone</Label>
                   <TimezonePicker id="timezone" value={newTimezone} onChange={setNewTimezone} />
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Pick the timezone first — start and end times are set in this zone.
+                  </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="start-time">Start Time</Label>
+                    <TimePicker id="start-time" value={newStartTime} onChange={setNewStartTime} disabled={!newTimezone} />
+                  </div>
+                  <div>
+                    <Label htmlFor="end-time">End Time</Label>
+                    <TimePicker id="end-time" value={newEndTime} onChange={setNewEndTime} disabled={!newTimezone} />
+                  </div>
                 </div>
                 <Button onClick={createSession} className="bg-accent text-accent-foreground hover:bg-accent/90">
                   <Plus className="w-4 h-4 mr-1" /> Create Session
@@ -857,7 +869,7 @@ export default function Admin() {
                       <div>
                         <h3 className="font-semibold">{s.name}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(s.start_time).toLocaleString()} — {new Date(s.end_time).toLocaleTimeString()}
+                          {formatDateInTimeZone(s.start_time, s.timezone || 'UTC')}, {formatTimeInTimeZone(s.start_time, s.timezone || 'UTC')} — {formatTimeInTimeZone(s.end_time, s.timezone || 'UTC', true)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -900,7 +912,7 @@ export default function Admin() {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-muted-foreground">
-                      {new Date(selectedSession.start_time).toLocaleString()} — {new Date(selectedSession.end_time).toLocaleTimeString()}
+                      {formatDateInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')}, {formatTimeInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')} — {formatTimeInTimeZone(selectedSession.end_time, selectedSession.timezone || 'UTC', true)}
                     </p>
                     <p className="text-sm text-muted-foreground">Timezone: {selectedSession.timezone}</p>
                   </CardContent>
