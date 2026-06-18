@@ -1700,7 +1700,9 @@ export default function Admin() {
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {(() => {
-                      const queuedCount = investments.filter(i => i.email_status === 'queued').length;
+                      const queuedCount = investments.filter(
+                        i => i.email_status === 'queued' || i.email_status === 'draft',
+                      ).length;
                       if (queuedCount === 0) return null;
                       return (
                         <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
@@ -1739,6 +1741,7 @@ export default function Admin() {
                         </div>
                       );
                     })()}
+
 
                     {investments.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-4">
