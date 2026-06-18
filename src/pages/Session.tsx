@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff, Eye } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
 import { externalLinkHandler } from '@/lib/openExternal';
@@ -76,6 +76,7 @@ export default function SessionPage() {
   const [callState, setCallState] = useState<CallState>('idle');
   const [stageIdentity, setStageIdentity] = useState<string | null>(null);
   const [localMuted, setLocalMuted] = useState(false);
+  const [investorCount, setInvestorCount] = useState(0);
 
   const {
     stages,
@@ -322,9 +323,19 @@ export default function SessionPage() {
         }
       })
       .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+
+        // Count investors currently present (across all tracked presences)
+        let investors = 0;
+        for (const presences of Object.values(state)) {
+          for (const p of presences as any[]) {
+            if (p?.role === 'investor') investors++;
+          }
+        }
+        setInvestorCount(investors);
+
         // Late joiner: read facilitator's tracked state on first sync
         if (!isFac && !hasInitialSync.current) {
-          const state = channel.presenceState();
           for (const presences of Object.values(state)) {
             const p = (presences as any[])?.[0];
             if (p?.currentStageIndex !== undefined) {
@@ -337,10 +348,14 @@ export default function SessionPage() {
         }
       })
       .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED' && isFac) {
-          await channel.track({
-            currentStageIndex, isPaused, remainingSeconds, stageIdentity,
-          });
+        if (status === 'SUBSCRIBED') {
+          // Everyone tracks their presence so investors can be counted.
+          // Facilitator additionally tracks stage state for late joiners.
+          await channel.track(
+            isFac
+              ? { role: user?.role, email: user?.email, currentStageIndex, isPaused, remainingSeconds, stageIdentity }
+              : { role: user?.role, email: user?.email }
+          );
         }
       });
 
@@ -808,6 +823,16 @@ export default function SessionPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
+          <span
+            className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground"
+            data-testid="investor-watching-count"
+            title="Investors currently in this session"
+          >
+            <Eye className="w-3.5 h-3.5 text-blue-400" />
+            {investorCount === 1
+              ? 'There is 1 Investor watching this session'
+              : `There are ${investorCount} Investors watching this session`}
+          </span>
           <span className="text-xs text-muted-foreground">{user.displayName} ({user.role})</span>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             <LogOut className="w-4 h-4" />
