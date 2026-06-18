@@ -7,6 +7,13 @@ interface TokenResult {
   room: string;
 }
 
+const MAX_ATTEMPTS = 4;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+// Exponential backoff with jitter so retries from many investors joining at
+// once (cold starts / transient rate-limits during the go-live storm) spread
+// out instead of hammering the edge function in lockstep.
+const backoffMs = (attempt: number) => 400 * 2 ** (attempt - 1) + Math.random() * 300;
+
 export function useLiveKitToken(
   sessionId: string,
   identity: string,
@@ -25,26 +32,39 @@ export function useLiveKitToken(
     setLoading(true);
     setError(null);
 
-    try {
-      const { data, error: fnErr } = await supabase.functions.invoke('livekit-token', {
-        body: { session_id: sessionId, identity, name, role },
-      });
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      try {
+        const { data, error: fnErr } = await supabase.functions.invoke('livekit-token', {
+          body: { session_id: sessionId, identity, name, role },
+        });
 
-      if (cancelledRef.current) return;
+        if (cancelledRef.current) return;
 
-      if (fnErr || !data?.token) {
+        if (!fnErr && data?.token) {
+          setResult(data as TokenResult);
+          setLoading(false);
+          return;
+        }
+
+        // Transient failure — retry with backoff unless this was the last try.
+        if (attempt < MAX_ATTEMPTS) {
+          await sleep(backoffMs(attempt));
+          if (cancelledRef.current) return;
+          continue;
+        }
         setError(fnErr?.message || data?.error || 'Failed to get LiveKit token');
-        return;
+      } catch (err: any) {
+        if (cancelledRef.current) return;
+        if (attempt < MAX_ATTEMPTS) {
+          await sleep(backoffMs(attempt));
+          if (cancelledRef.current) return;
+          continue;
+        }
+        setError(err?.message || 'Failed to get LiveKit token');
       }
-
-      setResult(data as TokenResult);
-    } catch (err: any) {
-      if (!cancelledRef.current) {
-        setError(err.message || 'Failed to get LiveKit token');
-      }
-    } finally {
-      if (!cancelledRef.current) setLoading(false);
     }
+
+    if (!cancelledRef.current) setLoading(false);
   }, [sessionId, identity, name, role]);
 
   const reset = useCallback(() => {

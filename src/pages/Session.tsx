@@ -208,13 +208,26 @@ export default function SessionPage() {
     setCallState('idle');
   }, [id, reset]);
 
-  // Investor: auto-join as viewer when session goes live
+  // Investor: auto-join as viewer when session goes live.
+  // Jittered so ~100 investors don't all mint a token + join the LiveKit room
+  // in the same instant the facilitator clicks "Go Live". The timer is stored
+  // in a ref (not cleared on this effect's re-run) because setCallState below
+  // re-runs the effect immediately — clearing it there would cancel the join.
+  const joinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (user?.role === 'investor' && session?.status === 'live' && callState === 'idle') {
-      setCallState('connecting');
-      fetchToken().then(() => setCallState('connected'));
+      setCallState('connecting'); // guard re-entry during the jitter window
+      const jitterMs = Math.floor(Math.random() * 8000);
+      joinTimerRef.current = setTimeout(() => {
+        fetchToken().then(() => setCallState('connected'));
+      }, jitterMs);
     }
   }, [session?.status, user?.role, callState, fetchToken]);
+
+  // Cancel a pending jittered join if we unmount before it fires.
+  useEffect(() => () => {
+    if (joinTimerRef.current) clearTimeout(joinTimerRef.current);
+  }, []);
 
   // Disconnect all non-facilitators when session completes
   useEffect(() => {
@@ -673,7 +686,11 @@ export default function SessionPage() {
         </div>
       </div>
 
-      {/* LiveKitRoom only when connected */}
+      {/* LiveKitRoom only when connected.
+          options: adaptiveStream makes each viewer pull only the simulcast
+          layer matching their tile size (and pauses hidden tiles); dynacast
+          pauses layers nobody subscribes to — together ~halving downstream
+          egress for a mostly view-only investor audience. */}
       {isConnected ? (
         <LiveKitRoom
           serverUrl={ws_url}
@@ -681,6 +698,7 @@ export default function SessionPage() {
           connect={true}
           video={user.role !== 'investor'}
           audio={user.role !== 'investor'}
+          options={{ adaptiveStream: true, dynacast: true }}
           style={{ display: 'contents' }}
           onDisconnected={() => { reset(); setCallState('idle'); }}
           onError={(err) => console.error('LiveKit error:', err)}
