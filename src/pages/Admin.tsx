@@ -295,6 +295,114 @@ export default function Admin() {
   };
 
   /**
+   * Load every soft commitment for the currently-selected session, regardless
+   * of email status. The Admin "Investments & Commitments" card renders the
+   * full audit trail, and the "Pending Approval" subsection only acts on rows
+   * still in the `queued` state.
+   */
+  const fetchInvestments = async (sessionId: string) => {
+    const { data, error } = await supabase
+      .from('investments')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Failed to load investments', error);
+      return;
+    }
+    if (data) setInvestments(data as InvestmentRow[]);
+  };
+
+  /**
+   * Look up which participant the email belongs to so we can find a richer
+   * display name when one wasn't captured at commitment time.
+   */
+  const participantDisplay = (email: string): string => {
+    const p = participants.find(pp => pp.email.toLowerCase() === email.toLowerCase());
+    return p?.display_name || email;
+  };
+
+  /**
+   * Walk every `queued` investment for the selected session and dispatch a
+   * single commitment-confirmation email per row (with both startup and
+   * investor on the To: line). Rows that successfully enqueue flip to
+   * `sent`; the rest stay `queued` so the facilitator can retry. The
+   * underlying investment row is never deleted.
+   */
+  const sendAllQueuedCommitmentEmails = async () => {
+    if (!selectedSession) return;
+    const queued = investments.filter(i => i.email_status === 'queued');
+    if (queued.length === 0) {
+      toast.info('No emails are waiting for approval.');
+      return;
+    }
+    setSendingQueuedEmails(true);
+    let sent = 0;
+    let failed = 0;
+    for (const inv of queued) {
+      try {
+        const investorName = inv.investor_name || participantDisplay(inv.investor_email);
+        const startupName = inv.startup_name || participantDisplay(inv.startup_email);
+        const { data, error } = await supabase.functions.invoke('send-transactional-email', {
+          body: {
+            templateName: 'investment-commitment',
+            recipientEmail: inv.investor_email,
+            additionalRecipients: [inv.startup_email],
+            idempotencyKey: `commitment-${inv.id}`,
+            templateData: {
+              investorName,
+              investorEmail: inv.investor_email,
+              startupName,
+              startupEmail: inv.startup_email,
+              amount: Number(inv.amount),
+              sessionName: selectedSession.name,
+            },
+          },
+        });
+        if (error || data?.error) throw new Error(error?.message || data?.error || 'send failed');
+        await supabase
+          .from('investments')
+          .update({ email_status: 'sent', email_sent_at: new Date().toISOString() })
+          .eq('id', inv.id);
+        sent++;
+      } catch (err) {
+        console.error('Failed to send commitment email', inv.id, err);
+        failed++;
+      }
+    }
+    setSendingQueuedEmails(false);
+    await fetchInvestments(selectedSession.id);
+    toast.success(
+      `Sent ${sent} commitment email${sent === 1 ? '' : 's'}${failed ? ` · ${failed} failed` : ''}.`,
+      { duration: failed ? 15000 : 6000 },
+    );
+  };
+
+  /**
+   * Cancel every queued email for this session. The investment rows stay in
+   * the database (audit log preserved) — only the email status flips to
+   * `cancelled` so the queue UI clears.
+   */
+  const cancelAllQueuedCommitmentEmails = async () => {
+    if (!selectedSession) return;
+    const queued = investments.filter(i => i.email_status === 'queued');
+    if (queued.length === 0) return;
+    setCancellingQueuedEmails(true);
+    const { error } = await supabase
+      .from('investments')
+      .update({ email_status: 'cancelled', email_cancelled_at: new Date().toISOString() })
+      .eq('session_id', selectedSession.id)
+      .eq('email_status', 'queued');
+    setCancellingQueuedEmails(false);
+    if (error) {
+      toast.error(`Failed to cancel: ${error.message}`);
+      return;
+    }
+    await fetchInvestments(selectedSession.id);
+    toast.success('Queued emails cancelled. Investment log preserved.');
+  };
+
+  /**
    * When a session is selected, keep the participants list live so edits made
    * by startups (DD Room URL, website, funding goal) and other facilitators
    * appear in the admin console without requiring a manual refresh.
