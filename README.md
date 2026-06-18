@@ -21,17 +21,20 @@ To run demo mode locally yourself, follow [Demo mode (offline dev/test)](docs/de
 
 ## Features
 
-- **Live funding sessions** — Facilitators create, schedule, and run live pitch events with timed stages that Startups present to and Investors invest in.  
-- **Email/Calendar integration** - Editable email templates for session invite, investment, etc.
+- **Live funding sessions** — Facilitators create, schedule, and run live pitch events with timed stages that Startups present to and Investors invest in.
+- **Timezone-aware scheduling** — Sessions are scheduled in a chosen timezone; start/end times and invitation emails are shown in that zone. A session's name, date, time, and timezone can be edited after it's created.
+- **Participant management** — Add investors, startups, and facilitators one at a time, or **bulk-import from a CSV** (with a downloadable template). Set startup presentation order and per-startup metadata (funding goal, due-diligence room link, website).
+- **Invitations with send tracking** — Branded invitation emails carry session details, a one-click login link, and a Google Calendar link. Bulk-send to everyone not yet emailed (never double-sends), resend to an individual, and see a **Sent / Not sent** status per participant.
+- **Email delivery logs** — A per-message delivery timeline (queued → sent → bounced / complained / etc.) for diagnosing email issues.
+- **Editable email templates** — Customize the facilitator contact address and the per-role welcome messages used in invitations.
 - **Live chat** — All participants can communicate during sessions via a real-time chat panel while the video session is going, getting all questions answered.
 - **Presentation and AV controls** - All the usual controls you expect in a video conferencing app of this kind - present, mute, etc. appropriate for each participant type.
 - **Real-time investment tracking** — Investors pledge funds during presentations; a funding meter updates in real time for all participants.
 - **Role-based access** — Three distinct roles: Facilitator (admin/host), Startup (presenter), and Investor (viewer/pledger)
 - **Session timer & stage control** — Facilitators advance through intro, pitch, Q&A, and outro stages with play/pause/stage-change controls
-- **Demo mode** — Toggle demo mode from the admin panel to seed sample sessions and participants for testing - local demo scripts launch browers for fixture participants.
+- **Demo mode** — Toggle demo mode from the admin **Settings** tab to seed sample `[DEMO]` sessions and participants; demo data is cleaned up automatically when you switch back off. Local demo scripts can launch browsers for fixture participants.
 - **Randomize login** — In demo mode, quickly log in as a random available participant with one click
-- **Admin dashboard** — Facilitators manage sessions, participants, presentation order, metadata (DD room links, websites), and chat archives, debugging, etc.
-- **Chat archiving** — Export and download chat transcripts from completed sessions
+- **Chat archiving** — Archive and download chat transcripts (private, facilitator-only access)
 - **Responsive design** — Works on desktop and tablet with a 3-pane session layout (facilitator video, startup presentation, chat)
 
 ## How to Use
@@ -46,7 +49,34 @@ Log in with your email and click Startup to join the session — your presentati
 
 ### For Facilitators
 
-Log in with your facilitator email and password at `/admin` to create sessions, manage participants, set presentation order, and go live. During a live session, use the stage controls (Previous / Play-Pause / Next) and stage selector to manage the presentation flow.
+Sign in at `/admin` with your facilitator email and password. The admin panel has four tabs — **Sessions**, **New Session**, **Settings**, and **Email Logs**.
+
+**Create & edit sessions**
+- **New Session:** enter a name and date, **pick the timezone first**, then choose start and end times (they're interpreted in that timezone). Overlaps with other *scheduled* sessions are flagged.
+- Open a session from the **Sessions** list to **Edit** its name, date, time, or timezone, take it **Go Live**, **End Session**, or delete it.
+
+**Manage participants** (inside a session)
+- Add participants one at a time — email, optional display name, and role (facilitators also set a password).
+- Or **Bulk add with .csv**: click **Download .csv template** for the column layout (`Investor-Emails`, `Startup-Emails`, `Facilitator-Emails`), fill it in, and upload. The import validates emails, skips anyone already on the session, and auto-assigns startup order, then reports how many were added / already present / invalid.
+- Set each startup's **presentation order**, and use the gear icon to edit per-startup **metadata** (funding goal, DD room link, website).
+
+**Invite participants & track sends**
+- **Send emails (N)** queues invitations to everyone not yet emailed — re-clicking skips anyone already sent, so it never double-sends.
+- Each row shows a **Sent / Not sent** status; use the send icon to send or resend to one participant.
+- Invitations include the session date/time (in the session's timezone), a one-click login link, and a Google Calendar link.
+
+**Run the session**
+- Take the session **Go Live**, then drive the flow from the session page with the stage controls (Previous / Play-Pause / Next) and the stage selector. **End Session** when you're done.
+
+**Settings tab**
+- **Demo Mode** — seed or clear sample `[DEMO]` data (demo facilitator: `facilitator@demo.com` / `demo123`).
+- **Email Settings** — edit the facilitator contact address and the per-role welcome messages used in invitations.
+
+**Email Logs tab**
+- Review every email's delivery status; click a row for the full **delivery timeline** (queued → sent → delivered / bounced / etc.) to diagnose issues.
+
+**Chat archives**
+- From a session, **Archive & Clear Chat** to snapshot and reset the chat; archived transcripts are downloadable and facilitator-only.
 
 ## Running Tests
 
