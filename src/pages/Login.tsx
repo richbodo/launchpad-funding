@@ -207,7 +207,9 @@ export default function Login() {
         setEmail(participant.email);
         setRole('facilitator');
         setPendingParticipant(participant);
-        setStep('facilitator-password');
+        setStep(await facilitatorNeedsPassword(participant.email)
+          ? 'facilitator-create-password'
+          : 'facilitator-password');
         return;
       }
 
