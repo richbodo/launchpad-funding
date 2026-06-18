@@ -97,6 +97,9 @@ export default function Admin() {
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [chatArchives, setChatArchives] = useState<{ name: string; url: string }[]>([]);
   const [archiving, setArchiving] = useState(false);
+  const [activeTab, setActiveTab] = useState('sessions');
+
+
 
   // Demo mode
   const [demoMode, setDemoMode] = useState<boolean | null>(null);
