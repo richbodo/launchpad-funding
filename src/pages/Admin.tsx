@@ -1341,7 +1341,7 @@ export default function Admin() {
                   <Card
                     key={s.id}
                     className="cursor-pointer hover:border-accent/50 transition-colors"
-                    onClick={() => { setSelectedSession(s); fetchParticipants(s.id); fetchChatArchives(s.id); }}
+                    onClick={() => { setSelectedSession(s); fetchParticipants(s.id); fetchChatArchives(s.id); fetchInvestments(s.id); }}
                   >
                     <CardContent className="py-4 flex items-center justify-between">
                       <div>
