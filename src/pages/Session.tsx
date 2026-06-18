@@ -40,6 +40,9 @@ export default function SessionPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { user, logout } = useSessionUser();
   const [fundingByStartup, setFundingByStartup] = useState<Record<string, number>>({});
+  // Track every investment id we've applied so reconnects / dual-source delivery
+  // (Broadcast + initial fetch) can never double-count a pledge.
+  const seenInvestmentIdsRef = useRef<Set<string>>(new Set());
   const [startups, setStartups] = useState<Startup[]>([]);
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [investOpen, setInvestOpen] = useState(false);
@@ -78,6 +81,48 @@ export default function SessionPage() {
       return;
     }
 
+    // Reset dedupe set when switching sessions
+    seenInvestmentIdsRef.current = new Set();
+
+    // Apply a single investment row (idempotent by id)
+    const applyInvestment = (inv: { id: string; startup_email: string; amount: number | string }) => {
+      if (!inv?.id) return;
+      if (seenInvestmentIdsRef.current.has(inv.id)) return;
+      seenInvestmentIdsRef.current.add(inv.id);
+      setFundingByStartup(prev => ({
+        ...prev,
+        [inv.startup_email]: (prev[inv.startup_email] || 0) + Number(inv.amount),
+      }));
+    };
+
+    // 1) Subscribe to investments BROADCAST channel BEFORE the initial fetch
+    //    so no pledge can fall through the gap.
+    const investChannel = supabase
+      .channel(`investments:${id}`)
+      .on('broadcast', { event: 'INSERT' }, ({ payload }) => {
+        applyInvestment(payload as any);
+      })
+      .subscribe();
+
+    // 2) Subscribe to session status changes (low-volume, keep on postgres_changes)
+    const sessionChannel = supabase
+      .channel(`session-status-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'sessions',
+        filter: `id=eq.${id}`,
+      }, (payload) => {
+        setSession((prev: any) => ({ ...prev, ...payload.new }));
+      })
+      .subscribe();
+
+    // NOTE: The participants channel (postgres_changes on session_participants) was
+    // intentionally removed. Every login flipped is_logged_in, which woke every connected
+    // client on this session. funding_goal / dd_room_link / website_link edits are rare
+    // and applied to the editing client's local state on save — a stale value will reconcile
+    // on the next session load.
+
     const fetchData = async () => {
       const { data: sessionData } = await supabase
         .from('sessions')
@@ -92,7 +137,6 @@ export default function SessionPage() {
         .eq('session_id', id)
         .eq('role', 'startup')
         .order('presentation_order', { ascending: true });
-      // Fallback: if funding_goal column isn't granted yet, retry without it
       if (!startupData) {
         const fallback = await supabase
           .from('session_participants')
@@ -111,74 +155,20 @@ export default function SessionPage() {
         .eq('role', 'facilitator');
       if (facilitatorData) setFacilitators(facilitatorData);
 
+      // Fetch row-level so we can dedupe by id with the broadcast channel.
       const { data: investData } = await supabase
         .from('investments')
-        .select('amount, startup_email')
+        .select('id, amount, startup_email')
         .eq('session_id', id);
       if (investData) {
-        const byStartup: Record<string, number> = {};
-        for (const inv of investData) {
-          byStartup[inv.startup_email] = (byStartup[inv.startup_email] || 0) + Number(inv.amount);
-        }
-        setFundingByStartup(byStartup);
+        for (const inv of investData) applyInvestment(inv as any);
       }
     };
     fetchData();
 
-    // Realtime: investments
-    const investChannel = supabase
-      .channel(`investments-${id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'investments',
-        filter: `session_id=eq.${id}`,
-      }, (payload) => {
-        const inv = payload.new as any;
-        setFundingByStartup(prev => ({
-          ...prev,
-          [inv.startup_email]: (prev[inv.startup_email] || 0) + Number(inv.amount),
-        }));
-      })
-      .subscribe();
-
-    // Realtime: session status changes
-    const sessionChannel = supabase
-      .channel(`session-status-${id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'sessions',
-        filter: `id=eq.${id}`,
-      }, (payload) => {
-        setSession((prev: any) => ({ ...prev, ...payload.new }));
-      })
-      .subscribe();
-
-    // Realtime: participant updates (funding_goal, dd_room_link, website_link changes)
-    const participantChannel = supabase
-      .channel(`participants-${id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'session_participants',
-        filter: `session_id=eq.${id}`,
-      }, (payload) => {
-        const updated = payload.new as any;
-        if (updated.role === 'startup') {
-          setStartups(prev => prev.map(s =>
-            s.email === updated.email
-              ? { ...s, funding_goal: updated.funding_goal != null ? Number(updated.funding_goal) : null }
-              : s
-          ));
-        }
-      })
-      .subscribe();
-
     return () => {
       supabase.removeChannel(investChannel);
       supabase.removeChannel(sessionChannel);
-      supabase.removeChannel(participantChannel);
     };
   }, [id, user, navigate]);
 
