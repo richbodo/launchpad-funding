@@ -55,22 +55,53 @@ Deno.serve(async (req) => {
       .eq("role", "facilitator")
       .maybeSingle();
 
-    if (lookupErr || !participant || !participant.password_hash) {
+    if (lookupErr || !participant) {
       return new Response(JSON.stringify({ error: "Invalid credentials" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Facilitators added to a new session start with no password_hash on that
+    // row. Fall back to any other facilitator row for the same email that does
+    // have a hash — facilitator credentials are shared across sessions.
+    let credId = participant.id;
+    let credHash = participant.password_hash;
+    if (!credHash) {
+      const { data: fallback } = await supabase
+        .from("session_participants")
+        .select("id, password_hash")
+        .eq("email", email.toLowerCase().trim())
+        .eq("role", "facilitator")
+        .not("password_hash", "is", null)
+        .limit(1)
+        .maybeSingle();
+      if (!fallback?.password_hash) {
+        return new Response(JSON.stringify({ error: "Invalid credentials" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      credId = fallback.id;
+      credHash = fallback.password_hash;
+
+      // Backfill the hash onto this session's row so future logins are
+      // single-query and `verify_participant_password` works against it directly.
+      await supabase
+        .from("session_participants")
+        .update({ password_hash: credHash })
+        .eq("id", participant.id);
+    }
+
     let passwordValid = false;
-    if (participant.password_hash.startsWith("$2")) {
+    if (credHash.startsWith("$2")) {
       const { data: cryptResult } = await supabase.rpc("verify_participant_password", {
-        _participant_id: participant.id,
+        _participant_id: credId,
         _password: password,
       });
       passwordValid = cryptResult === true;
     } else {
-      passwordValid = participant.password_hash === password;
+      passwordValid = credHash === password;
     }
 
     if (!passwordValid) {
