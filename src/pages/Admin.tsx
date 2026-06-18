@@ -1135,7 +1135,7 @@ export default function Admin() {
       </div>
 
       <div className="max-w-5xl mx-auto p-6">
-        <Tabs defaultValue="sessions">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="sessions"><Calendar className="w-4 h-4 mr-1" /> Sessions</TabsTrigger>
             <TabsTrigger value="create"><Plus className="w-4 h-4 mr-1" /> New Session</TabsTrigger>
