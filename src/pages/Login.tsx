@@ -97,8 +97,24 @@ export default function Login() {
 
   useEffect(() => {
     const fetchSessions = async () => {
-      const now = new Date().toISOString();
-      // Find any live session
+      // If the URL targets a specific session (magic-link invite), prefer it
+      // over the generic "live / next scheduled" lookup. This guarantees the
+      // recipient lands on the session the email was actually about.
+      const urlSessionId = searchParams.get('session');
+      if (urlSessionId) {
+        const { data } = await supabase
+          .from('sessions')
+          .select('id, name, start_time, end_time')
+          .eq('id', urlSessionId)
+          .maybeSingle();
+        if (data) {
+          setActiveSessions([data]);
+          setSelectedSession(data.id);
+          return;
+        }
+      }
+
+      // Otherwise fall back to any live session
       const { data } = await supabase
         .from('sessions')
         .select('id, name, start_time, end_time')
@@ -128,36 +144,48 @@ export default function Login() {
       }
     };
     fetchSessions();
-  }, []);
+  }, [searchParams]);
 
-  // Auto-login via URL params in demo mode: ?autoLogin=true&role=facilitator[&email=x]
+  /**
+   * Magic-link auto-login.
+   *
+   * Triggered when the invite email URL carries `session`, `email`, and `role`
+   * params (or the legacy demo-mode `autoLogin=true` flag). Investors and
+   * startups are logged in directly — no role picker, no password. Facilitators
+   * are pre-filled and routed to the password step, since admin/facilitator
+   * access always requires the facilitator password.
+   */
   useEffect(() => {
     if (autoLoginAttempted.current) return;
-    if (!isDemoMode || !selectedSession) return;
-    const autoLogin = searchParams.get('autoLogin');
-    const autoRole = searchParams.get('role') as UserRole | null;
-    if (autoLogin !== 'true' || !autoRole) return;
+    if (!selectedSession) return;
+
+    const urlEmail = searchParams.get('email');
+    const urlRole = searchParams.get('role') as UserRole | null;
+    const isDemoAutoLogin = searchParams.get('autoLogin') === 'true';
+    const isMagicLink = !!(searchParams.get('session') && urlEmail && urlRole);
+
+    if (!isMagicLink && !(isDemoAutoLogin && urlRole && isDemoMode)) return;
     autoLoginAttempted.current = true;
 
     const doAutoLogin = async () => {
-      const autoEmail = searchParams.get('email');
-      let participant: any;
+      let participant: any = null;
 
-      if (autoEmail) {
+      if (urlEmail && urlRole) {
         const { data } = await supabase
           .from('session_participants')
           .select('*')
           .eq('session_id', selectedSession)
-          .eq('email', autoEmail.toLowerCase())
-          .eq('role', autoRole)
+          .eq('email', urlEmail.toLowerCase())
+          .eq('role', urlRole)
           .maybeSingle();
         participant = data;
-      } else {
+      } else if (isDemoAutoLogin && urlRole) {
+        // Demo-mode randomized auto-login (no email specified)
         const { data: available } = await supabase
           .from('session_participants')
           .select('*')
           .eq('session_id', selectedSession)
-          .eq('role', autoRole)
+          .eq('role', urlRole)
           .eq('is_logged_in', false);
         if (available && available.length > 0) {
           participant = available[Math.floor(Math.random() * available.length)];
@@ -165,14 +193,24 @@ export default function Login() {
       }
 
       if (!participant) {
-        toast.error(`Auto-login: no available ${autoRole} found`);
+        toast.error('This invitation link is no longer valid for this session.');
         return;
       }
 
-      await completeLoginWith(participant, autoRole);
+      // Facilitator access always requires the password — even from a magic link.
+      if (urlRole === 'facilitator' && !isDemoMode) {
+        setEmail(participant.email);
+        setRole('facilitator');
+        setPendingParticipant(participant);
+        setStep('facilitator-password');
+        return;
+      }
+
+      await completeLoginWith(participant, urlRole!);
     };
     doAutoLogin();
   }, [isDemoMode, selectedSession, searchParams]);
+
 
   const handleEmailSubmitWithRole = async (selectedRole: UserRole) => {
     if (!email || !selectedSession) {
