@@ -604,6 +604,13 @@ export default function Admin() {
     setNewEndTime('11:00');
     fetchSessions();
     setActiveTab('sessions');
+    const created = inserted?.session as SessionRow | undefined;
+    if (created) {
+      setSelectedSession(created);
+      fetchParticipants(created.id);
+      fetchChatArchives(created.id);
+      fetchInvestments(created.id);
+    }
   };
 
   const deleteSession = async (id: string) => {
