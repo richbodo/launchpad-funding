@@ -16,6 +16,8 @@ The application features a demo mode that is kind of awesome, in which you can t
 
 [This is a little youtube video that shows the demo mode](https://youtu.be/Pm-bSHjzEvA)
 
+To run demo mode locally yourself, follow [Demo mode (offline dev/test)](docs/dev_setup.md#demo-mode-offline-devtest) in the developer setup guide — it lists `[DEMO]` sessions and lets facilitators log in without a password.
+
 
 ## Features
 
