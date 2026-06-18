@@ -445,6 +445,7 @@ export default function Admin() {
     setNewStartTime('09:00');
     setNewEndTime('11:00');
     fetchSessions();
+    setActiveTab('sessions');
   };
 
   const deleteSession = async (id: string) => {
