@@ -22,6 +22,7 @@ import TimezonePicker from '@/components/TimezonePicker';
 import { reportError } from '@/lib/logError';
 import {
   zonedWallTimeToUtcISO,
+  utcIsoToZonedWallTime,
   formatDateInTimeZone,
   formatTimeInTimeZone,
 } from '@/lib/timezone';
@@ -89,6 +90,15 @@ export default function Admin() {
   // Start empty so the facilitator must consciously pick the session's timezone
   // before choosing times — the times are interpreted in this zone.
   const [newTimezone, setNewTimezone] = useState('');
+
+  // Edit-session form (for the currently-selected session in the details view)
+  const [isEditingSession, setIsEditingSession] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('09:00');
+  const [editEndTime, setEditEndTime] = useState('11:00');
+  const [editTimezone, setEditTimezone] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
 
   // Add participant form
   const [addEmail, setAddEmail] = useState('');
@@ -442,6 +452,110 @@ export default function Admin() {
     toast.success(`Session ${status}`);
     fetchSessions();
   };
+
+  /**
+   * Open the inline editor for the currently-selected session, pre-filling
+   * every field (name, date, start/end time, timezone) from the stored UTC
+   * instants decomposed back into the session's wall-clock zone.
+   */
+  const startEditingSession = () => {
+    if (!selectedSession) return;
+    const tz = selectedSession.timezone || 'UTC';
+    const start = utcIsoToZonedWallTime(selectedSession.start_time, tz);
+    const end = utcIsoToZonedWallTime(selectedSession.end_time, tz);
+    setEditName(selectedSession.name);
+    setEditDate(start.date);
+    setEditStartTime(start.time);
+    setEditEndTime(end.time);
+    setEditTimezone(tz);
+    setIsEditingSession(true);
+  };
+
+  const cancelEditingSession = () => {
+    setIsEditingSession(false);
+  };
+
+  /**
+   * Persist edits to the selected session — name, schedule (interpreted as
+   * wall-clock in the chosen timezone), and timezone itself. Re-checks for
+   * scheduling conflicts with *other* scheduled sessions before writing, so
+   * editing can't create an overlap that creation would have rejected.
+   */
+  const saveSessionEdits = async () => {
+    if (!selectedSession) return;
+    if (!editName.trim()) {
+      toast.error('Session name is required');
+      return;
+    }
+    if (!editTimezone) {
+      toast.error('Please pick a timezone');
+      return;
+    }
+    if (!editDate || !editStartTime || !editEndTime) {
+      toast.error('Please fill date, start and end time');
+      return;
+    }
+
+    let startISO: string;
+    let endISO: string;
+    try {
+      startISO = zonedWallTimeToUtcISO(editDate, editStartTime, editTimezone);
+      endISO = zonedWallTimeToUtcISO(editDate, editEndTime, editTimezone);
+    } catch (err) {
+      reportError('Invalid date or time', err);
+      return;
+    }
+    if (new Date(endISO) <= new Date(startISO)) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
+    setSavingEdit(true);
+
+    // Conflict check excludes the session being edited itself, and only
+    // considers other *scheduled* sessions (matches createSession behavior).
+    const { data: overlapping, error: overlapError } = await supabase
+      .from('sessions')
+      .select('id, name')
+      .neq('id', selectedSession.id)
+      .lt('start_time', endISO)
+      .gt('end_time', startISO)
+      .eq('status', 'scheduled');
+
+    if (overlapError) {
+      setSavingEdit(false);
+      reportError('Could not check for scheduling conflicts', overlapError);
+      return;
+    }
+    if (overlapping && overlapping.length > 0) {
+      setSavingEdit(false);
+      toast.error(`Time conflict with "${overlapping[0].name}". Only one scheduled session can occupy a given time slot.`);
+      return;
+    }
+
+    const { data: updated, error } = await supabase
+      .from('sessions')
+      .update({
+        name: editName.trim(),
+        start_time: startISO,
+        end_time: endISO,
+        timezone: editTimezone,
+      })
+      .eq('id', selectedSession.id)
+      .select()
+      .single();
+
+    setSavingEdit(false);
+    if (error) {
+      reportError('Failed to update session', error);
+      return;
+    }
+    toast.success('Session updated');
+    setIsEditingSession(false);
+    if (updated) setSelectedSession(updated as SessionRow);
+    fetchSessions();
+  };
+
 
   const addParticipant = async () => {
     if (!addEmail) {
@@ -902,30 +1016,95 @@ export default function Admin() {
 
                 <Card className="mb-6">
                   <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>{selectedSession.name}</CardTitle>
+                    <CardTitle>
+                      {isEditingSession ? 'Edit Session' : selectedSession.name}
+                    </CardTitle>
                     <div className="flex gap-2">
-                      {selectedSession.status === 'scheduled' && (
+                      {!isEditingSession && (
+                        <Button size="sm" variant="outline" onClick={startEditingSession}>
+                          <Pencil className="w-4 h-4 mr-1" /> Edit
+                        </Button>
+                      )}
+                      {selectedSession.status === 'scheduled' && !isEditingSession && (
                         <Button size="sm" onClick={() => updateSessionStatus(selectedSession.id, 'live')} className="bg-accent text-accent-foreground">
                           <Play className="w-4 h-4 mr-1" /> Go Live
                         </Button>
                       )}
-                      {selectedSession.status === 'live' && (
+                      {selectedSession.status === 'live' && !isEditingSession && (
                         <Button size="sm" variant="outline" onClick={() => updateSessionStatus(selectedSession.id, 'completed')}>
                           End Session
                         </Button>
                       )}
-                      <Button size="sm" variant="destructive" onClick={() => deleteSession(selectedSession.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {!isEditingSession && (
+                        <Button size="sm" variant="destructive" onClick={() => deleteSession(selectedSession.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDateInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')}, {formatTimeInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')} — {formatTimeInTimeZone(selectedSession.end_time, selectedSession.timezone || 'UTC', true)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Timezone: {selectedSession.timezone}</p>
+                    {isEditingSession ? (
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="edit-name">Session Name</Label>
+                          <Input
+                            id="edit-name"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="edit-date">Date</Label>
+                            <Input
+                              id="edit-date"
+                              type="date"
+                              value={editDate}
+                              onChange={e => setEditDate(e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-timezone">Timezone</Label>
+                            <TimezonePicker id="edit-timezone" value={editTimezone} onChange={setEditTimezone} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="edit-start-time">Start Time</Label>
+                            <TimePicker id="edit-start-time" value={editStartTime} onChange={setEditStartTime} disabled={!editTimezone} />
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-end-time">End Time</Label>
+                            <TimePicker id="edit-end-time" value={editEndTime} onChange={setEditEndTime} disabled={!editTimezone} />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            onClick={saveSessionEdits}
+                            disabled={savingEdit}
+                            className="bg-accent text-accent-foreground hover:bg-accent/90"
+                          >
+                            <Check className="w-4 h-4 mr-1" /> {savingEdit ? 'Saving…' : 'Save Changes'}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelEditingSession} disabled={savingEdit}>
+                            <X className="w-4 h-4 mr-1" /> Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground">
+                          {formatDateInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')}, {formatTimeInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')} — {formatTimeInTimeZone(selectedSession.end_time, selectedSession.timezone || 'UTC', true)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">Timezone: {selectedSession.timezone}</p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
+
 
                 {/* Participants */}
                 <Card>

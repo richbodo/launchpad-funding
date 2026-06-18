@@ -90,3 +90,35 @@ export function formatTimeInTimeZone(
     ...(withZoneName ? { timeZoneName: 'short' } : {}),
   });
 }
+
+/**
+ * Decompose a UTC instant into the `YYYY-MM-DD` calendar date and `HH:mm`
+ * 24-hour wall-clock time as observed in `timeZone`. Inverse of
+ * `zonedWallTimeToUtcISO` — useful for pre-filling `<input type="date">` /
+ * time pickers when editing an existing scheduled session.
+ */
+export function utcIsoToZonedWallTime(
+  utc: string | Date,
+  timeZone: string,
+): { date: string; time: string } {
+  const d = new Date(utc);
+  const dtf = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(d)) {
+    if (p.type !== 'literal') parts[p.type] = p.value;
+  }
+  // Some engines render midnight as hour "24"; normalize to "00".
+  const hour = parts.hour === '24' ? '00' : parts.hour;
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${hour}:${parts.minute}`,
+  };
+}
