@@ -4,7 +4,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { ArrowLeft, Settings } from 'lucide-react';
 
@@ -24,36 +23,35 @@ interface Participant {
   session_id: string;
 }
 
+/**
+ * Demo-only credential listing.
+ *
+ * password_hash is no longer readable from the client, so this page now
+ * fetches everything from the `demo-logins` edge function. That function
+ * returns data only when app_settings.mode === 'demo'.
+ */
 export default function DemoLogins() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data: sessData } = await supabase
-        .from('sessions')
-        .select('id, name, status, start_time, end_time')
-        .like('name', '[DEMO]%')
-        .order('start_time', { ascending: true });
-
-      if (sessData && sessData.length > 0) {
-        setSessions(sessData);
-        const ids = sessData.map(s => s.id);
-        const { data: partData } = await supabase
-          .from('session_participants')
-          .select('email, display_name, role, password_hash, session_id')
-          .in('session_id', ids)
-          .order('role', { ascending: true });
-        if (partData) setParticipants(partData);
+      const { data, error: fnErr } = await supabase.functions.invoke('demo-logins', { body: {} });
+      if (fnErr || data?.error) {
+        setError(data?.error || 'Demo mode is not active.');
+        setLoading(false);
+        return;
       }
+      setSessions(data.sessions || []);
+      setParticipants(data.participants || []);
       setLoading(false);
     };
     fetchData();
   }, []);
 
-  // Facilitators appear in every session — dedupe and show at top
   const facilitators = participants.filter(p => p.role === 'facilitator');
   const uniqueFacilitators = Array.from(
     new Map(facilitators.map(f => [f.email, f])).values()
@@ -69,6 +67,26 @@ export default function DemoLogins() {
       <div className="min-h-screen bg-background">
         <DemoModeBanner />
         <div className="flex items-center justify-center py-20 text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <DemoModeBanner />
+        <div className="max-w-2xl mx-auto p-6">
+          <div className="flex items-center gap-3 mb-6">
+            <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
+              <ArrowLeft className="w-4 h-4 mr-1" /> Session Login
+            </Button>
+          </div>
+          <Card>
+            <CardContent className="py-8 text-center text-muted-foreground">
+              {error}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -96,7 +114,6 @@ export default function DemoLogins() {
           Facilitators manage sessions and administer the application - start with one of those logins.  Startups and investors don't need passwords — just enter the email and select the role.
         </p>
 
-        {/* Facilitators */}
         <Card className="mb-6">
           <CardHeader className="pb-2">
             <CardTitle className="text-base">Facilitators (all sessions)</CardTitle>
@@ -124,7 +141,6 @@ export default function DemoLogins() {
           </CardContent>
         </Card>
 
-        {/* Per-session participants */}
         {sessions.map(session => {
           const sessionParticipants = participants.filter(
             p => p.session_id === session.id && p.role !== 'facilitator'

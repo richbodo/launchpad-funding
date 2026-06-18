@@ -4,6 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 export type UserRole = 'investor' | 'startup' | 'facilitator';
 
 export interface SessionUser {
+  /** session_participants.id — required so presence flips don't need a UPDATE policy */
+  participantId: string;
   email: string;
   role: UserRole;
   displayName: string;
@@ -22,11 +24,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
 
   const clearLoginFlag = useCallback(async (u: SessionUser) => {
-    await supabase
-      .from('session_participants')
-      .update({ is_logged_in: false })
-      .eq('session_id', u.sessionId)
-      .eq('email', u.email);
+    // Use the SECURITY DEFINER RPC — session_participants has no UPDATE policy.
+    await supabase.rpc('set_participant_presence', {
+      _participant_id: u.participantId,
+      _logged_in: false,
+    });
   }, []);
 
   const logout = useCallback(async () => {
@@ -36,27 +38,35 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, [user, clearLoginFlag]);
 
-  // Best-effort cleanup on tab/browser close
+  // Best-effort cleanup on tab/browser close — hits the RPC endpoint directly
+  // so sendBeacon can fire without depending on the supabase-js runtime.
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (user) {
-        // Use sendBeacon for reliability during page unload
-        const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/session_participants?session_id=eq.${user.sessionId}&email=eq.${encodeURIComponent(user.email)}`;
-        const body = JSON.stringify({ is_logged_in: false });
+      if (!user) return;
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/set_participant_presence`;
+      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const body = JSON.stringify({
+        _participant_id: user.participantId,
+        _logged_in: false,
+      });
+
+      // sendBeacon can't set custom headers, so it can't carry the apikey.
+      // Fire it as a best-effort backup, then rely on fetch+keepalive for the
+      // authenticated request.
+      try {
         navigator.sendBeacon?.(url, new Blob([body], { type: 'application/json' }));
-        // sendBeacon won't include auth headers, so also try fetch with keepalive
-        fetch(url, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
-            'Prefer': 'return=minimal',
-          },
-          body,
-          keepalive: true,
-        }).catch(() => {});
-      }
+      } catch {/* noop */}
+
+      fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: apiKey,
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body,
+        keepalive: true,
+      }).catch(() => {/* noop */});
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
