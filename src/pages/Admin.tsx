@@ -1396,8 +1396,13 @@ export default function Admin() {
                           <Play className="w-4 h-4 mr-1" /> Go Live
                         </Button>
                       )}
-                      {selectedSession.status === 'live' && !isEditingSession && (
-                        <Button size="sm" variant="outline" onClick={() => updateSessionStatus(selectedSession.id, 'completed')}>
+                      {!isEditingSession && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={selectedSession.status !== 'live'}
+                          onClick={() => updateSessionStatus(selectedSession.id, 'completed')}
+                        >
                           End Session
                         </Button>
                       )}
