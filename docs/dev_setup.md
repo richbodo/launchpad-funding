@@ -1,5 +1,36 @@
 # Developer Setup Guide
 
+## Quickstart (TL;DR)
+
+**First time only** — install tooling and dependencies:
+
+```
+mac% brew install colima docker supabase/tap/supabase livekit libpq && brew link --force libpq
+mac% cd ~/src/launchpad-funding && npm install
+```
+
+**Every session** — start the stack and run the app against your local services:
+
+```
+mac% colima start --memory 4 --cpu 2
+mac% export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"   # see step 1
+mac% ./scripts/test-infra.sh --seed                                  # Supabase + LiveKit + test data
+mac% npm run dev:local                                               # app on :8080, pointed at LOCAL Supabase
+```
+
+Log in at [http://localhost:8080](http://localhost:8080) as `facilitator@test.com` / `test123`.
+
+Prefer the **`[DEMO]` sessions** with passwordless login? See
+[Demo mode (offline dev/test)](#demo-mode-offline-devtest).
+
+> ⚠️ Use `npm run dev:local`, **not** `npm run dev` — plain `npm run dev` points
+> the app at the **cloud (production)** database. See
+> [Which database am I talking to?](#which-database-am-i-talking-to) below.
+
+The rest of this guide explains each step in full, with troubleshooting.
+
+---
+
 ## How this works
 
 Everything runs on your Mac or Linux host — there are no VMs or containers to
@@ -14,8 +45,9 @@ shell into. The developer runs three tools as their normal macOS user:
 3. **LiveKit server** (`livekit-server`) — runs natively on your Mac as a
   regular process. No Docker involved.
 
-All three tools run as your normal Mac user. No root, no `sudo`, no special
-service accounts (except one symlink setup in step 1). Every developer gets
+All three tools run as your normal Mac user — no root or `sudo` required
+(Colima's Docker socket is wired up with an environment variable; see step 1).
+Every developer gets
 the same local stack because the Supabase schema is defined by the migrations
 in `supabase/migrations/` and the test data by `tests/fixtures/seed.sql`.
 
@@ -65,28 +97,23 @@ Colima must be running before any Supabase commands. You'll run
 `colima start` at the beginning of each dev session and `colima stop`
 when you're done.
 
-### Fix the Docker socket path (required for Supabase)
+### Point the Supabase CLI at Colima's Docker socket (required)
 
-The Supabase CLI bind-mounts the Docker socket into its containers. It
-reads the socket path from the Docker context, but the Colima-specific
-path (`~/.colima/default/docker.sock`) doesn't resolve correctly inside
-Colima's Linux VM. The fix is to symlink the standard path to Colima's
-socket — inside the VM, `/var/run/docker.sock` is the real Docker
-socket, so both sides match.
-
-This is the one command that requires `sudo`:
+The Supabase CLI finds Docker via the `DOCKER_HOST` environment variable.
+Colima exposes its socket at `~/.colima/default/docker.sock`. Export that path
+so every command in your shell can reach it, and append it to your shell
+profile so it persists across terminal sessions:
 
 ```
-mac% sudo ln -sf ~/.colima/default/docker.sock /var/run/docker.sock
-mac% export DOCKER_HOST=unix:///var/run/docker.sock
+mac% export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+mac% echo 'export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"' >> ~/.zshrc
 ```
 
-Add the `export` line to your shell profile so it persists across
-terminal sessions:
-
-```
-mac% echo 'export DOCKER_HOST=unix:///var/run/docker.sock' >> ~/.zshrc
-```
+> **Why not symlink `/var/run/docker.sock`?** Some guides instead run
+> `sudo ln -sf ~/.colima/default/docker.sock /var/run/docker.sock`. That works
+> too, but `/var/run` is recreated on every reboot, so the symlink vanishes and
+> the stack mysteriously breaks the next morning. The `DOCKER_HOST` export above
+> needs no `sudo` and survives reboots — prefer it.
 
 ### Verify Docker is available
 
@@ -94,14 +121,14 @@ mac% echo 'export DOCKER_HOST=unix:///var/run/docker.sock' >> ~/.zshrc
 mac% docker info
 ```
 
-You should see engine and server details. If this fails, run
-`colima start` again and check the symlink:
+You should see engine and server details (`Server Version: …`,
+`Operating System: Ubuntu …`, `Name: colima`). If this fails, run
+`colima start` again and confirm `DOCKER_HOST` resolves to a real socket:
 
 ```
-mac% ls -la /var/run/docker.sock
+mac% echo $DOCKER_HOST
+mac% ls -la ~/.colima/default/docker.sock
 ```
-
-It should point to `~/.colima/default/docker.sock`.
 
 ---
 
@@ -216,9 +243,25 @@ Leave this running in its own terminal tab.
 
 ## 6. Configure environment files
 
-Two env files point the app and Edge Functions at the local services.
-Both are gitignored — each developer creates their own from the values
-printed in steps 4 and 5.
+Two gitignored env files point the app and Edge Functions at your **local**
+services. Each developer creates their own from the values printed in steps 4
+and 5.
+
+### Which database am I talking to?
+
+The checked-in `.env` holds **cloud (production)** credentials; `.env.test` holds
+your **local** ones. Vite picks the file by *mode*, so the command you run
+decides which database you hit:
+
+| Command             | Vite mode   | Env file    | Talks to          |
+| ------------------- | ----------- | ----------- | ----------------- |
+| `npm run dev`       | development | `.env`      | ☁️ cloud (prod)   |
+| `npm run dev:local` | test        | `.env.test` | 💻 local Supabase |
+| `npm run build`     | production  | `.env`      | ☁️ cloud (prod)   |
+
+`.env.[mode]` overrides `.env` for matching keys, so `.env` can stay as your
+cloud config while `npm run dev:local` (mode `test`) targets local. **For local
+development always use `npm run dev:local`.**
 
 ### `.env.test` — Vite test environment
 
@@ -285,10 +328,18 @@ Start the dev server against local services:
 
 ```
 mac% cd ~/src/launchpad-funding
-mac% npx vite --mode test --port 8080
+mac% npm run dev:local        # = vite --mode test, loads .env.test (local)
 ```
 
-The `--mode test` flag tells Vite to load `.env.test` instead of `.env`.
+**Quick stack healthcheck** (no browser needed) — using the Publishable key from
+step 4, each line should return data:
+
+```
+mac% PUB="<Publishable key from step 4>"
+mac% curl -s -o /dev/null -w 'Supabase API: %{http_code}\n' \
+       http://127.0.0.1:54321/rest/v1/ -H "apikey: $PUB"
+mac% curl -s "http://127.0.0.1:54321/rest/v1/sessions?select=name,status" -H "apikey: $PUB"
+```
 
 Open [http://localhost:8080](http://localhost:8080) and verify:
 
@@ -366,11 +417,8 @@ app in **demo mode** — which lists `[DEMO]` sessions and lets facilitators log
 
 ### Two gotchas that bite offline
 
-1. **`DOCKER_HOST` / Colima socket.** Step 1 has you point `DOCKER_HOST` at
-   `/var/run/docker.sock`, which only exists if you created the `sudo` symlink.
-   If you skipped that, the Supabase CLI can't find Docker. Either create the
-   symlink (step 1) **or** point `DOCKER_HOST` straight at Colima's own socket
-   for the session:
+1. **`DOCKER_HOST` must point at Colima's socket** (step 1). If `supabase start`
+   can't find Docker, set it for the session:
 
    ```
    mac% export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
@@ -392,7 +440,7 @@ mac% supabase start                                                  # or: supab
 mac% # enable demo mode + load 3 [DEMO] sessions and their participants:
 mac% psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
        -f tests/fixtures/seed-demo.sql
-mac% npx vite --mode test --port 8080                                # loads .env.test (local)
+mac% npm run dev:local                                               # loads .env.test (local)
 ```
 
 Open [http://localhost:8080](http://localhost:8080). You should see the
@@ -432,14 +480,28 @@ mac% colima stop
 
 ## Troubleshooting
 
-### `supabase start` fails with "error while creating mount source path"
+### `supabase start` can't find Docker / "Cannot connect to the Docker daemon"
 
-This means the Docker socket path isn't set up correctly for Colima.
-Run the socket fix from step 1:
+`DOCKER_HOST` is pointing at a socket that doesn't exist — most commonly
+`/var/run/docker.sock` after a reboot cleared an old symlink. Point it at
+Colima's own socket and retry:
 
 ```
-mac% sudo ln -sf ~/.colima/default/docker.sock /var/run/docker.sock
-mac% export DOCKER_HOST=unix:///var/run/docker.sock
+mac% colima status                                            # is Colima running?
+mac% export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+mac% docker info && supabase start
+```
+
+If you want this permanent, make sure the `export` line is in your `~/.zshrc`
+(step 1), not relying on the reboot-fragile `/var/run/docker.sock` symlink.
+
+### `supabase start` fails with "error while creating mount source path"
+
+The Docker socket path isn't set up correctly for Colima. Set `DOCKER_HOST` to
+Colima's socket (step 1) and retry:
+
+```
+mac% export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
 mac% supabase start
 ```
 
