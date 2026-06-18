@@ -64,6 +64,7 @@ interface ParticipantRow {
   dd_room_link: string | null;
   website_link: string | null;
   funding_goal: number | null;
+  invite_sent_at: string | null;
 }
 
 interface EmailLogRow {
