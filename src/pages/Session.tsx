@@ -26,6 +26,33 @@ import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, Chevr
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
 import { externalLinkHandler } from '@/lib/openExternal';
+import { getAdminToken } from '@/lib/adminAuth';
+
+/**
+ * Update a session row through the admin-action edge function. Direct UPDATEs
+ * to public.sessions are revoked for anon/authenticated, so the facilitator's
+ * short-lived bearer token (issued at password login) is required. Returns
+ * true on success; surfaces a toast and returns false on failure so callers
+ * can avoid advancing UI state into an inconsistent "connected" view.
+ */
+async function adminUpdateSessionStatus(
+  id: string,
+  status: 'draft' | 'scheduled' | 'live' | 'completed',
+): Promise<boolean> {
+  const admin_token = getAdminToken();
+  if (!admin_token) {
+    toast.error('Missing facilitator session — please log in again.');
+    return false;
+  }
+  const { data, error } = await supabase.functions.invoke('admin-action', {
+    body: { admin_token, action: 'update_session', payload: { id, status } },
+  });
+  if (error || data?.error) {
+    toast.error(`Failed to set session ${status}: ${data?.error || error?.message || 'unknown error'}`);
+    return false;
+  }
+  return true;
+}
 
 interface Startup {
   email: string;
@@ -233,17 +260,19 @@ export default function SessionPage() {
     if (!id) return;
     setCallState('connecting');
     if (session?.status !== 'live') {
-      await supabase.from('sessions').update({ status: 'live' }).eq('id', id);
+      const ok = await adminUpdateSessionStatus(id, 'live');
+      if (!ok) {
+        setCallState('idle');
+        return;
+      }
     }
     await fetchToken();
-    setCallState('connected');
   }, [id, session?.status, fetchToken]);
 
   // Startup: Join Call
   const handleJoinCall = useCallback(async () => {
     setCallState('connecting');
     await fetchToken();
-    setCallState('connected');
   }, [fetchToken]);
 
   // Facilitator: End Call
@@ -260,7 +289,8 @@ export default function SessionPage() {
     if (invErr) {
       console.error('Failed to queue commitment emails', invErr);
     }
-    await supabase.from('sessions').update({ status: 'completed' }).eq('id', id);
+    const ok = await adminUpdateSessionStatus(id, 'completed');
+    if (!ok) return;
     reset();
     setCallState('idle');
     toast.success(
@@ -276,9 +306,24 @@ export default function SessionPage() {
   useEffect(() => {
     if (user?.role === 'investor' && session?.status === 'live' && callState === 'idle') {
       setCallState('connecting');
-      fetchToken().then(() => setCallState('connected'));
+      fetchToken();
     }
   }, [session?.status, user?.role, callState, fetchToken]);
+
+  // Promote 'connecting' → 'connected' once the LiveKit token actually arrives,
+  // and surface fetch errors so silent failures don't strand the UI mid-flow.
+  useEffect(() => {
+    if (callState === 'connecting' && token && ws_url) {
+      setCallState('connected');
+    }
+  }, [callState, token, ws_url]);
+
+  useEffect(() => {
+    if (callState === 'connecting' && tokenError) {
+      toast.error(`Video connection failed: ${tokenError}`);
+      setCallState('idle');
+    }
+  }, [callState, tokenError]);
 
   // Disconnect all non-facilitators when session completes
   useEffect(() => {
