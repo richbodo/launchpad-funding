@@ -671,7 +671,7 @@ export default function SessionPage() {
                       title={siteUrl ? `Open website for ${currentStartupName}` : 'No website URL provided'}
                     >
                       {siteUrl ? (
-                        <a href={siteUrl} target="_blank" rel="noopener noreferrer">
+                        <a href={siteUrl} target="_blank" rel="noopener noreferrer" onClick={externalLinkHandler(siteUrl)}>
                           <ExternalLink className="w-4 h-4 mr-1" />
                           Website
                         </a>
