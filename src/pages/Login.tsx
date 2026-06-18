@@ -73,12 +73,11 @@ export default function Login() {
   };
 
   const completeLoginWith = async (participant: any, loginRole: UserRole) => {
-    // session_participants no longer has a public UPDATE policy — go through
-    // the set_participant_presence SECURITY DEFINER RPC instead.
-    await supabase.rpc('set_participant_presence', {
-      _participant_id: participant.id,
-      _logged_in: true,
+    // Presence updates go through the participant-presence edge function.
+    await supabase.functions.invoke('participant-presence', {
+      body: { participant_id: participant.id, logged_in: true },
     });
+
 
     await supabase.from('session_logs').insert({
       session_id: selectedSession,
@@ -291,10 +290,10 @@ export default function Login() {
   const completeLogin = async (participant: any, loginRole?: UserRole) => {
     const resolvedRole = loginRole || role!;
 
-    await supabase.rpc('set_participant_presence', {
-      _participant_id: participant.id,
-      _logged_in: true,
+    await supabase.functions.invoke('participant-presence', {
+      body: { participant_id: participant.id, logged_in: true },
     });
+
 
     await supabase.from('session_logs').insert({
       session_id: selectedSession,
