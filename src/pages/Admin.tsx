@@ -1313,12 +1313,59 @@ export default function Admin() {
 
                 {/* Participants */}
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between gap-2">
                     <CardTitle className="flex items-center gap-2">
                       <Users className="w-5 h-5" /> Participants
                     </CardTitle>
+                    {participants.length > 0 && (() => {
+                      const unsentCount = participants.filter(p => p.email && !p.invite_sent_at).length;
+                      return (
+                        <Button
+                          size="sm"
+                          onClick={sendAllInvites}
+                          disabled={sendingBulk || unsentCount === 0}
+                          className="bg-accent text-accent-foreground"
+                          title={unsentCount === 0 ? 'Everyone has been emailed' : `Send to ${unsentCount} not yet emailed`}
+                        >
+                          {sendingBulk
+                            ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            : <Send className="w-4 h-4 mr-1" />}
+                          {sendingBulk ? 'Sending…' : `Send emails${unsentCount ? ` (${unsentCount})` : ''}`}
+                        </Button>
+                      );
+                    })()}
                   </CardHeader>
                   <CardContent>
+                    {/* Bulk add via CSV — top right, above the add inputs */}
+                    <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
+                      <input
+                        ref={csvInputRef}
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) handleBulkCsv(file);
+                          e.target.value = '';
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => csvInputRef.current?.click()}
+                        disabled={bulkImporting}
+                      >
+                        {bulkImporting
+                          ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          : <Upload className="w-4 h-4 mr-1" />}
+                        {bulkImporting ? 'Importing…' : 'Bulk add with .csv'}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={downloadCsvTemplate}>
+                        <Download className="w-4 h-4 mr-1" /> Download .csv template
+                      </Button>
+                    </div>
+
                     {/* Add participant form */}
                     <div className="flex flex-wrap gap-2 mb-4 p-3 rounded-lg bg-muted/50">
                       <Input
