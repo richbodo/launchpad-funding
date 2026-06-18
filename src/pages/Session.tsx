@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
+import { externalLinkHandler } from '@/lib/openExternal';
 
 interface Startup {
   email: string;
