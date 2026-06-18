@@ -92,6 +92,9 @@ export default function Admin() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+  const [investments, setInvestments] = useState<InvestmentRow[]>([]);
+  const [sendingQueuedEmails, setSendingQueuedEmails] = useState(false);
+  const [cancellingQueuedEmails, setCancellingQueuedEmails] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
