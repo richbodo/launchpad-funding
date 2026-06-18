@@ -91,6 +91,15 @@ export default function Admin() {
   // before choosing times — the times are interpreted in this zone.
   const [newTimezone, setNewTimezone] = useState('');
 
+  // Edit-session form (for the currently-selected session in the details view)
+  const [isEditingSession, setIsEditingSession] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDate, setEditDate] = useState('');
+  const [editStartTime, setEditStartTime] = useState('09:00');
+  const [editEndTime, setEditEndTime] = useState('11:00');
+  const [editTimezone, setEditTimezone] = useState('');
+  const [savingEdit, setSavingEdit] = useState(false);
+
   // Add participant form
   const [addEmail, setAddEmail] = useState('');
   const [addRole, setAddRole] = useState<string>('investor');
