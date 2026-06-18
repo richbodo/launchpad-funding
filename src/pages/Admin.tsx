@@ -17,6 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { motion } from 'framer-motion';
 import DemoModeBanner from '@/components/DemoModeBanner';
+import TimePicker from '@/components/TimePicker';
+import TimezonePicker from '@/components/TimezonePicker';
+import { reportError } from '@/lib/logError';
 
 interface SessionRow {
   id: string;
@@ -78,7 +81,13 @@ export default function Admin() {
   const [newDate, setNewDate] = useState('');
   const [newStartTime, setNewStartTime] = useState('09:00');
   const [newEndTime, setNewEndTime] = useState('11:00');
-  const [newTimezone, setNewTimezone] = useState('America/New_York');
+  const [newTimezone, setNewTimezone] = useState(() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York';
+    } catch {
+      return 'America/New_York';
+    }
+  });
 
   // Add participant form
   const [addEmail, setAddEmail] = useState('');
@@ -351,15 +360,27 @@ export default function Admin() {
       toast.error('Please fill all fields');
       return;
     }
-    const startISO = new Date(`${newDate}T${newStartTime}`).toISOString();
-    const endISO = new Date(`${newDate}T${newEndTime}`).toISOString();
+    let startISO: string;
+    let endISO: string;
+    try {
+      startISO = new Date(`${newDate}T${newStartTime}`).toISOString();
+      endISO = new Date(`${newDate}T${newEndTime}`).toISOString();
+    } catch (err) {
+      reportError('Invalid date or time', err);
+      return;
+    }
 
-    const { data: overlapping } = await supabase
+    const { data: overlapping, error: overlapError } = await supabase
       .from('sessions')
       .select('id, name')
       .lt('start_time', endISO)
       .gt('end_time', startISO)
       .neq('status', 'completed');
+
+    if (overlapError) {
+      reportError('Could not check for scheduling conflicts', overlapError);
+      return;
+    }
 
     if (overlapping && overlapping.length > 0) {
       toast.error(`Time conflict with "${overlapping[0].name}". Only one session can be active at a time.`);
@@ -374,7 +395,7 @@ export default function Admin() {
       status: 'scheduled' as const,
     });
     if (error) {
-      toast.error('Failed to create session');
+      reportError('Failed to create session', error);
       return;
     }
     toast.success('Session created!');
@@ -386,14 +407,22 @@ export default function Admin() {
   };
 
   const deleteSession = async (id: string) => {
-    await supabase.from('sessions').delete().eq('id', id);
+    const { error } = await supabase.from('sessions').delete().eq('id', id);
+    if (error) {
+      reportError('Failed to delete session', error);
+      return;
+    }
     toast.success('Session deleted');
     setSelectedSession(null);
     fetchSessions();
   };
 
   const updateSessionStatus = async (id: string, status: "draft" | "scheduled" | "live" | "completed") => {
-    await supabase.from('sessions').update({ status }).eq('id', id);
+    const { error } = await supabase.from('sessions').update({ status }).eq('id', id);
+    if (error) {
+      reportError(`Failed to set session to ${status}`, error);
+      return;
+    }
     toast.success(`Session ${status}`);
     fetchSessions();
   };
@@ -793,17 +822,17 @@ export default function Admin() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <Label>Start Time</Label>
-                    <Input type="time" value={newStartTime} onChange={e => setNewStartTime(e.target.value)} className="mt-1" />
+                    <Label htmlFor="start-time">Start Time</Label>
+                    <TimePicker id="start-time" value={newStartTime} onChange={setNewStartTime} />
                   </div>
                   <div>
-                    <Label>End Time</Label>
-                    <Input type="time" value={newEndTime} onChange={e => setNewEndTime(e.target.value)} className="mt-1" />
+                    <Label htmlFor="end-time">End Time</Label>
+                    <TimePicker id="end-time" value={newEndTime} onChange={setNewEndTime} />
                   </div>
                 </div>
                 <div>
-                  <Label>Timezone</Label>
-                  <Input value={newTimezone} onChange={e => setNewTimezone(e.target.value)} placeholder="America/New_York" className="mt-1" />
+                  <Label htmlFor="timezone">Timezone</Label>
+                  <TimezonePicker id="timezone" value={newTimezone} onChange={setNewTimezone} />
                 </div>
                 <Button onClick={createSession} className="bg-accent text-accent-foreground hover:bg-accent/90">
                   <Plus className="w-4 h-4 mr-1" /> Create Session
