@@ -39,6 +39,58 @@ export default function Login() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const autoLoginAttempted = useRef(false);
 
+  /**
+   * Returns true when this facilitator email has no bcrypt password set on
+   * ANY of their session_participants rows — i.e. this is their very first
+   * facilitator invite and they need to create a password before logging in.
+   */
+  const facilitatorNeedsPassword = async (facilitatorEmail: string): Promise<boolean> => {
+    const { data } = await supabase
+      .from('session_participants')
+      .select('id')
+      .eq('email', facilitatorEmail.toLowerCase())
+      .eq('role', 'facilitator')
+      .not('password_hash', 'is', null)
+      .limit(1);
+    return !data || data.length === 0;
+  };
+
+  const handleCreatePassword = async () => {
+    if (newPassword.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('participant-set-password', {
+        body: {
+          session_id: selectedSession,
+          email: pendingParticipant.email,
+          password: newPassword,
+        },
+      });
+      if (error || !data?.success) {
+        toast.error(data?.error || 'Could not set password');
+        setLoading(false);
+        return;
+      }
+      // Prefill the password for the standard facilitator login step so the
+      // user just clicks Continue and lands in the session.
+      setPassword(newPassword);
+      setNewPassword('');
+      setConfirmPassword('');
+      setStep('facilitator-password');
+      toast.success('Password set — please log in to continue.');
+    } catch {
+      toast.error('Could not set password');
+    }
+    setLoading(false);
+  };
+
   const handleRandomize = async (targetRole: UserRole) => {
     if (!selectedSession) return;
     setLoading(true);
