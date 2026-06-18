@@ -16,6 +16,10 @@ import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff } from 'lucide-react';
@@ -242,12 +246,30 @@ export default function SessionPage() {
   }, [fetchToken]);
 
   // Facilitator: End Call
+  // Marks the session completed AND moves every draft commitment-confirmation
+  // email into the facilitator's approval queue. Cancelling the queue later
+  // never deletes the underlying investment row — the audit log is preserved.
   const handleEndCall = useCallback(async () => {
     if (!id) return;
+    const { error: invErr } = await supabase
+      .from('investments')
+      .update({ email_status: 'queued', email_queued_at: new Date().toISOString() })
+      .eq('session_id', id)
+      .eq('email_status', 'draft');
+    if (invErr) {
+      console.error('Failed to queue commitment emails', invErr);
+    }
     await supabase.from('sessions').update({ status: 'completed' }).eq('id', id);
     reset();
     setCallState('idle');
+    toast.success(
+      'Session ended. Investment commitment & thank-you emails have been queued for your approval in the Admin panel.',
+      { duration: 12000 },
+    );
   }, [id, reset]);
+
+  // Confirmation dialog state for End Call
+  const [endCallConfirmOpen, setEndCallConfirmOpen] = useState(false);
 
   // Investor: auto-join as viewer when session goes live
   useEffect(() => {
@@ -706,6 +728,32 @@ export default function SessionPage() {
           startupEmail={currentStartup.email}
         />
       )}
+
+      {/* End-call confirmation — facilitator only */}
+      <AlertDialog open={endCallConfirmOpen} onOpenChange={setEndCallConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>End the session for everyone?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure? This will end the call for <strong>all participants</strong>.
+              If you just need to leave, close this tab instead — the session will keep running.
+              <br /><br />
+              When you confirm, every soft commitment from this session will be queued as a
+              confirmation email for your review in the Admin panel. Nothing is sent until you
+              approve them there.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep session running</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setEndCallConfirmOpen(false); handleEndCall(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              End session for everyone
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 
@@ -729,7 +777,7 @@ export default function SessionPage() {
           />
           {/* End Call — next to timer, facilitator only */}
           {isFacilitator && callState === 'connected' && (
-            <Button data-testid="end-call-btn" variant="destructive" size="sm" onClick={handleEndCall}>
+            <Button data-testid="end-call-btn" variant="destructive" size="sm" onClick={() => setEndCallConfirmOpen(true)}>
               <PhoneOff className="w-4 h-4 mr-1" />
               End Call
             </Button>

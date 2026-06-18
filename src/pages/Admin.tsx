@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check, Upload, Send, Loader2, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check, Upload, Send, Loader2, CheckCircle2, DollarSign } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -68,6 +68,21 @@ interface ParticipantRow {
   invite_sent_at: string | null;
 }
 
+interface InvestmentRow {
+  id: string;
+  session_id: string;
+  investor_email: string;
+  investor_name: string | null;
+  startup_email: string;
+  startup_name: string | null;
+  amount: number;
+  email_status: 'draft' | 'queued' | 'sent' | 'cancelled';
+  email_queued_at: string | null;
+  email_sent_at: string | null;
+  email_cancelled_at: string | null;
+  created_at: string;
+}
+
 interface EmailLogRow {
   id: string;
   message_id: string | null;
@@ -92,6 +107,9 @@ export default function Admin() {
   const [sessions, setSessions] = useState<SessionRow[]>([]);
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
+  const [investments, setInvestments] = useState<InvestmentRow[]>([]);
+  const [sendingQueuedEmails, setSendingQueuedEmails] = useState(false);
+  const [cancellingQueuedEmails, setCancellingQueuedEmails] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -277,6 +295,114 @@ export default function Admin() {
   };
 
   /**
+   * Load every soft commitment for the currently-selected session, regardless
+   * of email status. The Admin "Investments & Commitments" card renders the
+   * full audit trail, and the "Pending Approval" subsection only acts on rows
+   * still in the `queued` state.
+   */
+  const fetchInvestments = async (sessionId: string) => {
+    const { data, error } = await supabase
+      .from('investments')
+      .select('*')
+      .eq('session_id', sessionId)
+      .order('created_at', { ascending: false });
+    if (error) {
+      console.error('Failed to load investments', error);
+      return;
+    }
+    if (data) setInvestments(data as InvestmentRow[]);
+  };
+
+  /**
+   * Look up which participant the email belongs to so we can find a richer
+   * display name when one wasn't captured at commitment time.
+   */
+  const participantDisplay = (email: string): string => {
+    const p = participants.find(pp => pp.email.toLowerCase() === email.toLowerCase());
+    return p?.display_name || email;
+  };
+
+  /**
+   * Walk every `queued` investment for the selected session and dispatch a
+   * single commitment-confirmation email per row (with both startup and
+   * investor on the To: line). Rows that successfully enqueue flip to
+   * `sent`; the rest stay `queued` so the facilitator can retry. The
+   * underlying investment row is never deleted.
+   */
+  const sendAllQueuedCommitmentEmails = async () => {
+    if (!selectedSession) return;
+    const queued = investments.filter(i => i.email_status === 'queued');
+    if (queued.length === 0) {
+      toast.info('No emails are waiting for approval.');
+      return;
+    }
+    setSendingQueuedEmails(true);
+    let sent = 0;
+    let failed = 0;
+    for (const inv of queued) {
+      try {
+        const investorName = inv.investor_name || participantDisplay(inv.investor_email);
+        const startupName = inv.startup_name || participantDisplay(inv.startup_email);
+        const { data, error } = await supabase.functions.invoke('send-transactional-email', {
+          body: {
+            templateName: 'investment-commitment',
+            recipientEmail: inv.investor_email,
+            additionalRecipients: [inv.startup_email],
+            idempotencyKey: `commitment-${inv.id}`,
+            templateData: {
+              investorName,
+              investorEmail: inv.investor_email,
+              startupName,
+              startupEmail: inv.startup_email,
+              amount: Number(inv.amount),
+              sessionName: selectedSession.name,
+            },
+          },
+        });
+        if (error || data?.error) throw new Error(error?.message || data?.error || 'send failed');
+        await supabase
+          .from('investments')
+          .update({ email_status: 'sent', email_sent_at: new Date().toISOString() })
+          .eq('id', inv.id);
+        sent++;
+      } catch (err) {
+        console.error('Failed to send commitment email', inv.id, err);
+        failed++;
+      }
+    }
+    setSendingQueuedEmails(false);
+    await fetchInvestments(selectedSession.id);
+    toast.success(
+      `Sent ${sent} commitment email${sent === 1 ? '' : 's'}${failed ? ` · ${failed} failed` : ''}.`,
+      { duration: failed ? 15000 : 6000 },
+    );
+  };
+
+  /**
+   * Cancel every queued email for this session. The investment rows stay in
+   * the database (audit log preserved) — only the email status flips to
+   * `cancelled` so the queue UI clears.
+   */
+  const cancelAllQueuedCommitmentEmails = async () => {
+    if (!selectedSession) return;
+    const queued = investments.filter(i => i.email_status === 'queued');
+    if (queued.length === 0) return;
+    setCancellingQueuedEmails(true);
+    const { error } = await supabase
+      .from('investments')
+      .update({ email_status: 'cancelled', email_cancelled_at: new Date().toISOString() })
+      .eq('session_id', selectedSession.id)
+      .eq('email_status', 'queued');
+    setCancellingQueuedEmails(false);
+    if (error) {
+      toast.error(`Failed to cancel: ${error.message}`);
+      return;
+    }
+    await fetchInvestments(selectedSession.id);
+    toast.success('Queued emails cancelled. Investment log preserved.');
+  };
+
+  /**
    * When a session is selected, keep the participants list live so edits made
    * by startups (DD Room URL, website, funding goal) and other facilitators
    * appear in the admin console without requiring a manual refresh.
@@ -292,6 +418,14 @@ export default function Admin() {
         filter: `session_id=eq.${selectedSession.id}`,
       }, () => {
         fetchParticipants(selectedSession.id);
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'investments',
+        filter: `session_id=eq.${selectedSession.id}`,
+      }, () => {
+        fetchInvestments(selectedSession.id);
       })
       .subscribe();
     return () => {
@@ -1215,7 +1349,7 @@ export default function Admin() {
                   <Card
                     key={s.id}
                     className="cursor-pointer hover:border-accent/50 transition-colors"
-                    onClick={() => { setSelectedSession(s); fetchParticipants(s.id); fetchChatArchives(s.id); }}
+                    onClick={() => { setSelectedSession(s); fetchParticipants(s.id); fetchChatArchives(s.id); fetchInvestments(s.id); }}
                   >
                     <CardContent className="py-4 flex items-center justify-between">
                       <div>
@@ -1521,6 +1655,115 @@ export default function Admin() {
                               </TableCell>
                             </TableRow>
                           ))}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Investments & Commitments — full audit log per session.
+                    The "Pending Approval" subsection only appears while at least
+                    one commitment email is still waiting on the facilitator. */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="w-5 h-5" /> Investment Commitments
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {(() => {
+                      const queuedCount = investments.filter(i => i.email_status === 'queued').length;
+                      if (queuedCount === 0) return null;
+                      return (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div>
+                              <p className="font-semibold text-sm">
+                                {queuedCount} commitment email{queuedCount === 1 ? '' : 's'} waiting for your approval
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Each email goes to the investor and startup together (both on the To: line).
+                                Cancelling preserves the investment log below.
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={sendAllQueuedCommitmentEmails}
+                                disabled={sendingQueuedEmails || cancellingQueuedEmails}
+                                className="bg-accent text-accent-foreground"
+                              >
+                                {sendingQueuedEmails
+                                  ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                  : <Send className="w-4 h-4 mr-1" />}
+                                {sendingQueuedEmails ? 'Sending…' : `Send all (${queuedCount})`}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelAllQueuedCommitmentEmails}
+                                disabled={sendingQueuedEmails || cancellingQueuedEmails}
+                              >
+                                {cancellingQueuedEmails ? 'Cancelling…' : 'Cancel all'}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {investments.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No investment commitments yet for this session.
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>When</TableHead>
+                            <TableHead>Investor</TableHead>
+                            <TableHead>Startup</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead>Email</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {investments.map(inv => {
+                            const status = inv.email_status;
+                            const statusClass =
+                              status === 'sent' ? 'bg-emerald-500/10 text-emerald-600' :
+                              status === 'queued' ? 'bg-amber-500/10 text-amber-600' :
+                              status === 'cancelled' ? 'bg-muted text-muted-foreground' :
+                              'bg-blue-500/10 text-blue-500';
+                            const statusLabel =
+                              status === 'sent' ? 'Sent' :
+                              status === 'queued' ? 'Pending approval' :
+                              status === 'cancelled' ? 'Cancelled' :
+                              'Draft';
+                            return (
+                              <TableRow key={inv.id}>
+                                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {new Date(inv.created_at).toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  <div>{inv.investor_name || participantDisplay(inv.investor_email)}</div>
+                                  <div className="text-xs text-muted-foreground">{inv.investor_email}</div>
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  <div>{inv.startup_name || participantDisplay(inv.startup_email)}</div>
+                                  <div className="text-xs text-muted-foreground">{inv.startup_email}</div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm">
+                                  ${Math.round(Number(inv.amount)).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <span className={`text-xs px-2 py-0.5 rounded font-medium ${statusClass}`}>
+                                    {statusLabel}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     )}

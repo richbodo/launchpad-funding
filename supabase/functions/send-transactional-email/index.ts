@@ -60,6 +60,10 @@ Deno.serve(async (req) => {
   let idempotencyKey: string
   let messageId: string
   let templateData: Record<string, any> = {}
+  // Optional extra recipients added to the To: line (e.g. cc the startup on
+  // the investor's confirmation). Suppression is checked against each address;
+  // if any are suppressed, those are dropped from the To: line.
+  let additionalRecipients: string[] = []
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
@@ -68,6 +72,12 @@ Deno.serve(async (req) => {
     idempotencyKey = body.idempotencyKey || body.idempotency_key || messageId
     if (body.templateData && typeof body.templateData === 'object') {
       templateData = body.templateData
+    }
+    const extras = body.additionalRecipients || body.additional_recipients
+    if (Array.isArray(extras)) {
+      additionalRecipients = extras
+        .filter((e: unknown) => typeof e === 'string' && e.includes('@'))
+        .map((e: string) => e.trim())
     }
   } catch {
     return new Response(
@@ -297,14 +307,35 @@ Deno.serve(async (req) => {
       ? template.subject(templateData)
       : template.subject
 
-  // 5. Enqueue the pre-rendered email for async processing by the dispatcher.
-  // The dispatcher (process-email-queue) handles sending, retries, and rate-limit backoff.
+  // 5. Resolve the To: line. Start with the primary recipient, then append any
+  // additional recipients that aren't suppressed and aren't duplicates. The
+  // primary recipient's suppression was already enforced above.
+  const toAddresses: string[] = [effectiveRecipient]
+  if (additionalRecipients.length > 0) {
+    const seen = new Set([effectiveRecipient.toLowerCase()])
+    for (const extra of additionalRecipients) {
+      const lower = extra.toLowerCase()
+      if (seen.has(lower)) continue
+      const { data: extraSup } = await supabase
+        .from('suppressed_emails')
+        .select('id')
+        .eq('email', lower)
+        .maybeSingle()
+      if (extraSup) {
+        console.log('Skipping suppressed additional recipient', { extra })
+        continue
+      }
+      seen.add(lower)
+      toAddresses.push(extra)
+    }
+  }
+  const toLine = toAddresses.join(', ')
 
   // Log pending BEFORE enqueue so we have a record even if enqueue crashes
   await supabase.from('email_send_log').insert({
     message_id: messageId,
     template_name: templateName,
-    recipient_email: effectiveRecipient,
+    recipient_email: toLine,
     status: 'pending',
   })
 
@@ -312,7 +343,7 @@ Deno.serve(async (req) => {
     queue_name: 'transactional_emails',
     payload: {
       message_id: messageId,
-      to: effectiveRecipient,
+      to: toLine,
       from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
       sender_domain: SENDER_DOMAIN,
       subject: resolvedSubject,

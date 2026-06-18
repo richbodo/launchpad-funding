@@ -161,6 +161,10 @@ export type Database = {
         Row: {
           amount: number
           created_at: string
+          email_cancelled_at: string | null
+          email_queued_at: string | null
+          email_sent_at: string | null
+          email_status: string
           id: string
           investor_email: string
           investor_name: string | null
@@ -171,6 +175,10 @@ export type Database = {
         Insert: {
           amount: number
           created_at?: string
+          email_cancelled_at?: string | null
+          email_queued_at?: string | null
+          email_sent_at?: string | null
+          email_status?: string
           id?: string
           investor_email: string
           investor_name?: string | null
@@ -181,6 +189,10 @@ export type Database = {
         Update: {
           amount?: number
           created_at?: string
+          email_cancelled_at?: string | null
+          email_queued_at?: string | null
+          email_sent_at?: string | null
+          email_status?: string
           id?: string
           investor_email?: string
           investor_name?: string | null
