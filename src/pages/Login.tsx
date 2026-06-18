@@ -249,7 +249,9 @@ export default function Login() {
       // Facilitators need password on next step (skip in demo mode)
       if (selectedRole === 'facilitator' && !isDemoMode) {
         setPendingParticipant(participant);
-        setStep('facilitator-password');
+        setStep(await facilitatorNeedsPassword(participant.email)
+          ? 'facilitator-create-password'
+          : 'facilitator-password');
         setLoading(false);
         return;
       }
