@@ -68,6 +68,21 @@ interface ParticipantRow {
   invite_sent_at: string | null;
 }
 
+interface InvestmentRow {
+  id: string;
+  session_id: string;
+  investor_email: string;
+  investor_name: string | null;
+  startup_email: string;
+  startup_name: string | null;
+  amount: number;
+  email_status: 'draft' | 'queued' | 'sent' | 'cancelled';
+  email_queued_at: string | null;
+  email_sent_at: string | null;
+  email_cancelled_at: string | null;
+  created_at: string;
+}
+
 interface EmailLogRow {
   id: string;
   message_id: string | null;
