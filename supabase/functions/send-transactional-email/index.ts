@@ -60,6 +60,10 @@ Deno.serve(async (req) => {
   let idempotencyKey: string
   let messageId: string
   let templateData: Record<string, any> = {}
+  // Optional extra recipients added to the To: line (e.g. cc the startup on
+  // the investor's confirmation). Suppression is checked against each address;
+  // if any are suppressed, those are dropped from the To: line.
+  let additionalRecipients: string[] = []
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
@@ -68,6 +72,12 @@ Deno.serve(async (req) => {
     idempotencyKey = body.idempotencyKey || body.idempotency_key || messageId
     if (body.templateData && typeof body.templateData === 'object') {
       templateData = body.templateData
+    }
+    const extras = body.additionalRecipients || body.additional_recipients
+    if (Array.isArray(extras)) {
+      additionalRecipients = extras
+        .filter((e: unknown) => typeof e === 'string' && e.includes('@'))
+        .map((e: string) => e.trim())
     }
   } catch {
     return new Response(
