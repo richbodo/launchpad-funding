@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label';
 import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
+import { externalLinkHandler } from '@/lib/openExternal';
 
 interface Startup {
   email: string;
@@ -651,7 +652,7 @@ export default function SessionPage() {
                       title={ddUrl ? `Open DD Room for ${currentStartupName}` : 'No DD Room URL provided'}
                     >
                       {ddUrl ? (
-                        <a href={ddUrl} target="_blank" rel="noopener noreferrer">
+                        <a href={ddUrl} target="_blank" rel="noopener noreferrer" onClick={externalLinkHandler(ddUrl)}>
                           <ExternalLink className="w-4 h-4 mr-1" />
                           DD Room
                         </a>
@@ -671,7 +672,7 @@ export default function SessionPage() {
                       title={siteUrl ? `Open website for ${currentStartupName}` : 'No website URL provided'}
                     >
                       {siteUrl ? (
-                        <a href={siteUrl} target="_blank" rel="noopener noreferrer">
+                        <a href={siteUrl} target="_blank" rel="noopener noreferrer" onClick={externalLinkHandler(siteUrl)}>
                           <ExternalLink className="w-4 h-4 mr-1" />
                           Website
                         </a>
