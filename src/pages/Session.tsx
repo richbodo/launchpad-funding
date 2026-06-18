@@ -27,6 +27,25 @@ interface Startup {
   display_name: string | null;
   presentation_order: number | null;
   funding_goal: number | null;
+  dd_room_link: string | null;
+  website_link: string | null;
+}
+
+/**
+ * Normalize a user-entered URL so it is safe to put in an `href` and opens in
+ * a new tab. Strips whitespace and adds an `https://` scheme when the user
+ * typed a bare host like `acme.io`. Returns null for empty/invalid input so
+ * callers can disable the link.
+ */
+function normalizeExternalUrl(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const trimmed = String(raw).trim();
+  if (!trimmed) return null;
+  // Block dangerous schemes (javascript:, data:, etc.)
+  if (/^(javascript|data|vbscript|file):/i.test(trimmed)) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  // No scheme — assume https
+  return `https://${trimmed.replace(/^\/+/, '')}`;
 }
 
 interface Facilitator {
@@ -117,11 +136,36 @@ export default function SessionPage() {
       })
       .subscribe();
 
-    // NOTE: The participants channel (postgres_changes on session_participants) was
-    // intentionally removed. Every login flipped is_logged_in, which woke every connected
-    // client on this session. funding_goal / dd_room_link / website_link edits are rare
-    // and applied to the editing client's local state on save — a stale value will reconcile
-    // on the next session load.
+    // Subscribe to participant UPDATEs so that when a startup edits their DD
+    // Room URL, website, or funding goal, every other client in the session
+    // sees the change within a second. We intentionally only react to UPDATE
+    // events (not INSERT/DELETE) and only merge the URL/goal fields so the
+    // high-frequency `is_logged_in` flips during login don't cause needless
+    // re-renders of the startup list.
+    const participantsChannel = supabase
+      .channel(`session-participants-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'session_participants',
+        filter: `session_id=eq.${id}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (!updated || updated.role !== 'startup') return;
+        setStartups(prev => prev.map(s =>
+          s.email === updated.email
+            ? {
+                ...s,
+                display_name: updated.display_name ?? s.display_name,
+                presentation_order: updated.presentation_order ?? s.presentation_order,
+                funding_goal: updated.funding_goal ?? null,
+                dd_room_link: updated.dd_room_link ?? null,
+                website_link: updated.website_link ?? null,
+              }
+            : s
+        ));
+      })
+      .subscribe();
 
     const fetchData = async () => {
       const { data: sessionData } = await supabase
@@ -133,7 +177,7 @@ export default function SessionPage() {
 
       let { data: startupData } = await supabase
         .from('session_participants')
-        .select('email, display_name, presentation_order, funding_goal')
+        .select('email, display_name, presentation_order, funding_goal, dd_room_link, website_link')
         .eq('session_id', id)
         .eq('role', 'startup')
         .order('presentation_order', { ascending: true });
@@ -144,9 +188,14 @@ export default function SessionPage() {
           .eq('session_id', id)
           .eq('role', 'startup')
           .order('presentation_order', { ascending: true });
-        startupData = fallback.data?.map(s => ({ ...s, funding_goal: null })) ?? null;
+        startupData = fallback.data?.map(s => ({
+          ...s,
+          funding_goal: null,
+          dd_room_link: null,
+          website_link: null,
+        })) ?? null;
       }
-      if (startupData) setStartups(startupData);
+      if (startupData) setStartups(startupData as Startup[]);
 
       const { data: facilitatorData } = await supabase
         .from('session_participants')
@@ -169,6 +218,7 @@ export default function SessionPage() {
     return () => {
       supabase.removeChannel(investChannel);
       supabase.removeChannel(sessionChannel);
+      supabase.removeChannel(participantsChannel);
     };
   }, [id, user, navigate]);
 
@@ -577,7 +627,7 @@ export default function SessionPage() {
 
           {/* Investor actions */}
           {user.role === 'investor' && (
-            <div className="flex items-center justify-center gap-3 mt-3">
+            <div className="flex items-center justify-center flex-wrap gap-3 mt-3">
               <Button
                 data-testid="invest-btn"
                 onClick={() => setInvestOpen(true)}
@@ -587,10 +637,54 @@ export default function SessionPage() {
                 <DollarSign className="w-4 h-4 mr-1" />
                 Invest
               </Button>
-              <Button variant="outline" size="sm">
-                <ExternalLink className="w-4 h-4 mr-1" />
-                DD Room
-              </Button>
+              {(() => {
+                const ddUrl = normalizeExternalUrl(currentStartup?.dd_room_link);
+                const siteUrl = normalizeExternalUrl(currentStartup?.website_link);
+                return (
+                  <>
+                    <Button
+                      asChild={!!ddUrl}
+                      variant="outline"
+                      size="sm"
+                      disabled={!ddUrl}
+                      data-testid="dd-room-btn"
+                      title={ddUrl ? `Open DD Room for ${currentStartupName}` : 'No DD Room URL provided'}
+                    >
+                      {ddUrl ? (
+                        <a href={ddUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          DD Room
+                        </a>
+                      ) : (
+                        <span>
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          DD Room
+                        </span>
+                      )}
+                    </Button>
+                    <Button
+                      asChild={!!siteUrl}
+                      variant="outline"
+                      size="sm"
+                      disabled={!siteUrl}
+                      data-testid="website-btn"
+                      title={siteUrl ? `Open website for ${currentStartupName}` : 'No website URL provided'}
+                    >
+                      {siteUrl ? (
+                        <a href={siteUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Website
+                        </a>
+                      ) : (
+                        <span>
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Website
+                        </span>
+                      )}
+                    </Button>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>

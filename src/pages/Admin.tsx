@@ -275,6 +275,29 @@ export default function Admin() {
     if (data) setParticipants(data as ParticipantRow[]);
   };
 
+  /**
+   * When a session is selected, keep the participants list live so edits made
+   * by startups (DD Room URL, website, funding goal) and other facilitators
+   * appear in the admin console without requiring a manual refresh.
+   */
+  useEffect(() => {
+    if (!selectedSession) return;
+    const channel = supabase
+      .channel(`admin-participants-${selectedSession.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'session_participants',
+        filter: `session_id=eq.${selectedSession.id}`,
+      }, () => {
+        fetchParticipants(selectedSession.id);
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [selectedSession?.id]);
+
   const fetchChatArchives = async (sessionId: string) => {
     // chat-archives bucket is now private — pull list + signed URLs via the
     // facilitator-gated edge function.
