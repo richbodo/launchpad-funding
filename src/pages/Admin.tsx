@@ -1455,8 +1455,30 @@ export default function Admin() {
                                   <span className="text-muted-foreground text-sm">—</span>
                                 )}
                               </TableCell>
+                              <TableCell>
+                                {p.invite_sent_at ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600"
+                                    title={`Sent ${new Date(p.invite_sent_at).toLocaleString()}`}
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Sent
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">Not sent</span>
+                                )}
+                              </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => sendInviteToParticipant(p)}
+                                    disabled={sendingBulk}
+                                    title={p.invite_sent_at ? 'Resend invitation' : 'Send invitation'}
+                                  >
+                                    <Send className="w-3.5 h-3.5" />
+                                  </Button>
                                   {p.role === 'startup' && (
                                     <Button
                                       type="button"
