@@ -1661,6 +1661,115 @@ export default function Admin() {
                   </CardContent>
                 </Card>
 
+                {/* Investments & Commitments — full audit log per session.
+                    The "Pending Approval" subsection only appears while at least
+                    one commitment email is still waiting on the facilitator. */}
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <DollarSign className="w-5 h-5" /> Investment Commitments
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {(() => {
+                      const queuedCount = investments.filter(i => i.email_status === 'queued').length;
+                      if (queuedCount === 0) return null;
+                      return (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+                          <div className="flex items-start justify-between gap-3 flex-wrap">
+                            <div>
+                              <p className="font-semibold text-sm">
+                                {queuedCount} commitment email{queuedCount === 1 ? '' : 's'} waiting for your approval
+                              </p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Each email goes to the investor and startup together (both on the To: line).
+                                Cancelling preserves the investment log below.
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                onClick={sendAllQueuedCommitmentEmails}
+                                disabled={sendingQueuedEmails || cancellingQueuedEmails}
+                                className="bg-accent text-accent-foreground"
+                              >
+                                {sendingQueuedEmails
+                                  ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                  : <Send className="w-4 h-4 mr-1" />}
+                                {sendingQueuedEmails ? 'Sending…' : `Send all (${queuedCount})`}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={cancelAllQueuedCommitmentEmails}
+                                disabled={sendingQueuedEmails || cancellingQueuedEmails}
+                              >
+                                {cancellingQueuedEmails ? 'Cancelling…' : 'Cancel all'}
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
+                    {investments.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No investment commitments yet for this session.
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>When</TableHead>
+                            <TableHead>Investor</TableHead>
+                            <TableHead>Startup</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead>Email</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {investments.map(inv => {
+                            const status = inv.email_status;
+                            const statusClass =
+                              status === 'sent' ? 'bg-emerald-500/10 text-emerald-600' :
+                              status === 'queued' ? 'bg-amber-500/10 text-amber-600' :
+                              status === 'cancelled' ? 'bg-muted text-muted-foreground' :
+                              'bg-blue-500/10 text-blue-500';
+                            const statusLabel =
+                              status === 'sent' ? 'Sent' :
+                              status === 'queued' ? 'Pending approval' :
+                              status === 'cancelled' ? 'Cancelled' :
+                              'Draft';
+                            return (
+                              <TableRow key={inv.id}>
+                                <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                                  {new Date(inv.created_at).toLocaleString()}
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  <div>{inv.investor_name || participantDisplay(inv.investor_email)}</div>
+                                  <div className="text-xs text-muted-foreground">{inv.investor_email}</div>
+                                </TableCell>
+                                <TableCell className="text-sm">
+                                  <div>{inv.startup_name || participantDisplay(inv.startup_email)}</div>
+                                  <div className="text-xs text-muted-foreground">{inv.startup_email}</div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono text-sm">
+                                  ${Math.round(Number(inv.amount)).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <span className={`text-xs px-2 py-0.5 rounded font-medium ${statusClass}`}>
+                                    {statusLabel}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
+                  </CardContent>
+                </Card>
+
                 {/* Chat Archives */}
                 <Card className="mt-6">
                   <CardHeader className="flex flex-row items-center justify-between">
