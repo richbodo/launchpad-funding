@@ -728,6 +728,32 @@ export default function SessionPage() {
           startupEmail={currentStartup.email}
         />
       )}
+
+      {/* End-call confirmation — facilitator only */}
+      <AlertDialog open={endCallConfirmOpen} onOpenChange={setEndCallConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>End the session for everyone?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure? This will end the call for <strong>all participants</strong>.
+              If you just need to leave, close this tab instead — the session will keep running.
+              <br /><br />
+              When you confirm, every soft commitment from this session will be queued as a
+              confirmation email for your review in the Admin panel. Nothing is sent until you
+              approve them there.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep session running</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { setEndCallConfirmOpen(false); handleEndCall(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              End session for everyone
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 
