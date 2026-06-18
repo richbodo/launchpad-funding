@@ -627,7 +627,7 @@ export default function SessionPage() {
 
           {/* Investor actions */}
           {user.role === 'investor' && (
-            <div className="flex items-center justify-center gap-3 mt-3">
+            <div className="flex items-center justify-center flex-wrap gap-3 mt-3">
               <Button
                 data-testid="invest-btn"
                 onClick={() => setInvestOpen(true)}
@@ -637,10 +637,54 @@ export default function SessionPage() {
                 <DollarSign className="w-4 h-4 mr-1" />
                 Invest
               </Button>
-              <Button variant="outline" size="sm">
-                <ExternalLink className="w-4 h-4 mr-1" />
-                DD Room
-              </Button>
+              {(() => {
+                const ddUrl = normalizeExternalUrl(currentStartup?.dd_room_link);
+                const siteUrl = normalizeExternalUrl(currentStartup?.website_link);
+                return (
+                  <>
+                    <Button
+                      asChild={!!ddUrl}
+                      variant="outline"
+                      size="sm"
+                      disabled={!ddUrl}
+                      data-testid="dd-room-btn"
+                      title={ddUrl ? `Open DD Room for ${currentStartupName}` : 'No DD Room URL provided'}
+                    >
+                      {ddUrl ? (
+                        <a href={ddUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          DD Room
+                        </a>
+                      ) : (
+                        <span>
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          DD Room
+                        </span>
+                      )}
+                    </Button>
+                    <Button
+                      asChild={!!siteUrl}
+                      variant="outline"
+                      size="sm"
+                      disabled={!siteUrl}
+                      data-testid="website-btn"
+                      title={siteUrl ? `Open website for ${currentStartupName}` : 'No website URL provided'}
+                    >
+                      {siteUrl ? (
+                        <a href={siteUrl} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Website
+                        </a>
+                      ) : (
+                        <span>
+                          <ExternalLink className="w-4 h-4 mr-1" />
+                          Website
+                        </span>
+                      )}
+                    </Button>
+                  </>
+                );
+              })()}
             </div>
           )}
         </div>
