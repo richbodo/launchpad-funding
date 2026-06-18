@@ -1016,30 +1016,95 @@ export default function Admin() {
 
                 <Card className="mb-6">
                   <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle>{selectedSession.name}</CardTitle>
+                    <CardTitle>
+                      {isEditingSession ? 'Edit Session' : selectedSession.name}
+                    </CardTitle>
                     <div className="flex gap-2">
-                      {selectedSession.status === 'scheduled' && (
+                      {!isEditingSession && (
+                        <Button size="sm" variant="outline" onClick={startEditingSession}>
+                          <Pencil className="w-4 h-4 mr-1" /> Edit
+                        </Button>
+                      )}
+                      {selectedSession.status === 'scheduled' && !isEditingSession && (
                         <Button size="sm" onClick={() => updateSessionStatus(selectedSession.id, 'live')} className="bg-accent text-accent-foreground">
                           <Play className="w-4 h-4 mr-1" /> Go Live
                         </Button>
                       )}
-                      {selectedSession.status === 'live' && (
+                      {selectedSession.status === 'live' && !isEditingSession && (
                         <Button size="sm" variant="outline" onClick={() => updateSessionStatus(selectedSession.id, 'completed')}>
                           End Session
                         </Button>
                       )}
-                      <Button size="sm" variant="destructive" onClick={() => deleteSession(selectedSession.id)}>
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {!isEditingSession && (
+                        <Button size="sm" variant="destructive" onClick={() => deleteSession(selectedSession.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDateInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')}, {formatTimeInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')} — {formatTimeInTimeZone(selectedSession.end_time, selectedSession.timezone || 'UTC', true)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Timezone: {selectedSession.timezone}</p>
+                    {isEditingSession ? (
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="edit-name">Session Name</Label>
+                          <Input
+                            id="edit-name"
+                            value={editName}
+                            onChange={e => setEditName(e.target.value)}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="edit-date">Date</Label>
+                            <Input
+                              id="edit-date"
+                              type="date"
+                              value={editDate}
+                              onChange={e => setEditDate(e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-timezone">Timezone</Label>
+                            <TimezonePicker id="edit-timezone" value={editTimezone} onChange={setEditTimezone} />
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="edit-start-time">Start Time</Label>
+                            <TimePicker id="edit-start-time" value={editStartTime} onChange={setEditStartTime} disabled={!editTimezone} />
+                          </div>
+                          <div>
+                            <Label htmlFor="edit-end-time">End Time</Label>
+                            <TimePicker id="edit-end-time" value={editEndTime} onChange={setEditEndTime} disabled={!editTimezone} />
+                          </div>
+                        </div>
+                        <div className="flex gap-2 pt-2">
+                          <Button
+                            size="sm"
+                            onClick={saveSessionEdits}
+                            disabled={savingEdit}
+                            className="bg-accent text-accent-foreground hover:bg-accent/90"
+                          >
+                            <Check className="w-4 h-4 mr-1" /> {savingEdit ? 'Saving…' : 'Save Changes'}
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={cancelEditingSession} disabled={savingEdit}>
+                            <X className="w-4 h-4 mr-1" /> Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm text-muted-foreground">
+                          {formatDateInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')}, {formatTimeInTimeZone(selectedSession.start_time, selectedSession.timezone || 'UTC')} — {formatTimeInTimeZone(selectedSession.end_time, selectedSession.timezone || 'UTC', true)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">Timezone: {selectedSession.timezone}</p>
+                      </>
+                    )}
                   </CardContent>
                 </Card>
+
 
                 {/* Participants */}
                 <Card>
