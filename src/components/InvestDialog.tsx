@@ -117,7 +117,7 @@ export default function InvestDialog({ open, onOpenChange, sessionId, startupNam
                 <p><span className="text-muted-foreground">Contact:</span> {startupEmail}</p>
                 <p><span className="text-muted-foreground">Your email:</span> {user?.email}</p>
               </div>
-              <p className="text-xs text-muted-foreground mt-3">An email confirmation has been sent to both parties.</p>
+              <p className="text-xs text-muted-foreground mt-3">An email confirmation will be sent to both of you at the end of the session, once the facilitator approves the queued commitment emails.</p>
               <Button onClick={handleClose} variant="outline" className="mt-4">
                 Done
               </Button>
