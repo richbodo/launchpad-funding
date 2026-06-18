@@ -160,6 +160,45 @@ Deno.serve(async (req) => {
         return ok({ cleaned: ids.length });
       }
 
+      // ── Investments ────────────────────────────────────────────────────────
+      // Used by the Admin "Send all" / "Cancel all" commitment-email controls.
+      // Flips email_status on rows owned by the given session. Allowed target
+      // statuses: sent | cancelled | queued. RLS on investments blocks direct
+      // updates from the browser, so this dispatch is the only write path.
+      case "update_investment_email_status": {
+        const { session_id, ids, status, from_statuses } = payload as {
+          session_id?: string;
+          ids?: string[];
+          status: "sent" | "cancelled" | "queued";
+          from_statuses?: string[];
+        };
+        if (!status || !["sent", "cancelled", "queued"].includes(status)) {
+          return bad(400, "invalid status");
+        }
+        const timestampField =
+          status === "sent" ? "email_sent_at" :
+          status === "cancelled" ? "email_cancelled_at" :
+          "email_queued_at";
+        const update: Record<string, unknown> = {
+          email_status: status,
+          [timestampField]: new Date().toISOString(),
+        };
+        let q = supabase.from("investments").update(update);
+        if (ids && ids.length > 0) {
+          q = q.in("id", ids);
+        } else if (session_id) {
+          q = q.eq("session_id", session_id);
+          if (from_statuses && from_statuses.length > 0) {
+            q = q.in("email_status", from_statuses);
+          }
+        } else {
+          return bad(400, "ids or session_id required");
+        }
+        const { error, data } = await q.select("id");
+        if (error) throw error;
+        return ok({ updated: data?.length ?? 0 });
+      }
+
       default:
         return bad(400, `Unknown action: ${action}`);
     }
