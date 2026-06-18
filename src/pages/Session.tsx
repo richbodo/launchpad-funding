@@ -260,17 +260,19 @@ export default function SessionPage() {
     if (!id) return;
     setCallState('connecting');
     if (session?.status !== 'live') {
-      await supabase.from('sessions').update({ status: 'live' }).eq('id', id);
+      const ok = await adminUpdateSessionStatus(id, 'live');
+      if (!ok) {
+        setCallState('idle');
+        return;
+      }
     }
     await fetchToken();
-    setCallState('connected');
   }, [id, session?.status, fetchToken]);
 
   // Startup: Join Call
   const handleJoinCall = useCallback(async () => {
     setCallState('connecting');
     await fetchToken();
-    setCallState('connected');
   }, [fetchToken]);
 
   // Facilitator: End Call
@@ -287,7 +289,8 @@ export default function SessionPage() {
     if (invErr) {
       console.error('Failed to queue commitment emails', invErr);
     }
-    await supabase.from('sessions').update({ status: 'completed' }).eq('id', id);
+    const ok = await adminUpdateSessionStatus(id, 'completed');
+    if (!ok) return;
     reset();
     setCallState('idle');
     toast.success(
@@ -303,9 +306,24 @@ export default function SessionPage() {
   useEffect(() => {
     if (user?.role === 'investor' && session?.status === 'live' && callState === 'idle') {
       setCallState('connecting');
-      fetchToken().then(() => setCallState('connected'));
+      fetchToken();
     }
   }, [session?.status, user?.role, callState, fetchToken]);
+
+  // Promote 'connecting' → 'connected' once the LiveKit token actually arrives,
+  // and surface fetch errors so silent failures don't strand the UI mid-flow.
+  useEffect(() => {
+    if (callState === 'connecting' && token && ws_url) {
+      setCallState('connected');
+    }
+  }, [callState, token, ws_url]);
+
+  useEffect(() => {
+    if (callState === 'connecting' && tokenError) {
+      toast.error(`Video connection failed: ${tokenError}`);
+      setCallState('idle');
+    }
+  }, [callState, tokenError]);
 
   // Disconnect all non-facilitators when session completes
   useEffect(() => {
