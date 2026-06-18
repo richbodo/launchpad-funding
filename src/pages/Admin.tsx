@@ -215,10 +215,15 @@ export default function Admin() {
   };
 
   const fetchSessions = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('sessions')
       .select('*')
       .order('start_time', { ascending: false });
+    // Hide [DEMO]-prefixed sessions when not in demo mode — they're test fixtures only.
+    if (!isDemoModeActive) {
+      query = query.not('name', 'like', '[DEMO]%');
+    }
+    const { data } = await query;
     if (data) setSessions(data);
   };
 
