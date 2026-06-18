@@ -23,13 +23,22 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 export function SessionProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<SessionUser | null>(null);
 
+  const presenceUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/participant-presence`;
+  const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
+
   const clearLoginFlag = useCallback(async (u: SessionUser) => {
-    // Use the SECURITY DEFINER RPC — session_participants has no UPDATE policy.
-    await supabase.rpc('set_participant_presence', {
-      _participant_id: u.participantId,
-      _logged_in: false,
-    });
-  }, []);
+    // Presence updates go through an edge function so the client never
+    // needs a SECURITY DEFINER RPC or an UPDATE policy on session_participants.
+    await fetch(presenceUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: apiKey,
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ participant_id: u.participantId, logged_in: false }),
+    }).catch(() => {/* noop */});
+  }, [presenceUrl, apiKey]);
 
   const logout = useCallback(async () => {
     if (user) {
@@ -38,26 +47,22 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }, [user, clearLoginFlag]);
 
-  // Best-effort cleanup on tab/browser close — hits the RPC endpoint directly
-  // so sendBeacon can fire without depending on the supabase-js runtime.
+  // Best-effort cleanup on tab/browser close.
   useEffect(() => {
     const handleBeforeUnload = () => {
       if (!user) return;
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/rpc/set_participant_presence`;
-      const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       const body = JSON.stringify({
-        _participant_id: user.participantId,
-        _logged_in: false,
+        participant_id: user.participantId,
+        logged_in: false,
       });
 
-      // sendBeacon can't set custom headers, so it can't carry the apikey.
-      // Fire it as a best-effort backup, then rely on fetch+keepalive for the
-      // authenticated request.
+      // sendBeacon can't set custom headers — fire as best-effort backup,
+      // then a keepalive fetch with the apikey for the authoritative call.
       try {
-        navigator.sendBeacon?.(url, new Blob([body], { type: 'application/json' }));
+        navigator.sendBeacon?.(presenceUrl, new Blob([body], { type: 'application/json' }));
       } catch {/* noop */}
 
-      fetch(url, {
+      fetch(presenceUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -71,7 +76,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [user]);
+  }, [user, presenceUrl, apiKey]);
+
 
   return (
     <SessionContext.Provider value={{ user, setUser, logout }}>
