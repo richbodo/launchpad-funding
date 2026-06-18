@@ -302,9 +302,18 @@ export default function SessionPage() {
   // Confirmation dialog state for End Call
   const [endCallConfirmOpen, setEndCallConfirmOpen] = useState(false);
 
-  // Investor: auto-join as viewer when session goes live
+  // Auto-join LiveKit room as soon as the session goes live for any non-facilitator.
+  // Facilitators connect explicitly via "Start Call" because they control session lifecycle.
+  // Startups and investors must never need to click a button to be heard/seen — a missed or
+  // race-prone click here was the class of bug where the call appeared to "start for everyone"
+  // but in reality only the facilitator was actually publishing/subscribing to the LiveKit room.
   useEffect(() => {
-    if (user?.role === 'investor' && session?.status === 'live' && callState === 'idle') {
+    if (
+      user?.role &&
+      user.role !== 'facilitator' &&
+      session?.status === 'live' &&
+      callState === 'idle'
+    ) {
       setCallState('connecting');
       fetchToken();
     }
