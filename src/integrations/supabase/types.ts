@@ -241,6 +241,7 @@ export type Database = {
           email: string
           funding_goal: number | null
           id: string
+          invite_sent_at: string | null
           is_logged_in: boolean
           logged_in_at: string | null
           password_hash: string | null
@@ -256,6 +257,7 @@ export type Database = {
           email: string
           funding_goal?: number | null
           id?: string
+          invite_sent_at?: string | null
           is_logged_in?: boolean
           logged_in_at?: string | null
           password_hash?: string | null
@@ -271,6 +273,7 @@ export type Database = {
           email?: string
           funding_goal?: number | null
           id?: string
+          invite_sent_at?: string | null
           is_logged_in?: boolean
           logged_in_at?: string | null
           password_hash?: string | null

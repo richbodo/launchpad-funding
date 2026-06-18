@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check, Upload, Send, Loader2, CheckCircle2 } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -64,6 +64,7 @@ interface ParticipantRow {
   dd_room_link: string | null;
   website_link: string | null;
   funding_goal: number | null;
+  invite_sent_at: string | null;
 }
 
 interface EmailLogRow {
@@ -96,6 +97,9 @@ export default function Admin() {
   const [showAdminPassword, setShowAdminPassword] = useState(false);
   const [chatArchives, setChatArchives] = useState<{ name: string; url: string }[]>([]);
   const [archiving, setArchiving] = useState(false);
+  const [activeTab, setActiveTab] = useState('sessions');
+
+
 
   // Demo mode
   const [demoMode, setDemoMode] = useState<boolean | null>(null);
@@ -139,6 +143,13 @@ export default function Admin() {
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
   const [pendingParticipant, setPendingParticipant] = useState<{ email: string; name: string; role: string } | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Bulk invite send + CSV import
+  const [sendingBulk, setSendingBulk] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+
+
 
   // Email settings
   const [emailContact, setEmailContact] = useState(DEFAULT_CONTACT_EMAIL);
@@ -434,6 +445,7 @@ export default function Admin() {
     setNewStartTime('09:00');
     setNewEndTime('11:00');
     fetchSessions();
+    setActiveTab('sessions');
   };
 
   const deleteSession = async (id: string) => {
@@ -638,72 +650,266 @@ export default function Admin() {
     fetchParticipants(selectedSession.id);
   };
 
+  /**
+   * Build and queue a single session-invitation email. Throws on failure so
+   * callers can count successes/failures. Does NOT touch UI state or sent
+   * status — that is the caller's responsibility.
+   */
+  const buildAndSendInvite = async (email: string, name: string | null, role: string) => {
+    if (!selectedSession) throw new Error('No session selected');
+    const welcomeMsg = role === 'facilitator' ? welcomeFacilitator
+      : role === 'startup' ? welcomeStartup : welcomeInvestor;
+
+    const tz = selectedSession.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    const sessionDate = formatDateInTimeZone(selectedSession.start_time, tz);
+    const startT = formatTimeInTimeZone(selectedSession.start_time, tz);
+    const endT = formatTimeInTimeZone(selectedSession.end_time, tz, true);
+    const sessionTime = `${startT} — ${endT}`;
+
+    const loginUrl = `${window.location.origin}/login?session=${selectedSession.id}&email=${encodeURIComponent(email)}&role=${role}${role === 'startup' ? '&edit=true' : ''}`;
+
+    const calStart = new Date(selectedSession.start_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const calEnd = new Date(selectedSession.end_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+    const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(selectedSession.name)}&dates=${calStart}/${calEnd}&details=${encodeURIComponent('Join: ' + loginUrl)}`;
+
+    const { data, error } = await supabase.functions.invoke('send-transactional-email', {
+      body: {
+        templateName: 'session-invitation',
+        recipientEmail: email,
+        idempotencyKey: `session-invite-${selectedSession.id}-${email}`,
+        templateData: {
+          recipientName: name || undefined,
+          roleName: role,
+          sessionName: selectedSession.name,
+          sessionDate,
+          sessionTime,
+          welcomeMessage: welcomeMsg,
+          loginUrl,
+          calendarUrl,
+          contactEmail: emailContact !== DEFAULT_CONTACT_EMAIL ? emailContact : undefined,
+        },
+      },
+    });
+
+    if (error) {
+      console.error('Email send error:', error);
+      throw error;
+    }
+    if (data && data.error) {
+      console.error('Email send response error:', data);
+      throw new Error(data.error);
+    }
+    return data;
+  };
+
+  /** Best-effort human message from an unknown thrown error. */
+  const errMessage = (err: unknown): string => {
+    const e = err as { message?: string; context?: { message?: string } } | null;
+    return e?.message || e?.context?.message || 'Unknown error';
+  };
+
+  /** Stamp a participant row as invited so the UI reflects sent status. */
+  const markInviteSent = async (participantId: string) => {
+    await invokeAdmin('update_participant', { id: participantId, invite_sent_at: new Date().toISOString() });
+  };
+
+  // Sends the invite chosen in the post-add dialog, then records sent status.
   const sendWelcomeEmail = async () => {
     if (!pendingParticipant || !selectedSession) return;
     setSendingEmail(true);
     try {
       const { role, email, name } = pendingParticipant;
-      const welcomeMsg = role === 'facilitator' ? welcomeFacilitator
-        : role === 'startup' ? welcomeStartup : welcomeInvestor;
-
-      // Render the date/time in the session's own timezone so attendees see the
-      // correct local time and zone (e.g. "9:00 AM — 11:00 AM EDT"), regardless
-      // of the facilitator's browser timezone.
-      const tz = selectedSession.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-      const sessionDate = formatDateInTimeZone(selectedSession.start_time, tz);
-      const startT = formatTimeInTimeZone(selectedSession.start_time, tz);
-      const endT = formatTimeInTimeZone(selectedSession.end_time, tz, true);
-      const sessionTime = `${startT} — ${endT}`;
-
-      const loginUrl = `${window.location.origin}/login?session=${selectedSession.id}&email=${encodeURIComponent(email)}&role=${role}${role === 'startup' ? '&edit=true' : ''}`;
-
-      // Google Calendar link
-      const calStart = new Date(selectedSession.start_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-      const calEnd = new Date(selectedSession.end_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-      const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(selectedSession.name)}&dates=${calStart}/${calEnd}&details=${encodeURIComponent('Join: ' + loginUrl)}`;
-
-      const { data, error } = await supabase.functions.invoke('send-transactional-email', {
-        body: {
-          templateName: 'session-invitation',
-          recipientEmail: email,
-          idempotencyKey: `session-invite-${selectedSession.id}-${email}`,
-          templateData: {
-            recipientName: name || undefined,
-            roleName: role,
-            sessionName: selectedSession.name,
-            sessionDate,
-            sessionTime,
-            welcomeMessage: welcomeMsg,
-            loginUrl,
-            calendarUrl,
-            contactEmail: emailContact !== DEFAULT_CONTACT_EMAIL ? emailContact : undefined,
-          },
-        },
-      });
-
-      if (error) {
-        console.error('Email send error:', error);
-        throw error;
-      }
-
-      // Check if the response itself indicates failure
-      if (data && data.error) {
-        console.error('Email send response error:', data);
-        throw new Error(data.error);
-      }
-
-      console.log('Email send response:', data);
+      await buildAndSendInvite(email, name, role);
+      const { data: row } = await supabase
+        .from('session_participants')
+        .select('id')
+        .eq('session_id', selectedSession.id)
+        .eq('email', email.toLowerCase())
+        .maybeSingle();
+      if (row?.id) await markInviteSent(row.id);
       toast.success(`Invitation email queued for ${email}`);
-    } catch (err: any) {
-      const errMsg = err?.message || err?.context?.message || JSON.stringify(err) || 'Failed to send email';
+      fetchParticipants(selectedSession.id);
+    } catch (err) {
       console.error('Email send failed:', err);
-      toast.error(`Email failed: ${errMsg}`, { duration: 15000 });
+      toast.error(`Email failed: ${errMessage(err)}`, { duration: 15000 });
     } finally {
       setSendingEmail(false);
       setEmailDialogOpen(false);
       setPendingParticipant(null);
     }
   };
+
+  // Send (or resend) the invite to one participant row, updating sent status.
+  const sendInviteToParticipant = async (p: ParticipantRow) => {
+    if (!selectedSession) return;
+    try {
+      await buildAndSendInvite(p.email, p.display_name, p.role);
+      await markInviteSent(p.id);
+      toast.success(`Invitation queued for ${p.email}`);
+      fetchParticipants(selectedSession.id);
+    } catch (err) {
+      toast.error(`Email failed for ${p.email}: ${errMessage(err)}`, { duration: 15000 });
+    }
+  };
+
+  // Bulk-send invites to everyone not yet emailed. Re-clicking skips anyone
+  // already sent (invite_sent_at set), so it never double-emails.
+  const sendAllInvites = async () => {
+    if (!selectedSession) return;
+    const pending = participants.filter(p => p.email && !p.invite_sent_at);
+    if (pending.length === 0) {
+      toast.info('Everyone has already been emailed. Use the per-row button to resend.');
+      return;
+    }
+    setSendingBulk(true);
+    let sent = 0;
+    let failed = 0;
+    for (const p of pending) {
+      try {
+        await buildAndSendInvite(p.email, p.display_name, p.role);
+        await markInviteSent(p.id);
+        sent++;
+      } catch (err) {
+        console.error('Bulk invite failed for', p.email, err);
+        failed++;
+      }
+    }
+    setSendingBulk(false);
+    await fetchParticipants(selectedSession.id);
+    toast.success(`Queued ${sent} invitation${sent === 1 ? '' : 's'}${failed ? ` · ${failed} failed` : ''}.`, { duration: failed ? 15000 : 6000 });
+  };
+
+  // ── CSV bulk-add of participants ────────────────────────────────────────
+  const CSV_HEADERS = ['Investor-Emails', 'Startup-Emails', 'Facilitator-Emails'];
+
+  const downloadCsvTemplate = () => {
+    const csv = `${CSV_HEADERS.join(',')}\n`;
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'participants-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Minimal CSV parser: handles quoted fields, embedded commas/quotes, CR/LF.
+  const parseCsv = (text: string): string[][] => {
+    const rows: string[][] = [];
+    let field = '';
+    let row: string[] = [];
+    let inQuotes = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (inQuotes) {
+        if (c === '"') {
+          if (text[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += c;
+      } else if (c === '"') {
+        inQuotes = true;
+      } else if (c === ',') {
+        row.push(field); field = '';
+      } else if (c === '\n' || c === '\r') {
+        if (c === '\r' && text[i + 1] === '\n') i++;
+        row.push(field); field = '';
+        if (row.some(v => v.trim() !== '')) rows.push(row);
+        row = [];
+      } else field += c;
+    }
+    if (field !== '' || row.length > 0) {
+      row.push(field);
+      if (row.some(v => v.trim() !== '')) rows.push(row);
+    }
+    return rows;
+  };
+
+  const handleBulkCsv = async (file: File) => {
+    if (!selectedSession) return;
+    setBulkImporting(true);
+    try {
+      const rows = parseCsv(await file.text());
+      if (rows.length === 0) { toast.error('The CSV file is empty.'); return; }
+
+      const header = rows[0].map(h => h.trim().toLowerCase());
+      const roleForCol: (string | null)[] = header.map(h => {
+        if (h.includes('investor')) return 'investor';
+        if (h.includes('start')) return 'startup';
+        if (h.includes('facilitator')) return 'facilitator';
+        return null;
+      });
+      if (!roleForCol.some(Boolean)) {
+        toast.error('No recognised columns. Use the template: Investor-Emails, Startup-Emails, Facilitator-Emails.', { duration: 15000 });
+        return;
+      }
+
+      const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const seen = new Set<string>();
+      const toAdd: { email: string; role: string }[] = [];
+      let invalid = 0;
+      for (let r = 1; r < rows.length; r++) {
+        rows[r].forEach((cell, c) => {
+          const role = roleForCol[c];
+          const email = cell.trim().toLowerCase();
+          if (!role || !email) return;
+          if (!emailRe.test(email)) { invalid++; return; }
+          const key = `${email}|${role}`;
+          if (seen.has(key)) return;
+          seen.add(key);
+          toAdd.push({ email, role });
+        });
+      }
+
+      if (toAdd.length === 0) {
+        toast.error(`No valid emails found${invalid ? ` (${invalid} invalid skipped)` : ''}.`, { duration: 15000 });
+        return;
+      }
+
+      const existing = new Set(participants.map(p => p.email.toLowerCase()));
+      let added = 0;
+      let skipped = 0;
+      let failed = 0;
+      let nextStartupOrder = (() => {
+        const orders = participants
+          .filter(p => p.role === 'startup' && p.presentation_order != null)
+          .map(p => p.presentation_order!);
+        return orders.length > 0 ? Math.max(...orders) + 1 : 1;
+      })();
+
+      for (const { email, role } of toAdd) {
+        if (existing.has(email)) { skipped++; continue; }
+        const { data: result, error } = await invokeAdmin('add_participant', {
+          session_id: selectedSession.id,
+          email,
+          role,
+          display_name: null,
+          password: null,
+          presentation_order: role === 'startup' ? nextStartupOrder : null,
+        });
+        if (error || result?.error) {
+          if (result?.error === 'duplicate') { skipped++; }
+          else { failed++; }
+          continue;
+        }
+        existing.add(email);
+        if (role === 'startup') nextStartupOrder++;
+        added++;
+      }
+
+      await fetchParticipants(selectedSession.id);
+      const parts = [`Added ${added}`];
+      if (skipped) parts.push(`${skipped} already present`);
+      if (invalid) parts.push(`${invalid} invalid`);
+      if (failed) parts.push(`${failed} failed`);
+      toast.success(`Bulk import: ${parts.join(' · ')}.`, { duration: failed || invalid ? 15000 : 8000 });
+    } catch (err) {
+      console.error('Bulk CSV import failed:', err);
+      toast.error(`Bulk import failed: ${errMessage(err)}`, { duration: 15000 });
+    } finally {
+      setBulkImporting(false);
+    }
+  };
+
 
   const removeParticipant = async (id: string) => {
     const { data, error } = await invokeAdmin('delete_participant', { id });
@@ -929,7 +1135,7 @@ export default function Admin() {
       </div>
 
       <div className="max-w-5xl mx-auto p-6">
-        <Tabs defaultValue="sessions">
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="mb-6">
             <TabsTrigger value="sessions"><Calendar className="w-4 h-4 mr-1" /> Sessions</TabsTrigger>
             <TabsTrigger value="create"><Plus className="w-4 h-4 mr-1" /> New Session</TabsTrigger>
@@ -1107,12 +1313,59 @@ export default function Admin() {
 
                 {/* Participants */}
                 <Card>
-                  <CardHeader>
+                  <CardHeader className="flex flex-row items-center justify-between gap-2">
                     <CardTitle className="flex items-center gap-2">
                       <Users className="w-5 h-5" /> Participants
                     </CardTitle>
+                    {participants.length > 0 && (() => {
+                      const unsentCount = participants.filter(p => p.email && !p.invite_sent_at).length;
+                      return (
+                        <Button
+                          size="sm"
+                          onClick={sendAllInvites}
+                          disabled={sendingBulk || unsentCount === 0}
+                          className="bg-accent text-accent-foreground"
+                          title={unsentCount === 0 ? 'Everyone has been emailed' : `Send to ${unsentCount} not yet emailed`}
+                        >
+                          {sendingBulk
+                            ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            : <Send className="w-4 h-4 mr-1" />}
+                          {sendingBulk ? 'Sending…' : `Send emails${unsentCount ? ` (${unsentCount})` : ''}`}
+                        </Button>
+                      );
+                    })()}
                   </CardHeader>
                   <CardContent>
+                    {/* Bulk add via CSV — top right, above the add inputs */}
+                    <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
+                      <input
+                        ref={csvInputRef}
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) handleBulkCsv(file);
+                          e.target.value = '';
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => csvInputRef.current?.click()}
+                        disabled={bulkImporting}
+                      >
+                        {bulkImporting
+                          ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          : <Upload className="w-4 h-4 mr-1" />}
+                        {bulkImporting ? 'Importing…' : 'Bulk add with .csv'}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={downloadCsvTemplate}>
+                        <Download className="w-4 h-4 mr-1" /> Download .csv template
+                      </Button>
+                    </div>
+
                     {/* Add participant form */}
                     <div className="flex flex-wrap gap-2 mb-4 p-3 rounded-lg bg-muted/50">
                       <Input
@@ -1169,6 +1422,7 @@ export default function Admin() {
                             </TableHead>
                             <TableHead>Email</TableHead>
                             <TableHead>Order</TableHead>
+                            <TableHead>Invite</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -1201,8 +1455,30 @@ export default function Admin() {
                                   <span className="text-muted-foreground text-sm">—</span>
                                 )}
                               </TableCell>
+                              <TableCell>
+                                {p.invite_sent_at ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600"
+                                    title={`Sent ${new Date(p.invite_sent_at).toLocaleString()}`}
+                                  >
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Sent
+                                  </span>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">Not sent</span>
+                                )}
+                              </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-1">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => sendInviteToParticipant(p)}
+                                    disabled={sendingBulk}
+                                    title={p.invite_sent_at ? 'Resend invitation' : 'Send invitation'}
+                                  >
+                                    <Send className="w-3.5 h-3.5" />
+                                  </Button>
                                   {p.role === 'startup' && (
                                     <Button
                                       type="button"

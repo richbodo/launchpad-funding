@@ -116,6 +116,7 @@ Deno.serve(async (req) => {
           "website_link",
           "funding_goal",
           "password_hash",
+          "invite_sent_at",
         ]) {
           if (k in fields) allowed[k] = fields[k];
         }
