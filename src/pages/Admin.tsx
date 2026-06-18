@@ -419,6 +419,14 @@ export default function Admin() {
       }, () => {
         fetchParticipants(selectedSession.id);
       })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'investments',
+        filter: `session_id=eq.${selectedSession.id}`,
+      }, () => {
+        fetchInvestments(selectedSession.id);
+      })
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
