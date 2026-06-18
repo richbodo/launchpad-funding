@@ -35,6 +35,8 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<Step>('login');
   const [pendingParticipant, setPendingParticipant] = useState<any>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const autoLoginAttempted = useRef(false);
 
   const handleRandomize = async (targetRole: UserRole) => {
