@@ -1,0 +1,1 @@
+ALTER TABLE public.session_participants ADD COLUMN IF NOT EXISTS invite_sent_at timestamptz;
