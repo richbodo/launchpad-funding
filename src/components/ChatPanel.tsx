@@ -87,6 +87,7 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
               <div className="flex items-baseline gap-2">
                 <span className={`text-xs font-semibold ${roleColor(msg.sender_role)}`}>
                   {msg.sender_name || msg.sender_email}
+                  <span className="font-normal text-muted-foreground"> ({msg.sender_role})</span>
                 </span>
                 <span className="text-[10px] text-muted-foreground">
                   {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
