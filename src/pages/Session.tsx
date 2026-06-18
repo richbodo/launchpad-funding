@@ -546,6 +546,30 @@ export default function SessionPage() {
             </div>
           )}
 
+          {/* Startup self-preview — always visible to the logged-in startup so a silent
+              LiveKit disconnect is immediately obvious (no video frame = not publishing). */}
+          {user.role === 'startup' && (
+            <div className="flex flex-col" data-testid={`startup-self-pane-${user.email}`}>
+              <div className="pt-2 pb-1 border-t border-border mt-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">
+                  Your Camera
+                </p>
+              </div>
+              <div className="h-32">
+                <VideoPane
+                  label={user.displayName || user.email}
+                  sublabel="You"
+                  participantIdentity={isConnected ? user.email : undefined}
+                  callState={callState}
+                  isSelf
+                  selfRole="startup"
+                  sessionStatus={session?.status}
+                  onJoinCall={handleJoinCall}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Startups section — facilitator can put any startup on the center stage */}
           {isFacilitator && isConnected && startups.length > 0 && (
             <>
