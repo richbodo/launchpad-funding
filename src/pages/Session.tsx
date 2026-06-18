@@ -651,7 +651,7 @@ export default function SessionPage() {
                       title={ddUrl ? `Open DD Room for ${currentStartupName}` : 'No DD Room URL provided'}
                     >
                       {ddUrl ? (
-                        <a href={ddUrl} target="_blank" rel="noopener noreferrer">
+                        <a href={ddUrl} target="_blank" rel="noopener noreferrer" onClick={externalLinkHandler(ddUrl)}>
                           <ExternalLink className="w-4 h-4 mr-1" />
                           DD Room
                         </a>
