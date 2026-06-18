@@ -782,7 +782,7 @@ export default function Admin() {
   };
 
   // ── CSV bulk-add of participants ────────────────────────────────────────
-  const CSV_HEADERS = ['Investor email', 'Start Up email', 'facilitator email'];
+  const CSV_HEADERS = ['Investor-Emails', 'Startup-Emails', 'Facilitator-Emails'];
 
   const downloadCsvTemplate = () => {
     const csv = `${CSV_HEADERS.join(',')}\n`;
@@ -1341,6 +1341,36 @@ export default function Admin() {
                     })()}
                   </CardHeader>
                   <CardContent>
+                    {/* Bulk add via CSV — top right, above the add inputs */}
+                    <div className="flex flex-wrap items-center justify-end gap-2 mb-4">
+                      <input
+                        ref={csvInputRef}
+                        type="file"
+                        accept=".csv,text/csv"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (file) handleBulkCsv(file);
+                          e.target.value = ''; // allow re-selecting the same file
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => csvInputRef.current?.click()}
+                        disabled={bulkImporting}
+                      >
+                        {bulkImporting
+                          ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          : <Upload className="w-4 h-4 mr-1" />}
+                        {bulkImporting ? 'Importing…' : 'Bulk add with .csv'}
+                      </Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={downloadCsvTemplate}>
+                        <Download className="w-4 h-4 mr-1" /> Download .csv template
+                      </Button>
+                    </div>
+
                     {/* Add participant form */}
                     <div className="flex flex-wrap gap-2 mb-4 p-3 rounded-lg bg-muted/50">
                       <Input
@@ -1376,39 +1406,6 @@ export default function Admin() {
                       <Button type="button" onClick={addParticipant} size="sm" className="bg-accent text-accent-foreground">
                         <Plus className="w-4 h-4" />
                       </Button>
-                    </div>
-
-                    {/* Bulk add via CSV */}
-                    <div className="flex flex-wrap items-center gap-2 mb-4">
-                      <input
-                        ref={csvInputRef}
-                        type="file"
-                        accept=".csv,text/csv"
-                        className="hidden"
-                        onChange={e => {
-                          const file = e.target.files?.[0];
-                          if (file) handleBulkCsv(file);
-                          e.target.value = ''; // allow re-selecting the same file
-                        }}
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => csvInputRef.current?.click()}
-                        disabled={bulkImporting}
-                      >
-                        {bulkImporting
-                          ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                          : <Upload className="w-4 h-4 mr-1" />}
-                        {bulkImporting ? 'Importing…' : 'Bulk add with .csv'}
-                      </Button>
-                      <Button type="button" variant="ghost" size="sm" onClick={downloadCsvTemplate}>
-                        <Download className="w-4 h-4 mr-1" /> Download .csv template
-                      </Button>
-                      <span className="text-xs text-muted-foreground">
-                        Columns: Investor email · Start Up email · facilitator email
-                      </span>
                     </div>
 
                     {/* Participant table */}
