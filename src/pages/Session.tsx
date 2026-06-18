@@ -380,10 +380,19 @@ export default function SessionPage() {
                         <Monitor className="w-4 h-4 mr-1" />
                         {isOnStage ? 'On Stage' : 'Take Stage'}
                       </Button>
-                      <AdminMuteButton
-                        identity={f.email}
-                        roomName={`session-${id}`}
-                      />
+                      {f.email === user.email ? (
+                        <MicToggleButton
+                          currentStageIndex={currentStageIndex}
+                          currentStageType={currentStage?.type}
+                          userRole={user.role}
+                        />
+                      ) : (
+                        <AdminMuteButton
+                          identity={f.email}
+                          roomName={`session-${id}`}
+                        />
+                      )}
+
                     </div>
                   )}
                 </div>
