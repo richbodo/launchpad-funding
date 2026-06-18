@@ -1764,13 +1764,16 @@ export default function Admin() {
                             const statusClass =
                               status === 'sent' ? 'bg-emerald-500/10 text-emerald-600' :
                               status === 'queued' ? 'bg-amber-500/10 text-amber-600' :
+                              status === 'draft' ? 'bg-amber-500/10 text-amber-600' :
                               status === 'cancelled' ? 'bg-muted text-muted-foreground' :
                               'bg-blue-500/10 text-blue-500';
                             const statusLabel =
                               status === 'sent' ? 'Sent' :
                               status === 'queued' ? 'Pending approval' :
+                              status === 'draft' ? 'Pending approval' :
                               status === 'cancelled' ? 'Cancelled' :
-                              'Draft';
+                              status;
+
                             return (
                               <TableRow key={inv.id}>
                                 <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
