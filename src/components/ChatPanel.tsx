@@ -15,38 +15,66 @@ interface ChatMessage {
   created_at: string;
 }
 
+const HISTORY_LIMIT = 50;
+
 export default function ChatPanel({ sessionId }: { sessionId: string }) {
   const { user } = useSessionUser();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Track every id we've rendered so reconnects / dual-sources never double-post
+  const seenIdsRef = useRef<Set<string>>(new Set());
+
+  const appendIfNew = (msg: ChatMessage) => {
+    if (!msg?.id) return;
+    if (seenIdsRef.current.has(msg.id)) return;
+    seenIdsRef.current.add(msg.id);
+    setMessages(prev => [...prev, msg]);
+  };
 
   useEffect(() => {
-    // Fetch existing messages
-    const fetchMessages = async () => {
-      const { data } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: true });
-      if (data) setMessages(data as ChatMessage[]);
-    };
-    fetchMessages();
+    let cancelled = false;
+    seenIdsRef.current = new Set();
+    setMessages([]);
 
-    // Subscribe to new messages
+    // Subscribe FIRST so we don't miss messages between fetch and subscribe.
     const channel = supabase
-      .channel(`chat-${sessionId}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'chat_messages',
-        filter: `session_id=eq.${sessionId}`,
-      }, (payload) => {
-        setMessages(prev => [...prev, payload.new as ChatMessage]);
+      .channel(`chat:${sessionId}`)
+      .on('broadcast', { event: 'INSERT' }, ({ payload }) => {
+        appendIfNew(payload as ChatMessage);
       })
       .subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    // Then fetch the latest HISTORY_LIMIT messages (newest-first, reversed for display).
+    (async () => {
+      const { data } = await supabase
+        .from('chat_messages')
+        .select('id, sender_email, sender_name, sender_role, message, created_at')
+        .eq('session_id', sessionId)
+        .order('created_at', { ascending: false })
+        .limit(HISTORY_LIMIT);
+      if (cancelled || !data) return;
+      const ordered = [...data].reverse() as ChatMessage[];
+      // Merge with any broadcast-delivered messages that arrived during the fetch.
+      const merged: ChatMessage[] = [];
+      const seen = new Set<string>();
+      for (const m of ordered) {
+        if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); }
+      }
+      // Append already-received broadcast messages not in history.
+      setMessages(prev => {
+        for (const m of prev) {
+          if (!seen.has(m.id)) { seen.add(m.id); merged.push(m); }
+        }
+        seenIdsRef.current = seen;
+        return merged;
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
   }, [sessionId]);
 
   useEffect(() => {
