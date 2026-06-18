@@ -357,6 +357,60 @@ Requires Colima running and steps 1-3 completed first.
 
 ---
 
+## Demo mode (offline dev/test)
+
+The steps above seed **test** data (`facilitator@test.com`). To instead run the
+app in **demo mode** — which lists `[DEMO]` sessions and lets facilitators log in
+*without a password* — use the offline path below. It needs only local Supabase
+(no LiveKit, no internet).
+
+### Two gotchas that bite offline
+
+1. **`DOCKER_HOST` / Colima socket.** Step 1 has you point `DOCKER_HOST` at
+   `/var/run/docker.sock`, which only exists if you created the `sudo` symlink.
+   If you skipped that, the Supabase CLI can't find Docker. Either create the
+   symlink (step 1) **or** point `DOCKER_HOST` straight at Colima's own socket
+   for the session:
+
+   ```
+   mac% export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"
+   ```
+
+2. **Edge Functions can't seed demo data offline.** The Admin UI's "Seed Demo
+   Data" button calls the `seed-demo-data` Edge Function, which imports from
+   `esm.sh`. The Deno edge runtime inside Colima can't reach the network, so it
+   fails (HTTP 503 "name resolution failed"). Seed via SQL instead (below).
+   The same limitation applies to `livekit-token` and `participant-login` — but
+   demo mode doesn't need them: video degrades gracefully, and demo-mode
+   facilitator login bypasses the password step entirely.
+
+### Steps
+
+```
+mac% export DOCKER_HOST="unix://$HOME/.colima/default/docker.sock"   # if no symlink
+mac% supabase start                                                  # or: supabase db reset
+mac% # enable demo mode + load 3 [DEMO] sessions and their participants:
+mac% psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+       -f tests/fixtures/seed-demo.sql
+mac% npx vite --mode test --port 8080                                # loads .env.test (local)
+```
+
+Open [http://localhost:8080](http://localhost:8080). You should see the
+**⚠ DEMO MODE ⚠** banner and "[DEMO] Demo Day Alpha". Log in:
+
+| Email                  | Role        | Password           |
+| ---------------------- | ----------- | ------------------ |
+| `facilitator@demo.com` | facilitator | *(none — bypassed)* |
+| `admin@demo.com`       | facilitator | *(none — bypassed)* |
+| `acme@demo.com`        | startup     | —                  |
+| `alice@investor.com`   | investor    | —                  |
+
+Re-running `seed-demo.sql` is safe — it clears existing `[DEMO]` data first. To
+return to production/cloud mode, set `app_settings.mode` back to `production`
+(or anything other than `demo`).
+
+---
+
 ## Shutting down
 
 ```
