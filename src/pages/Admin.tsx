@@ -144,6 +144,13 @@ export default function Admin() {
   const [pendingParticipant, setPendingParticipant] = useState<{ email: string; name: string; role: string } | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
 
+  // Bulk invite send + CSV import
+  const [sendingBulk, setSendingBulk] = useState(false);
+  const [bulkImporting, setBulkImporting] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+
+
+
   // Email settings
   const [emailContact, setEmailContact] = useState(DEFAULT_CONTACT_EMAIL);
   const [welcomeFacilitator, setWelcomeFacilitator] = useState(DEFAULT_WELCOME_FACILITATOR);
