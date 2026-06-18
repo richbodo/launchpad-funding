@@ -1422,6 +1422,7 @@ export default function Admin() {
                             </TableHead>
                             <TableHead>Email</TableHead>
                             <TableHead>Order</TableHead>
+                            <TableHead>Invite</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
                           </TableRow>
                         </TableHeader>
