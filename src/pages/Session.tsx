@@ -136,11 +136,36 @@ export default function SessionPage() {
       })
       .subscribe();
 
-    // NOTE: The participants channel (postgres_changes on session_participants) was
-    // intentionally removed. Every login flipped is_logged_in, which woke every connected
-    // client on this session. funding_goal / dd_room_link / website_link edits are rare
-    // and applied to the editing client's local state on save — a stale value will reconcile
-    // on the next session load.
+    // Subscribe to participant UPDATEs so that when a startup edits their DD
+    // Room URL, website, or funding goal, every other client in the session
+    // sees the change within a second. We intentionally only react to UPDATE
+    // events (not INSERT/DELETE) and only merge the URL/goal fields so the
+    // high-frequency `is_logged_in` flips during login don't cause needless
+    // re-renders of the startup list.
+    const participantsChannel = supabase
+      .channel(`session-participants-${id}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'session_participants',
+        filter: `session_id=eq.${id}`,
+      }, (payload) => {
+        const updated = payload.new as any;
+        if (!updated || updated.role !== 'startup') return;
+        setStartups(prev => prev.map(s =>
+          s.email === updated.email
+            ? {
+                ...s,
+                display_name: updated.display_name ?? s.display_name,
+                presentation_order: updated.presentation_order ?? s.presentation_order,
+                funding_goal: updated.funding_goal ?? null,
+                dd_room_link: updated.dd_room_link ?? null,
+                website_link: updated.website_link ?? null,
+              }
+            : s
+        ));
+      })
+      .subscribe();
 
     const fetchData = async () => {
       const { data: sessionData } = await supabase
@@ -152,7 +177,7 @@ export default function SessionPage() {
 
       let { data: startupData } = await supabase
         .from('session_participants')
-        .select('email, display_name, presentation_order, funding_goal')
+        .select('email, display_name, presentation_order, funding_goal, dd_room_link, website_link')
         .eq('session_id', id)
         .eq('role', 'startup')
         .order('presentation_order', { ascending: true });
@@ -163,9 +188,14 @@ export default function SessionPage() {
           .eq('session_id', id)
           .eq('role', 'startup')
           .order('presentation_order', { ascending: true });
-        startupData = fallback.data?.map(s => ({ ...s, funding_goal: null })) ?? null;
+        startupData = fallback.data?.map(s => ({
+          ...s,
+          funding_goal: null,
+          dd_room_link: null,
+          website_link: null,
+        })) ?? null;
       }
-      if (startupData) setStartups(startupData);
+      if (startupData) setStartups(startupData as Startup[]);
 
       const { data: facilitatorData } = await supabase
         .from('session_participants')
@@ -188,6 +218,7 @@ export default function SessionPage() {
     return () => {
       supabase.removeChannel(investChannel);
       supabase.removeChannel(sessionChannel);
+      supabase.removeChannel(participantsChannel);
     };
   }, [id, user, navigate]);
 
