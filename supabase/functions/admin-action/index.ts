@@ -142,6 +142,23 @@ Deno.serve(async (req) => {
         return ok({});
       }
 
+      // ── Demo data cleanup (used when toggling demo mode off) ───────────────
+      case "cleanup_demo": {
+        const { data: demos } = await supabase
+          .from("sessions")
+          .select("id")
+          .like("name", "[DEMO]%");
+        const ids = (demos || []).map((s: any) => s.id);
+        if (ids.length > 0) {
+          await supabase.from("chat_messages").delete().in("session_id", ids);
+          await supabase.from("investments").delete().in("session_id", ids);
+          await supabase.from("session_logs").delete().in("session_id", ids);
+          await supabase.from("session_participants").delete().in("session_id", ids);
+          await supabase.from("sessions").delete().in("id", ids);
+        }
+        return ok({ cleaned: ids.length });
+      }
+
       default:
         return bad(400, `Unknown action: ${action}`);
     }
