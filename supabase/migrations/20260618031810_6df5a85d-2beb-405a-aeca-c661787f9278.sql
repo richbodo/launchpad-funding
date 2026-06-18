@@ -1,0 +1,1 @@
+CREATE POLICY "Participants deletable by all" ON public.session_participants FOR DELETE USING (true);
