@@ -453,6 +453,110 @@ export default function Admin() {
     fetchSessions();
   };
 
+  /**
+   * Open the inline editor for the currently-selected session, pre-filling
+   * every field (name, date, start/end time, timezone) from the stored UTC
+   * instants decomposed back into the session's wall-clock zone.
+   */
+  const startEditingSession = () => {
+    if (!selectedSession) return;
+    const tz = selectedSession.timezone || 'UTC';
+    const start = utcIsoToZonedWallTime(selectedSession.start_time, tz);
+    const end = utcIsoToZonedWallTime(selectedSession.end_time, tz);
+    setEditName(selectedSession.name);
+    setEditDate(start.date);
+    setEditStartTime(start.time);
+    setEditEndTime(end.time);
+    setEditTimezone(tz);
+    setIsEditingSession(true);
+  };
+
+  const cancelEditingSession = () => {
+    setIsEditingSession(false);
+  };
+
+  /**
+   * Persist edits to the selected session — name, schedule (interpreted as
+   * wall-clock in the chosen timezone), and timezone itself. Re-checks for
+   * scheduling conflicts with *other* scheduled sessions before writing, so
+   * editing can't create an overlap that creation would have rejected.
+   */
+  const saveSessionEdits = async () => {
+    if (!selectedSession) return;
+    if (!editName.trim()) {
+      toast.error('Session name is required');
+      return;
+    }
+    if (!editTimezone) {
+      toast.error('Please pick a timezone');
+      return;
+    }
+    if (!editDate || !editStartTime || !editEndTime) {
+      toast.error('Please fill date, start and end time');
+      return;
+    }
+
+    let startISO: string;
+    let endISO: string;
+    try {
+      startISO = zonedWallTimeToUtcISO(editDate, editStartTime, editTimezone);
+      endISO = zonedWallTimeToUtcISO(editDate, editEndTime, editTimezone);
+    } catch (err) {
+      reportError('Invalid date or time', err);
+      return;
+    }
+    if (new Date(endISO) <= new Date(startISO)) {
+      toast.error('End time must be after start time');
+      return;
+    }
+
+    setSavingEdit(true);
+
+    // Conflict check excludes the session being edited itself, and only
+    // considers other *scheduled* sessions (matches createSession behavior).
+    const { data: overlapping, error: overlapError } = await supabase
+      .from('sessions')
+      .select('id, name')
+      .neq('id', selectedSession.id)
+      .lt('start_time', endISO)
+      .gt('end_time', startISO)
+      .eq('status', 'scheduled');
+
+    if (overlapError) {
+      setSavingEdit(false);
+      reportError('Could not check for scheduling conflicts', overlapError);
+      return;
+    }
+    if (overlapping && overlapping.length > 0) {
+      setSavingEdit(false);
+      toast.error(`Time conflict with "${overlapping[0].name}". Only one scheduled session can occupy a given time slot.`);
+      return;
+    }
+
+    const { data: updated, error } = await supabase
+      .from('sessions')
+      .update({
+        name: editName.trim(),
+        start_time: startISO,
+        end_time: endISO,
+        timezone: editTimezone,
+      })
+      .eq('id', selectedSession.id)
+      .select()
+      .single();
+
+    setSavingEdit(false);
+    if (error) {
+      reportError('Failed to update session', error);
+      return;
+    }
+    toast.success('Session updated');
+    setIsEditingSession(false);
+    if (updated) setSelectedSession(updated as SessionRow);
+    fetchSessions();
+  };
+
+
   const addParticipant = async () => {
     if (!addEmail) {
       toast.error('Please enter an email address');
