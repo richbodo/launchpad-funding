@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser, UserRole } from '@/lib/sessionContext';
 import { useDemoMode } from '@/hooks/useDemoMode';
+import { setAdminToken } from '@/lib/adminAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -72,10 +73,12 @@ export default function Login() {
   };
 
   const completeLoginWith = async (participant: any, loginRole: UserRole) => {
-    await supabase
-      .from('session_participants')
-      .update({ is_logged_in: true, logged_in_at: new Date().toISOString() })
-      .eq('id', participant.id);
+    // session_participants no longer has a public UPDATE policy — go through
+    // the set_participant_presence SECURITY DEFINER RPC instead.
+    await supabase.rpc('set_participant_presence', {
+      _participant_id: participant.id,
+      _logged_in: true,
+    });
 
     await supabase.from('session_logs').insert({
       session_id: selectedSession,
@@ -85,6 +88,7 @@ export default function Login() {
     });
 
     setUser({
+      participantId: participant.id,
       email: participant.email,
       role: loginRole,
       displayName: participant.display_name || participant.email.split('@')[0],
@@ -274,6 +278,9 @@ export default function Login() {
         setLoading(false);
         return;
       }
+      // Facilitator login: stash the short-lived admin bearer so the Admin
+      // panel can authorize its mutation calls without re-prompting.
+      if (data.admin_token) setAdminToken(data.admin_token);
       await completeLogin(pendingParticipant, role!);
     } catch (err) {
       toast.error('Login failed. Please try again.');
@@ -284,10 +291,10 @@ export default function Login() {
   const completeLogin = async (participant: any, loginRole?: UserRole) => {
     const resolvedRole = loginRole || role!;
 
-    await supabase
-      .from('session_participants')
-      .update({ is_logged_in: true, logged_in_at: new Date().toISOString() })
-      .eq('id', participant.id);
+    await supabase.rpc('set_participant_presence', {
+      _participant_id: participant.id,
+      _logged_in: true,
+    });
 
     await supabase.from('session_logs').insert({
       session_id: selectedSession,
@@ -297,6 +304,7 @@ export default function Login() {
     });
 
     setUser({
+      participantId: participant.id,
       email: email.toLowerCase(),
       role: resolvedRole,
       displayName: participant.display_name || email.split('@')[0],
