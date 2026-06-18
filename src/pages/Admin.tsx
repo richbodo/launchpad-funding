@@ -1550,7 +1550,7 @@ export default function Admin() {
                         {chatArchives.map(file => (
                           <div key={file.name} className="flex items-center justify-between py-2 px-3 rounded-lg hover:bg-muted/50">
                             <span className="text-sm truncate flex-1">{file.name}</span>
-                            <a href={file.url} target="_blank" rel="noopener noreferrer">
+                            <a href={file.url} target="_blank" rel="noopener noreferrer" onClick={externalLinkHandler(file.url)}>
                               <Button variant="ghost" size="sm">
                                 <Download className="w-4 h-4" />
                               </Button>
