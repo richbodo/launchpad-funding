@@ -242,12 +242,30 @@ export default function SessionPage() {
   }, [fetchToken]);
 
   // Facilitator: End Call
+  // Marks the session completed AND moves every draft commitment-confirmation
+  // email into the facilitator's approval queue. Cancelling the queue later
+  // never deletes the underlying investment row — the audit log is preserved.
   const handleEndCall = useCallback(async () => {
     if (!id) return;
+    const { error: invErr } = await supabase
+      .from('investments')
+      .update({ email_status: 'queued', email_queued_at: new Date().toISOString() })
+      .eq('session_id', id)
+      .eq('email_status', 'draft');
+    if (invErr) {
+      console.error('Failed to queue commitment emails', invErr);
+    }
     await supabase.from('sessions').update({ status: 'completed' }).eq('id', id);
     reset();
     setCallState('idle');
+    toast.success(
+      'Session ended. Investment commitment & thank-you emails have been queued for your approval in the Admin panel.',
+      { duration: 12000 },
+    );
   }, [id, reset]);
+
+  // Confirmation dialog state for End Call
+  const [endCallConfirmOpen, setEndCallConfirmOpen] = useState(false);
 
   // Investor: auto-join as viewer when session goes live
   useEffect(() => {
