@@ -26,6 +26,33 @@ import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, Chevr
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
 import { externalLinkHandler } from '@/lib/openExternal';
+import { getAdminToken } from '@/lib/adminAuth';
+
+/**
+ * Update a session row through the admin-action edge function. Direct UPDATEs
+ * to public.sessions are revoked for anon/authenticated, so the facilitator's
+ * short-lived bearer token (issued at password login) is required. Returns
+ * true on success; surfaces a toast and returns false on failure so callers
+ * can avoid advancing UI state into an inconsistent "connected" view.
+ */
+async function adminUpdateSessionStatus(
+  id: string,
+  status: 'draft' | 'scheduled' | 'live' | 'completed',
+): Promise<boolean> {
+  const admin_token = getAdminToken();
+  if (!admin_token) {
+    toast.error('Missing facilitator session — please log in again.');
+    return false;
+  }
+  const { data, error } = await supabase.functions.invoke('admin-action', {
+    body: { admin_token, action: 'update_session', payload: { id, status } },
+  });
+  if (error || data?.error) {
+    toast.error(`Failed to set session ${status}: ${data?.error || error?.message || 'unknown error'}`);
+    return false;
+  }
+  return true;
+}
 
 interface Startup {
   email: string;
