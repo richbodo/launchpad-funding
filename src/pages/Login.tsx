@@ -127,19 +127,10 @@ export default function Login() {
   };
 
   const completeLoginWith = async (participant: any, loginRole: UserRole) => {
-    // Presence updates go through the participant-presence edge function.
-    await supabase.functions.invoke('participant-presence', {
-      body: { participant_id: participant.id, logged_in: true },
-    });
-
-
-    await supabase.from('session_logs').insert({
-      session_id: selectedSession,
-      event_type: 'login',
-      event_data: { email: participant.email, role: loginRole },
-      actor_email: participant.email,
-    });
-
+    // Set user + navigate IMMEDIATELY so the magic-link recipient lands in the
+    // session without waiting on edge-function cold starts. Presence + audit
+    // log are fire-and-forget — a slow or failing background call must never
+    // strand the user on the "Joining…" screen.
     setUser({
       participantId: participant.id,
       email: participant.email,
@@ -150,7 +141,20 @@ export default function Login() {
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
     navigate(`/session/${selectedSession}${editParam}`);
+
+    // Background side effects — failures are logged but don't block entry.
+    supabase.functions.invoke('participant-presence', {
+      body: { participant_id: participant.id, logged_in: true },
+    }).catch((e) => console.warn('presence update failed', e));
+
+    supabase.from('session_logs').insert({
+      session_id: selectedSession,
+      event_type: 'login',
+      event_data: { email: participant.email, role: loginRole },
+      actor_email: participant.email,
+    }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
+
 
   useEffect(() => {
     const fetchSessions = async () => {
