@@ -361,18 +361,8 @@ export default function Login() {
   const completeLogin = async (participant: any, loginRole?: UserRole) => {
     const resolvedRole = loginRole || role!;
 
-    await supabase.functions.invoke('participant-presence', {
-      body: { participant_id: participant.id, logged_in: true },
-    });
-
-
-    await supabase.from('session_logs').insert({
-      session_id: selectedSession,
-      event_type: 'login',
-      event_data: { email, role: resolvedRole },
-      actor_email: email,
-    });
-
+    // Navigate immediately; side effects run in the background so a slow
+    // edge function never traps the user on the login screen.
     setUser({
       participantId: participant.id,
       email: email.toLowerCase(),
@@ -383,7 +373,19 @@ export default function Login() {
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
     navigate(`/session/${selectedSession}${editParam}`);
+
+    supabase.functions.invoke('participant-presence', {
+      body: { participant_id: participant.id, logged_in: true },
+    }).catch((e) => console.warn('presence update failed', e));
+
+    supabase.from('session_logs').insert({
+      session_id: selectedSession,
+      event_type: 'login',
+      event_data: { email, role: resolvedRole },
+      actor_email: email,
+    }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
+
 
   const roles: { value: UserRole; label: string; icon: React.ReactNode; desc: string }[] = [
     { value: 'investor', label: 'Investor', icon: <Briefcase className="w-5 h-5" />, desc: 'View pitches & invest' },
