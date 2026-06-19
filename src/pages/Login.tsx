@@ -229,49 +229,58 @@ export default function Login() {
     autoLoginAttempted.current = true;
 
     const doAutoLogin = async () => {
-      let participant: any = null;
+      try {
+        let participant: any = null;
+        const normalizedRole = (urlRole?.toLowerCase() as UserRole | null) ?? null;
 
-      if (urlEmail && urlRole) {
-        const { data } = await supabase
-          .from('session_participants')
-          .select('*')
-          .eq('session_id', selectedSession)
-          .eq('email', urlEmail.toLowerCase())
-          .eq('role', urlRole)
-          .maybeSingle();
-        participant = data;
-      } else if (isDemoAutoLogin && urlRole) {
-        // Demo-mode randomized auto-login (no email specified)
-        const { data: available } = await supabase
-          .from('session_participants')
-          .select('*')
-          .eq('session_id', selectedSession)
-          .eq('role', urlRole)
-          .eq('is_logged_in', false);
-        if (available && available.length > 0) {
-          participant = available[Math.floor(Math.random() * available.length)];
+        if (urlEmail && normalizedRole) {
+          const { data } = await supabase
+            .from('session_participants')
+            .select('*')
+            .eq('session_id', selectedSession)
+            .eq('email', urlEmail.toLowerCase())
+            .eq('role', normalizedRole)
+            .maybeSingle();
+          participant = data;
+        } else if (isDemoAutoLogin && normalizedRole) {
+          // Demo-mode randomized auto-login (no email specified)
+          const { data: available } = await supabase
+            .from('session_participants')
+            .select('*')
+            .eq('session_id', selectedSession)
+            .eq('role', normalizedRole)
+            .eq('is_logged_in', false);
+          if (available && available.length > 0) {
+            participant = available[Math.floor(Math.random() * available.length)];
+          }
         }
-      }
 
-      if (!participant) {
-        toast.error('This invitation link is no longer valid for this session.');
-        return;
-      }
+        if (!participant) {
+          toast.error('This invitation link is no longer valid for this session.');
+          autoLoginAttempted.current = false;
+          return;
+        }
 
-      // Facilitator access always requires the password — even from a magic link.
-      if (urlRole === 'facilitator' && !isDemoMode) {
-        setEmail(participant.email);
-        setRole('facilitator');
-        setPendingParticipant(participant);
-        setStep(await facilitatorNeedsPassword(participant.email)
-          ? 'facilitator-create-password'
-          : 'facilitator-password');
-        return;
-      }
+        // Facilitator access always requires the password — even from a magic link.
+        if (normalizedRole === 'facilitator' && !isDemoMode) {
+          setEmail(participant.email);
+          setRole('facilitator');
+          setPendingParticipant(participant);
+          setStep(await facilitatorNeedsPassword(participant.email)
+            ? 'facilitator-create-password'
+            : 'facilitator-password');
+          return;
+        }
 
-      await completeLoginWith(participant, urlRole!);
+        await completeLoginWith(participant, normalizedRole!);
+      } catch (err) {
+        console.error('auto-login failed', err);
+        toast.error('Could not auto-join the session. Please sign in below.');
+        autoLoginAttempted.current = false;
+      }
     };
     doAutoLogin();
+
   }, [isDemoMode, selectedSession, searchParams]);
 
 
