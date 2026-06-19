@@ -127,19 +127,10 @@ export default function Login() {
   };
 
   const completeLoginWith = async (participant: any, loginRole: UserRole) => {
-    // Presence updates go through the participant-presence edge function.
-    await supabase.functions.invoke('participant-presence', {
-      body: { participant_id: participant.id, logged_in: true },
-    });
-
-
-    await supabase.from('session_logs').insert({
-      session_id: selectedSession,
-      event_type: 'login',
-      event_data: { email: participant.email, role: loginRole },
-      actor_email: participant.email,
-    });
-
+    // Set user + navigate IMMEDIATELY so the magic-link recipient lands in the
+    // session without waiting on edge-function cold starts. Presence + audit
+    // log are fire-and-forget — a slow or failing background call must never
+    // strand the user on the "Joining…" screen.
     setUser({
       participantId: participant.id,
       email: participant.email,
@@ -150,7 +141,20 @@ export default function Login() {
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
     navigate(`/session/${selectedSession}${editParam}`);
+
+    // Background side effects — failures are logged but don't block entry.
+    supabase.functions.invoke('participant-presence', {
+      body: { participant_id: participant.id, logged_in: true },
+    }).catch((e) => console.warn('presence update failed', e));
+
+    supabase.from('session_logs').insert({
+      session_id: selectedSession,
+      event_type: 'login',
+      event_data: { email: participant.email, role: loginRole },
+      actor_email: participant.email,
+    }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
+
 
   useEffect(() => {
     const fetchSessions = async () => {
@@ -225,49 +229,58 @@ export default function Login() {
     autoLoginAttempted.current = true;
 
     const doAutoLogin = async () => {
-      let participant: any = null;
+      try {
+        let participant: any = null;
+        const normalizedRole = (urlRole?.toLowerCase() as UserRole | null) ?? null;
 
-      if (urlEmail && urlRole) {
-        const { data } = await supabase
-          .from('session_participants')
-          .select('*')
-          .eq('session_id', selectedSession)
-          .eq('email', urlEmail.toLowerCase())
-          .eq('role', urlRole)
-          .maybeSingle();
-        participant = data;
-      } else if (isDemoAutoLogin && urlRole) {
-        // Demo-mode randomized auto-login (no email specified)
-        const { data: available } = await supabase
-          .from('session_participants')
-          .select('*')
-          .eq('session_id', selectedSession)
-          .eq('role', urlRole)
-          .eq('is_logged_in', false);
-        if (available && available.length > 0) {
-          participant = available[Math.floor(Math.random() * available.length)];
+        if (urlEmail && normalizedRole) {
+          const { data } = await supabase
+            .from('session_participants')
+            .select('*')
+            .eq('session_id', selectedSession)
+            .eq('email', urlEmail.toLowerCase())
+            .eq('role', normalizedRole)
+            .maybeSingle();
+          participant = data;
+        } else if (isDemoAutoLogin && normalizedRole) {
+          // Demo-mode randomized auto-login (no email specified)
+          const { data: available } = await supabase
+            .from('session_participants')
+            .select('*')
+            .eq('session_id', selectedSession)
+            .eq('role', normalizedRole)
+            .eq('is_logged_in', false);
+          if (available && available.length > 0) {
+            participant = available[Math.floor(Math.random() * available.length)];
+          }
         }
-      }
 
-      if (!participant) {
-        toast.error('This invitation link is no longer valid for this session.');
-        return;
-      }
+        if (!participant) {
+          toast.error('This invitation link is no longer valid for this session.');
+          autoLoginAttempted.current = false;
+          return;
+        }
 
-      // Facilitator access always requires the password — even from a magic link.
-      if (urlRole === 'facilitator' && !isDemoMode) {
-        setEmail(participant.email);
-        setRole('facilitator');
-        setPendingParticipant(participant);
-        setStep(await facilitatorNeedsPassword(participant.email)
-          ? 'facilitator-create-password'
-          : 'facilitator-password');
-        return;
-      }
+        // Facilitator access always requires the password — even from a magic link.
+        if (normalizedRole === 'facilitator' && !isDemoMode) {
+          setEmail(participant.email);
+          setRole('facilitator');
+          setPendingParticipant(participant);
+          setStep(await facilitatorNeedsPassword(participant.email)
+            ? 'facilitator-create-password'
+            : 'facilitator-password');
+          return;
+        }
 
-      await completeLoginWith(participant, urlRole!);
+        await completeLoginWith(participant, normalizedRole!);
+      } catch (err) {
+        console.error('auto-login failed', err);
+        toast.error('Could not auto-join the session. Please sign in below.');
+        autoLoginAttempted.current = false;
+      }
     };
     doAutoLogin();
+
   }, [isDemoMode, selectedSession, searchParams]);
 
 
@@ -348,18 +361,8 @@ export default function Login() {
   const completeLogin = async (participant: any, loginRole?: UserRole) => {
     const resolvedRole = loginRole || role!;
 
-    await supabase.functions.invoke('participant-presence', {
-      body: { participant_id: participant.id, logged_in: true },
-    });
-
-
-    await supabase.from('session_logs').insert({
-      session_id: selectedSession,
-      event_type: 'login',
-      event_data: { email, role: resolvedRole },
-      actor_email: email,
-    });
-
+    // Navigate immediately; side effects run in the background so a slow
+    // edge function never traps the user on the login screen.
     setUser({
       participantId: participant.id,
       email: email.toLowerCase(),
@@ -370,7 +373,19 @@ export default function Login() {
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
     navigate(`/session/${selectedSession}${editParam}`);
+
+    supabase.functions.invoke('participant-presence', {
+      body: { participant_id: participant.id, logged_in: true },
+    }).catch((e) => console.warn('presence update failed', e));
+
+    supabase.from('session_logs').insert({
+      session_id: selectedSession,
+      event_type: 'login',
+      event_data: { email, role: resolvedRole },
+      actor_email: email,
+    }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
+
 
   const roles: { value: UserRole; label: string; icon: React.ReactNode; desc: string }[] = [
     { value: 'investor', label: 'Investor', icon: <Briefcase className="w-5 h-5" />, desc: 'View pitches & invest' },
