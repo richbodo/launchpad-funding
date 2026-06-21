@@ -37,9 +37,35 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
   const { user } = useSessionUser();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Track every id we've rendered so reconnects / dual-sources never double-post
   const seenIdsRef = useRef<Set<string>>(new Set());
+
+  /**
+   * Insert an emoji at the current input cursor position (or append if the
+   * input hasn't been focused yet). Keeps focus in the input so the user can
+   * keep typing — they don't have to re-click after picking.
+   */
+  const insertEmoji = (emoji: string) => {
+    const input = inputRef.current;
+    if (!input) {
+      setNewMessage(prev => prev + emoji);
+      return;
+    }
+    const start = input.selectionStart ?? newMessage.length;
+    const end = input.selectionEnd ?? newMessage.length;
+    const next = newMessage.slice(0, start) + emoji + newMessage.slice(end);
+    setNewMessage(next);
+    // Restore caret after the inserted emoji on the next paint.
+    requestAnimationFrame(() => {
+      input.focus();
+      const pos = start + emoji.length;
+      input.setSelectionRange(pos, pos);
+    });
+  };
+
 
   const appendIfNew = (msg: ChatMessage) => {
     if (!msg?.id) return;
