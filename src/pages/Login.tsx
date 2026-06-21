@@ -489,6 +489,43 @@ export default function Login() {
                         ))}
                       </div>
                     </div>
+
+                    {/* Issue #41: investors choose accredited vs community at login.
+                        Rendered after the role grid so the choice is visible the
+                        moment a user thinks about clicking "Investor". */}
+                    <div data-testid="investor-class-picker">
+                      <Label className="mb-2 block text-xs text-muted-foreground">
+                        Investing as <span className="font-normal">(only applies to Investor)</span>
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          data-testid="investor-class-accredited"
+                          onClick={() => setInvestorClass('accredited')}
+                          className={`p-2 rounded-md border-2 text-left transition-all ${
+                            investorClass === 'accredited'
+                              ? 'border-accent bg-accent/5'
+                              : 'border-border hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          <div className="text-xs font-semibold">Accredited Investor</div>
+                          <div className="text-[10px] text-muted-foreground">Equity + gift pledges</div>
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="investor-class-community"
+                          onClick={() => setInvestorClass('community')}
+                          className={`p-2 rounded-md border-2 text-left transition-all ${
+                            investorClass === 'community'
+                              ? 'border-accent bg-accent/5'
+                              : 'border-border hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          <div className="text-xs font-semibold">Community Supporter</div>
+                          <div className="text-[10px] text-muted-foreground">Gift pledges only (max $100)</div>
+                        </button>
+                      </div>
+                    </div>
                   </>
                 )}
               </motion.div>
