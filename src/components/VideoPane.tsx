@@ -148,6 +148,8 @@ interface PlaceholderProps {
   sessionStatus?: string;
   onStartCall?: () => void;
   onJoinCall?: () => void;
+  /** True once a remote track has failed to arrive within the watchdog window. */
+  stale?: boolean;
 }
 
 function Placeholder({
@@ -160,6 +162,7 @@ function Placeholder({
   sessionStatus,
   onStartCall,
   onJoinCall,
+  stale = false,
 }: PlaceholderProps) {
   const isLive = sessionStatus === 'live';
 
@@ -174,9 +177,24 @@ function Placeholder({
           <p className="text-xs text-muted-foreground mt-1">
             {isSelf && selfRole === 'facilitator' ? 'Starting...' : 'Joining...'}
           </p>
+          {stale && (
+            <div className="mt-3 flex flex-col items-center gap-1">
+              <p className="text-[11px] text-amber-500">Taking longer than usual…</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Refresh
+              </Button>
+            </div>
+          )}
         </>
       );
     }
+
 
     // Self pane — show action buttons
     if (isSelf && selfRole === 'facilitator') {
