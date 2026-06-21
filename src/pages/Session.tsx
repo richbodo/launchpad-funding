@@ -911,6 +911,19 @@ export default function SessionPage() {
             remainingSeconds={remainingSeconds}
             isPaused={isPaused}
           />
+          {/* Reset timer — facilitator only (issue #34) */}
+          {isFacilitator && (
+            <Button
+              data-testid="stage-reset-btn"
+              variant="outline"
+              size="sm"
+              onClick={resetStage}
+              title="Reset this stage's timer"
+            >
+              <RotateCcw className="w-4 h-4 mr-1" />
+              Reset
+            </Button>
+          )}
           {/* End Call — next to timer, facilitator only */}
           {isFacilitator && callState === 'connected' && (
             <Button data-testid="end-call-btn" variant="destructive" size="sm" onClick={() => setEndCallConfirmOpen(true)}>
