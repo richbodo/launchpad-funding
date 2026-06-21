@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff, Eye } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff, Eye, RotateCcw } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
 import { externalLinkHandler } from '@/lib/openExternal';
@@ -115,6 +115,7 @@ export default function SessionPage() {
     prev,
     goToStage,
     togglePause,
+    resetStage,
     syncState,
     activeStartupIndex,
   } = useSessionStages(startups);
@@ -462,6 +463,20 @@ export default function SessionPage() {
       prevStageRef.current = { currentStageIndex, isPaused, stageIdentity };
     }
   }, [currentStageIndex, isPaused, stageIdentity, remainingSeconds, user?.role, broadcastStage]);
+
+  // Issue #34: heartbeat re-broadcast so late joiners and drifting clients
+  // resync the countdown. Without this, the facilitator only broadcasts on
+  // discrete state changes (play/pause/next/prev), so the `remainingSeconds`
+  // tracked in presence goes stale and clients (e.g. Diraj in the trial run)
+  // can fall seconds-to-minutes out of sync.
+  useEffect(() => {
+    if (user?.role !== 'facilitator' || isPaused) return;
+    const interval = setInterval(() => {
+      broadcastStage(currentStageIndex, isPaused, remainingSeconds, stageIdentity);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [user?.role, isPaused, currentStageIndex, remainingSeconds, stageIdentity, broadcastStage]);
+
 
   // Auto-open edit dialog for startups: on ?edit=true URL param, or if funding_goal not set
   useEffect(() => {
@@ -896,6 +911,19 @@ export default function SessionPage() {
             remainingSeconds={remainingSeconds}
             isPaused={isPaused}
           />
+          {/* Reset timer — facilitator only (issue #34) */}
+          {isFacilitator && (
+            <Button
+              data-testid="stage-reset-btn"
+              variant="outline"
+              size="sm"
+              onClick={resetStage}
+              title="Reset this stage's timer"
+            >
+              <RotateCcw className="w-4 h-4 mr-1" />
+              Reset
+            </Button>
+          )}
           {/* End Call — next to timer, facilitator only */}
           {isFacilitator && callState === 'connected' && (
             <Button data-testid="end-call-btn" variant="destructive" size="sm" onClick={() => setEndCallConfirmOpen(true)}>

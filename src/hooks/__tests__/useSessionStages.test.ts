@@ -192,4 +192,54 @@ describe('useSessionStages — auto-advance on timer expiry', () => {
     act(() => vi.advanceTimersByTime(3000));
     expect(result.current.remainingSeconds).toBe(stage1Duration - 3);
   });
+
+  // Regression test for issue #34: at 0:00 the timer was cycling through all
+  // remaining stages within a single tick instead of advancing exactly once.
+  it('auto-advance moves exactly ONE stage per timer expiry (no cycling)', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useSessionStages(startups));
+
+    act(() => result.current.syncState(0, false, 1));
+    act(() => vi.advanceTimersByTime(1000));
+    expect(result.current.currentStageIndex).toBe(1);
+    expect(result.current.remainingSeconds).toBe(
+      result.current.stages[1].durationSeconds
+    );
+    act(() => vi.advanceTimersByTime(2000));
+    expect(result.current.currentStageIndex).toBe(1);
+    expect(result.current.remainingSeconds).toBe(
+      result.current.stages[1].durationSeconds - 2
+    );
+  });
+
+  // Regression test for issue #34: at the final stage the timer must stop
+  // cleanly instead of cycling.
+  it('does not advance past the last stage even after many ticks', () => {
+    vi.useFakeTimers();
+    const { result } = renderHook(() => useSessionStages(startups));
+    const lastIndex = result.current.stages.length - 1;
+
+    act(() => result.current.syncState(lastIndex, false, 1));
+    act(() => vi.advanceTimersByTime(10_000));
+
+    expect(result.current.currentStageIndex).toBe(lastIndex);
+    expect(result.current.isPaused).toBe(true);
+    expect(result.current.remainingSeconds).toBe(0);
+  });
+});
+
+describe('useSessionStages — resetStage (issue #34)', () => {
+  it('resetStage() restores the full duration and pauses', () => {
+    const { result } = renderHook(() => useSessionStages(startups));
+    act(() => result.current.syncState(2, false, 7));
+    expect(result.current.remainingSeconds).toBe(7);
+    expect(result.current.isPaused).toBe(false);
+
+    act(() => result.current.resetStage());
+    expect(result.current.remainingSeconds).toBe(
+      result.current.stages[2].durationSeconds
+    );
+    expect(result.current.isPaused).toBe(true);
+    expect(result.current.currentStageIndex).toBe(2);
+  });
 });
