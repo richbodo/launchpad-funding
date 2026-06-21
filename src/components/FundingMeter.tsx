@@ -46,7 +46,7 @@ export default function FundingMeter({ startupFunded, fundingGoal, currentStartu
           </div>
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider">
-              {isSessionTotal ? 'Total Raised' : 'Pledged'}
+              {isSessionTotal ? 'Total Raised (USD)' : 'Pledged (USD)'}
             </p>
             <motion.p
               key={startupFunded}
@@ -55,7 +55,7 @@ export default function FundingMeter({ startupFunded, fundingGoal, currentStartu
               className="text-2xl font-bold mono"
               data-testid="funding-amount"
             >
-              {formatCurrency(startupFunded)}
+              {formatCurrency(startupFunded)} <span className="text-xs font-normal text-muted-foreground">USD</span>
             </motion.p>
           </div>
         </div>
