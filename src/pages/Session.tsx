@@ -795,14 +795,31 @@ export default function SessionPage() {
           {/* Investor actions */}
           {user.role === 'investor' && (
             <div className="flex items-center justify-center flex-wrap gap-3 mt-3">
+              {/* Issue #41: equity Invest button only shown to accredited investors.
+                  Community supporters see only the Pledge (gift) button below. */}
+              {user.investorClass !== 'community' && (
+                <Button
+                  data-testid="invest-btn"
+                  onClick={() => { setInvestPledgeType('equity'); setInvestOpen(true); }}
+                  disabled={currentStage?.type === 'intro' || currentStage?.type === 'outro'}
+                  className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6 disabled:opacity-40"
+                >
+                  <DollarSign className="w-4 h-4 mr-1" />
+                  Invest
+                </Button>
+              )}
               <Button
-                data-testid="invest-btn"
-                onClick={() => setInvestOpen(true)}
+                data-testid="pledge-btn"
+                onClick={() => { setInvestPledgeType('gift'); setInvestOpen(true); }}
                 disabled={currentStage?.type === 'intro' || currentStage?.type === 'outro'}
-                className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6 disabled:opacity-40"
+                variant={user.investorClass === 'community' ? 'default' : 'outline'}
+                className={user.investorClass === 'community'
+                  ? 'bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6 disabled:opacity-40'
+                  : 'font-semibold px-6 disabled:opacity-40'}
+                title="Non-binding gift pledge (max $100)"
               >
-                <DollarSign className="w-4 h-4 mr-1" />
-                Invest
+                <Gift className="w-4 h-4 mr-1" />
+                Pledge a Gift
               </Button>
               {(() => {
                 const ddUrl = normalizeExternalUrl(currentStartup?.dd_room_link);
