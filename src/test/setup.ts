@@ -9,7 +9,8 @@ class ResizeObserverStub {
   unobserve() {}
   disconnect() {}
 }
-(globalThis as any).ResizeObserver = (globalThis as any).ResizeObserver || ResizeObserverStub;
+(globalThis as any).ResizeObserver = ResizeObserverStub;
+(window as any).ResizeObserver = ResizeObserverStub;
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
