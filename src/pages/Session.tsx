@@ -140,11 +140,15 @@ export default function SessionPage() {
     // Reset dedupe set when switching sessions
     seenInvestmentIdsRef.current = new Set();
 
-    // Apply a single investment row (idempotent by id)
-    const applyInvestment = (inv: { id: string; startup_email: string; amount: number | string }) => {
+    // Apply a single investment row (idempotent by id). Issue #41: only
+    // equity pledges count toward the startup's funding total — community
+    // gift pledges are tracked elsewhere (or simply omitted from the meter).
+    const applyInvestment = (inv: { id: string; startup_email: string; amount: number | string; pledge_type?: string | null }) => {
       if (!inv?.id) return;
       if (seenInvestmentIdsRef.current.has(inv.id)) return;
       seenInvestmentIdsRef.current.add(inv.id);
+      const ptype = inv.pledge_type ?? 'equity';
+      if (ptype !== 'equity') return;
       setFundingByStartup(prev => ({
         ...prev,
         [inv.startup_email]: (prev[inv.startup_email] || 0) + Number(inv.amount),
