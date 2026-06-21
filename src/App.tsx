@@ -31,7 +31,9 @@ const App = () => (
             <Route path="/session/:id" element={<Session />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/demo-logins" element={<DemoLogins />} />
+            <Route path="/event/:slug" element={<EventLanding />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
