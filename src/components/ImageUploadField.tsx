@@ -40,12 +40,31 @@ export default function ImageUploadField({
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-picking same file
     if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be 5MB or smaller');
+
+    // Validate file type (client-side; server re-validates).
+    const ALLOWED = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!ALLOWED.includes(file.type)) {
+      const pretty = file.type || 'unknown';
+      toast.error(
+        `Unsupported image type (${pretty}). Please upload a JPG, PNG, WebP, or GIF.`
+      );
       return;
     }
+
+    // Validate file size (5MB max).
+    const MAX_BYTES = 5 * 1024 * 1024;
+    if (file.size > MAX_BYTES) {
+      const mb = (file.size / (1024 * 1024)).toFixed(1);
+      toast.error(`Image is ${mb}MB. Maximum size is 5MB — please choose a smaller file.`);
+      return;
+    }
+    if (file.size === 0) {
+      toast.error('That file is empty. Please choose a different image.');
+      return;
+    }
+
     if (!refId) {
-      toast.error('Save the record first, then upload an image');
+      toast.error('Save the record first, then upload an image.');
       return;
     }
     setUploading(true);
