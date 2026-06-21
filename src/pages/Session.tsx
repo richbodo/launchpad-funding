@@ -562,7 +562,7 @@ export default function SessionPage() {
                         onClick={() => setStageIdentity(f.email)}
                         disabled={isOnStage}
                       >
-                        <Monitor className="w-4 h-4 mr-1" />
+                        <Eye className="w-4 h-4 mr-1" />
                         {isOnStage ? 'On Stage' : 'Take Stage'}
                       </Button>
                       {f.email === user.email ? (
