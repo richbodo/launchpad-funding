@@ -5,7 +5,7 @@ import { useSessionUser } from '@/lib/sessionContext';
 import { useSessionStages } from '@/hooks/useSessionStages';
 import { useLiveKitToken } from '@/hooks/useLiveKitToken';
 import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useTracks } from '@livekit/components-react';
-import { Track } from 'livekit-client';
+import { Track, ScreenSharePresets } from 'livekit-client';
 import '@livekit/components-styles';
 import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
