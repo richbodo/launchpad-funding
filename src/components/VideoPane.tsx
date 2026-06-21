@@ -80,6 +80,20 @@ function LiveVideoPane({
   const trackRef = screenTrack || cameraTrack;
   const isScreenShare = !!screenTrack;
 
+  // Issue #33: some participants saw "Joining…" for minutes because the remote
+  // track never arrived. Once we've waited >12s with no track for an expected
+  // identity, surface a manual reload escape hatch — leave/rejoin (a reload)
+  // was the only workaround users found in the trial.
+  const [stale, setStale] = useState(false);
+  useEffect(() => {
+    if (trackRef) {
+      setStale(false);
+      return;
+    }
+    const t = setTimeout(() => setStale(true), 12_000);
+    return () => clearTimeout(t);
+  }, [trackRef]);
+
   if (!trackRef) {
     return (
       <Placeholder
@@ -88,9 +102,11 @@ function LiveVideoPane({
         isActive={isActive}
         callState="connecting"
         isSelf={false}
+        stale={stale}
       />
     );
   }
+
 
   return (
     <div className="relative w-full h-full bg-black rounded-lg overflow-hidden border border-border">
