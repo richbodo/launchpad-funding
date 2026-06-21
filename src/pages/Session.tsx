@@ -97,6 +97,9 @@ export default function SessionPage() {
   const [startups, setStartups] = useState<Startup[]>([]);
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [investOpen, setInvestOpen] = useState(false);
+  // Issue #41: investors with class === 'accredited' can open the dialog in
+  // either 'equity' or 'gift' mode. Community supporters only get 'gift'.
+  const [investPledgeType, setInvestPledgeType] = useState<'equity' | 'gift'>('equity');
   const [editStartupOpen, setEditStartupOpen] = useState(false);
   const editAutoOpened = useRef(false);
   const [session, setSession] = useState<any>(null);
