@@ -248,7 +248,7 @@ export default function SessionPage() {
       // Fetch row-level so we can dedupe by id with the broadcast channel.
       const { data: investData } = await supabase
         .from('investments')
-        .select('id, amount, startup_email')
+        .select('id, amount, startup_email, pledge_type')
         .eq('session_id', id);
       if (investData) {
         for (const inv of investData) applyInvestment(inv as any);
