@@ -5,10 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
-import { Globe, Copy, Check, X, UserCheck, Image as ImageIcon } from 'lucide-react';
+import { Globe, Copy, Check, X, UserCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getAdminToken } from '@/lib/adminAuth';
+import ImageUploadField from '@/components/ImageUploadField';
 
 interface SessionLike {
   id: string;
@@ -156,22 +157,14 @@ export default function EventLandingAdminCard({
           </div>
         </div>
 
-        <div>
-          <Label htmlFor="landing-hero" className="text-xs flex items-center gap-1">
-            <ImageIcon className="w-3.5 h-3.5" /> Hero image URL (optional)
-          </Label>
-          <Input
-            id="landing-hero"
-            value={heroUrl}
-            onChange={(e) => setHeroUrl(e.target.value)}
-            placeholder="https://…/hero.jpg"
-            className="mt-1"
-          />
-          <p className="text-[11px] text-muted-foreground mt-1">
-            Paste any publicly-hosted image URL. Per-startup and per-facilitator
-            images can be set on each participant.
-          </p>
-        </div>
+        <ImageUploadField
+          label="Hero image (optional)"
+          value={heroUrl}
+          onChange={setHeroUrl}
+          kind="session-hero"
+          refId={session.id}
+          helpText="Shown at the top of /event/<slug>. Recommended 1600×600, max 5MB."
+        />
 
         <div>
           <Label htmlFor="landing-desc" className="text-xs">Event description (optional)</Label>
