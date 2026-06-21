@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff, Eye, RotateCcw } from 'lucide-react';
+import { DollarSign, ExternalLink, Loader2, LogOut, PhoneOff, Play, Pause, ChevronLeft, ChevronRight, Monitor, MonitorOff, Video, Settings, Volume2, VolumeOff, Mic, MicOff, Eye, RotateCcw, Gift } from 'lucide-react';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import { toast } from 'sonner';
 import { externalLinkHandler } from '@/lib/openExternal';
@@ -97,6 +97,9 @@ export default function SessionPage() {
   const [startups, setStartups] = useState<Startup[]>([]);
   const [facilitators, setFacilitators] = useState<Facilitator[]>([]);
   const [investOpen, setInvestOpen] = useState(false);
+  // Issue #41: investors with class === 'accredited' can open the dialog in
+  // either 'equity' or 'gift' mode. Community supporters only get 'gift'.
+  const [investPledgeType, setInvestPledgeType] = useState<'equity' | 'gift'>('equity');
   const [editStartupOpen, setEditStartupOpen] = useState(false);
   const editAutoOpened = useRef(false);
   const [session, setSession] = useState<any>(null);
@@ -137,11 +140,15 @@ export default function SessionPage() {
     // Reset dedupe set when switching sessions
     seenInvestmentIdsRef.current = new Set();
 
-    // Apply a single investment row (idempotent by id)
-    const applyInvestment = (inv: { id: string; startup_email: string; amount: number | string }) => {
+    // Apply a single investment row (idempotent by id). Issue #41: only
+    // equity pledges count toward the startup's funding total — community
+    // gift pledges are tracked elsewhere (or simply omitted from the meter).
+    const applyInvestment = (inv: { id: string; startup_email: string; amount: number | string; pledge_type?: string | null }) => {
       if (!inv?.id) return;
       if (seenInvestmentIdsRef.current.has(inv.id)) return;
       seenInvestmentIdsRef.current.add(inv.id);
+      const ptype = inv.pledge_type ?? 'equity';
+      if (ptype !== 'equity') return;
       setFundingByStartup(prev => ({
         ...prev,
         [inv.startup_email]: (prev[inv.startup_email] || 0) + Number(inv.amount),
@@ -241,7 +248,7 @@ export default function SessionPage() {
       // Fetch row-level so we can dedupe by id with the broadcast channel.
       const { data: investData } = await supabase
         .from('investments')
-        .select('id, amount, startup_email')
+        .select('id, amount, startup_email, pledge_type')
         .eq('session_id', id);
       if (investData) {
         for (const inv of investData) applyInvestment(inv as any);
@@ -792,14 +799,31 @@ export default function SessionPage() {
           {/* Investor actions */}
           {user.role === 'investor' && (
             <div className="flex items-center justify-center flex-wrap gap-3 mt-3">
+              {/* Issue #41: equity Invest button only shown to accredited investors.
+                  Community supporters see only the Pledge (gift) button below. */}
+              {user.investorClass !== 'community' && (
+                <Button
+                  data-testid="invest-btn"
+                  onClick={() => { setInvestPledgeType('equity'); setInvestOpen(true); }}
+                  disabled={currentStage?.type === 'intro' || currentStage?.type === 'outro'}
+                  className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6 disabled:opacity-40"
+                >
+                  <DollarSign className="w-4 h-4 mr-1" />
+                  Invest
+                </Button>
+              )}
               <Button
-                data-testid="invest-btn"
-                onClick={() => setInvestOpen(true)}
+                data-testid="pledge-btn"
+                onClick={() => { setInvestPledgeType('gift'); setInvestOpen(true); }}
                 disabled={currentStage?.type === 'intro' || currentStage?.type === 'outro'}
-                className="bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6 disabled:opacity-40"
+                variant={user.investorClass === 'community' ? 'default' : 'outline'}
+                className={user.investorClass === 'community'
+                  ? 'bg-accent text-accent-foreground hover:bg-accent/90 font-semibold px-6 disabled:opacity-40'
+                  : 'font-semibold px-6 disabled:opacity-40'}
+                title="Non-binding gift pledge (max $100)"
               >
-                <DollarSign className="w-4 h-4 mr-1" />
-                Invest
+                <Gift className="w-4 h-4 mr-1" />
+                Pledge a Gift
               </Button>
               {(() => {
                 const ddUrl = normalizeExternalUrl(currentStartup?.dd_room_link);
@@ -867,6 +891,7 @@ export default function SessionPage() {
           sessionId={id}
           startupName={currentStartup.display_name || currentStartup.email}
           startupEmail={currentStartup.email}
+          pledgeType={investPledgeType}
         />
       )}
 

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useSessionUser, UserRole } from '@/lib/sessionContext';
+import { useSessionUser, UserRole, InvestorClass } from '@/lib/sessionContext';
 import { useDemoMode } from '@/hooks/useDemoMode';
 import { setAdminToken } from '@/lib/adminAuth';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,10 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole | null>(null);
+  // Issue #41: investors choose a class (accredited vs community supporter)
+  // before submitting. Defaults to 'accredited' so existing behavior is
+  // preserved for users who don't think about it.
+  const [investorClass, setInvestorClass] = useState<InvestorClass>('accredited');
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [loading, setLoading] = useState(false);
@@ -137,6 +141,7 @@ export default function Login() {
       role: loginRole,
       displayName: participant.display_name || participant.email.split('@')[0],
       sessionId: selectedSession,
+      investorClass: loginRole === 'investor' ? investorClass : undefined,
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
@@ -150,7 +155,7 @@ export default function Login() {
     supabase.from('session_logs').insert({
       session_id: selectedSession,
       event_type: 'login',
-      event_data: { email: participant.email, role: loginRole },
+      event_data: { email: participant.email, role: loginRole, investor_class: loginRole === 'investor' ? investorClass : null },
       actor_email: participant.email,
     }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
@@ -369,6 +374,7 @@ export default function Login() {
       role: resolvedRole,
       displayName: participant.display_name || email.split('@')[0],
       sessionId: selectedSession,
+      investorClass: resolvedRole === 'investor' ? investorClass : undefined,
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
@@ -381,7 +387,7 @@ export default function Login() {
     supabase.from('session_logs').insert({
       session_id: selectedSession,
       event_type: 'login',
-      event_data: { email, role: resolvedRole },
+      event_data: { email, role: resolvedRole, investor_class: resolvedRole === 'investor' ? investorClass : null },
       actor_email: email,
     }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
@@ -481,6 +487,43 @@ export default function Login() {
                             )}
                           </div>
                         ))}
+                      </div>
+                    </div>
+
+                    {/* Issue #41: investors choose accredited vs community at login.
+                        Rendered after the role grid so the choice is visible the
+                        moment a user thinks about clicking "Investor". */}
+                    <div data-testid="investor-class-picker">
+                      <Label className="mb-2 block text-xs text-muted-foreground">
+                        Investing as <span className="font-normal">(only applies to Investor)</span>
+                      </Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          data-testid="investor-class-accredited"
+                          onClick={() => setInvestorClass('accredited')}
+                          className={`p-2 rounded-md border-2 text-left transition-all ${
+                            investorClass === 'accredited'
+                              ? 'border-accent bg-accent/5'
+                              : 'border-border hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          <div className="text-xs font-semibold">Accredited Investor</div>
+                          <div className="text-[10px] text-muted-foreground">Equity + gift pledges</div>
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="investor-class-community"
+                          onClick={() => setInvestorClass('community')}
+                          className={`p-2 rounded-md border-2 text-left transition-all ${
+                            investorClass === 'community'
+                              ? 'border-accent bg-accent/5'
+                              : 'border-border hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          <div className="text-xs font-semibold">Community Supporter</div>
+                          <div className="text-[10px] text-muted-foreground">Gift pledges only (max $100)</div>
+                        </button>
                       </div>
                     </div>
                   </>

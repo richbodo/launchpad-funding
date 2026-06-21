@@ -104,14 +104,21 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
 
   // Commitment messages are written by InvestDialog with a sentinel prefix so
   // we can render them as green social-proof banners inline with the chat.
-  // Format: `__COMMIT__::<amount>::<startupName>`
-  const parseCommitment = (text: string): { amount: number; startup: string } | null => {
+  // Format (issue #40): `__COMMIT__::<amount>::<startupName>`
+  // Format (issue #41): `__COMMIT__::<amount>::<startupName>::<equity|gift>`
+  const parseCommitment = (text: string): { amount: number; startup: string; pledgeType: 'equity' | 'gift' } | null => {
     if (!text?.startsWith('__COMMIT__::')) return null;
     const parts = text.split('::');
     if (parts.length < 3) return null;
     const amount = Number(parts[1]);
     if (!Number.isFinite(amount)) return null;
-    return { amount, startup: parts.slice(2).join('::') };
+    // The last segment is the pledge type when present; otherwise the rest is
+    // the startup name (which may itself contain "::").
+    const last = parts[parts.length - 1];
+    const hasType = last === 'equity' || last === 'gift';
+    const pledgeType: 'equity' | 'gift' = hasType ? (last as 'equity' | 'gift') : 'equity';
+    const nameParts = hasType ? parts.slice(2, -1) : parts.slice(2);
+    return { amount, startup: nameParts.join('::'), pledgeType };
   };
 
   return (
@@ -130,17 +137,18 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
                   key={msg.id}
                   className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2"
                   data-testid="chat-commitment-message"
+                  data-pledge-type={commit.pledgeType}
                 >
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-semibold text-emerald-500">
-                      💰 {msg.sender_name || msg.sender_email}
+                      {commit.pledgeType === 'gift' ? '🎁' : '💰'} {msg.sender_name || msg.sender_email}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <p className="text-sm text-emerald-100 mt-0.5">
-                    pledged{' '}
+                    {commit.pledgeType === 'gift' ? 'pledged a gift of' : 'pledged'}{' '}
                     <span className="font-bold mono">
                       ${commit.amount.toLocaleString()} (USD)
                     </span>{' '}

@@ -168,6 +168,7 @@ export type Database = {
           id: string
           investor_email: string
           investor_name: string | null
+          pledge_type: string
           session_id: string
           startup_email: string
           startup_name: string | null
@@ -182,6 +183,7 @@ export type Database = {
           id?: string
           investor_email: string
           investor_name?: string | null
+          pledge_type?: string
           session_id: string
           startup_email: string
           startup_name?: string | null
@@ -196,6 +198,7 @@ export type Database = {
           id?: string
           investor_email?: string
           investor_name?: string | null
+          pledge_type?: string
           session_id?: string
           startup_email?: string
           startup_name?: string | null
@@ -253,6 +256,7 @@ export type Database = {
           email: string
           funding_goal: number | null
           id: string
+          investor_class: string | null
           invite_sent_at: string | null
           is_logged_in: boolean
           logged_in_at: string | null
@@ -269,6 +273,7 @@ export type Database = {
           email: string
           funding_goal?: number | null
           id?: string
+          investor_class?: string | null
           invite_sent_at?: string | null
           is_logged_in?: boolean
           logged_in_at?: string | null
@@ -285,6 +290,7 @@ export type Database = {
           email?: string
           funding_goal?: number | null
           id?: string
+          investor_class?: string | null
           invite_sent_at?: string | null
           is_logged_in?: boolean
           logged_in_at?: string | null
