@@ -20,6 +20,8 @@ import { motion } from 'framer-motion';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import TimePicker from '@/components/TimePicker';
 import TimezonePicker from '@/components/TimezonePicker';
+import EventLandingAdminCard from '@/components/EventLandingAdminCard';
+
 import { reportError } from '@/lib/logError';
 import { externalLinkHandler } from '@/lib/openExternal';
 import {
