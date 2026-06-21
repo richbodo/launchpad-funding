@@ -334,6 +334,34 @@ export default function SessionPage() {
     }
   }, [callState, tokenError]);
 
+  // Watchdog: if we stay in 'connecting' for too long (slow token fetch, stalled
+  // LiveKit negotiation, blocked WS), bail out so the UI doesn't sit on a
+  // "Joining…" spinner forever. Issue #33: trial-run participants stayed in
+  // "still joining" for minutes; reload was the only fix. Non-facilitators
+  // auto-retry once because their join is automatic (no button to press).
+  const connectAttemptRef = useRef(0);
+  useEffect(() => {
+    if (callState !== 'connecting') {
+      connectAttemptRef.current = 0;
+      return;
+    }
+    const timer = setTimeout(() => {
+      console.warn('[Session] LiveKit connect watchdog fired — resetting');
+      reset();
+      setCallState('idle');
+      const attempt = connectAttemptRef.current + 1;
+      connectAttemptRef.current = attempt;
+      if (user?.role && user.role !== 'facilitator' && attempt <= 1) {
+        toast.message('Reconnecting to video…');
+        // The auto-join effect will re-trigger on next render since callState===idle.
+      } else {
+        toast.error('Video is taking longer than expected. Tap Join again or refresh.');
+      }
+    }, 20_000);
+    return () => clearTimeout(timer);
+  }, [callState, reset, user?.role]);
+
+
   // Disconnect all non-facilitators when session completes
   useEffect(() => {
     if (session?.status === 'completed' && callState === 'connected') {
