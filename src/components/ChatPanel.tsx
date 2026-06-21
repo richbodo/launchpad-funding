@@ -1,10 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
-import { Send } from 'lucide-react';
+import { Send, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
+/**
+ * Issue #43: curated emoji palette for the chat composer. A small, opinionated
+ * set covers the common reactions investors/founders reach for during pitches
+ * (👏 fire, 💯, 🚀, 💰, 🤔, ❤️) without pulling in a multi-MB emoji-picker dep.
+ * Grouped only loosely — order is "most likely to be tapped" first.
+ */
+const EMOJI_PALETTE: string[] = [
+  '👏', '🔥', '💯', '🚀', '💰', '🎉',
+  '❤️', '👍', '👎', '😂', '😮', '🤔',
+  '🙌', '🙏', '✨', '⭐', '💡', '🎯',
+  '✅', '❌', '⚡', '📈', '📉', '🦄',
+  '😅', '😎', '🤯', '👀', '🥳', '🤝',
+];
+
 
 interface ChatMessage {
   id: string;
