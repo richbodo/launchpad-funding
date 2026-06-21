@@ -85,35 +85,40 @@ export function useSessionStages(startups: Startup[]): UseSessionStagesReturn {
     setIsPaused(true);
   }, [stages]);
 
-  // Countdown interval
+  // Refs let the interval callback advance stages atomically without nesting
+  // setState calls inside another updater (which was fragile under React 18
+  // StrictMode and produced the "cycling through all stages at 0:00" bug
+  // reported in issue #34).
+  const stagesRef = useRef(stages);
+  const indexRef = useRef(currentStageIndex);
+  useEffect(() => { stagesRef.current = stages; }, [stages]);
+  useEffect(() => { indexRef.current = currentStageIndex; }, [currentStageIndex]);
+
+  // Countdown interval — depends only on `isPaused` so it doesn't tear down
+  // and rebuild every tick; reads latest stages/index via refs.
   useEffect(() => {
     if (intervalRef.current) clearInterval(intervalRef.current);
+    if (isPaused) return;
 
-    if (!isPaused && remainingSeconds > 0) {
-      intervalRef.current = setInterval(() => {
-        setRemainingSeconds(prev => {
-          if (prev <= 1) {
-            // Auto-advance
-            setCurrentStageIndex(ci => {
-              const nextIndex = ci + 1;
-              if (nextIndex < stages.length) {
-                setRemainingSeconds(stages[nextIndex].durationSeconds);
-                return nextIndex;
-              }
-              setIsPaused(true);
-              return ci;
-            });
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
+    intervalRef.current = setInterval(() => {
+      setRemainingSeconds(prev => {
+        if (prev > 1) return prev - 1;
+        // Hit zero — advance exactly one stage, or stop at the final one.
+        const nextIndex = indexRef.current + 1;
+        if (nextIndex < stagesRef.current.length) {
+          setCurrentStageIndex(nextIndex);
+          return stagesRef.current[nextIndex].durationSeconds;
+        }
+        // Final stage — stop cleanly, no cycling.
+        setIsPaused(true);
+        return 0;
+      });
+    }, 1000);
 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [isPaused, stages]);
+  }, [isPaused]);
 
   const goToStage = useCallback((index: number) => {
     if (index >= 0 && index < stages.length) {
@@ -139,6 +144,12 @@ export function useSessionStages(startups: Startup[]): UseSessionStagesReturn {
     setIsPaused(p => !p);
   }, []);
 
+  const resetStage = useCallback(() => {
+    const dur = stages[currentStageIndex]?.durationSeconds ?? 0;
+    setRemainingSeconds(dur);
+    setIsPaused(true);
+  }, [stages, currentStageIndex]);
+
   const syncState = useCallback((index: number, paused: boolean, remaining: number) => {
     setCurrentStageIndex(index);
     setRemainingSeconds(remaining);
@@ -158,6 +169,7 @@ export function useSessionStages(startups: Startup[]): UseSessionStagesReturn {
     prev,
     goToStage,
     togglePause,
+    resetStage,
     syncState,
     activeStartupIndex,
   };
