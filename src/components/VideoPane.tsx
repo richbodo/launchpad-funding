@@ -1,6 +1,7 @@
+import { useEffect, useState } from 'react';
 import { useTracks, VideoTrack } from '@livekit/components-react';
 import { Track } from 'livekit-client';
-import { Video, VideoOff, Loader2 } from 'lucide-react';
+import { Video, VideoOff, Loader2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export type CallState = 'idle' | 'connecting' | 'connected';
@@ -79,6 +80,20 @@ function LiveVideoPane({
   const trackRef = screenTrack || cameraTrack;
   const isScreenShare = !!screenTrack;
 
+  // Issue #33: some participants saw "Joining…" for minutes because the remote
+  // track never arrived. Once we've waited >12s with no track for an expected
+  // identity, surface a manual reload escape hatch — leave/rejoin (a reload)
+  // was the only workaround users found in the trial.
+  const [stale, setStale] = useState(false);
+  useEffect(() => {
+    if (trackRef) {
+      setStale(false);
+      return;
+    }
+    const t = setTimeout(() => setStale(true), 12_000);
+    return () => clearTimeout(t);
+  }, [trackRef]);
+
   if (!trackRef) {
     return (
       <Placeholder
@@ -87,9 +102,11 @@ function LiveVideoPane({
         isActive={isActive}
         callState="connecting"
         isSelf={false}
+        stale={stale}
       />
     );
   }
+
 
   return (
     <div className="relative w-full h-full bg-black rounded-lg overflow-hidden border border-border">
@@ -131,6 +148,8 @@ interface PlaceholderProps {
   sessionStatus?: string;
   onStartCall?: () => void;
   onJoinCall?: () => void;
+  /** True once a remote track has failed to arrive within the watchdog window. */
+  stale?: boolean;
 }
 
 function Placeholder({
@@ -143,6 +162,7 @@ function Placeholder({
   sessionStatus,
   onStartCall,
   onJoinCall,
+  stale = false,
 }: PlaceholderProps) {
   const isLive = sessionStatus === 'live';
 
@@ -157,9 +177,24 @@ function Placeholder({
           <p className="text-xs text-muted-foreground mt-1">
             {isSelf && selfRole === 'facilitator' ? 'Starting...' : 'Joining...'}
           </p>
+          {stale && (
+            <div className="mt-3 flex flex-col items-center gap-1">
+              <p className="text-[11px] text-amber-500">Taking longer than usual…</p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                Refresh
+              </Button>
+            </div>
+          )}
         </>
       );
     }
+
 
     // Self pane — show action buttons
     if (isSelf && selfRole === 'facilitator') {
