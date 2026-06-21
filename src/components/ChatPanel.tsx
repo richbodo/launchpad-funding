@@ -102,6 +102,18 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
     }
   };
 
+  // Commitment messages are written by InvestDialog with a sentinel prefix so
+  // we can render them as green social-proof banners inline with the chat.
+  // Format: `__COMMIT__::<amount>::<startupName>`
+  const parseCommitment = (text: string): { amount: number; startup: string } | null => {
+    if (!text?.startsWith('__COMMIT__::')) return null;
+    const parts = text.split('::');
+    if (parts.length < 3) return null;
+    const amount = Number(parts[1]);
+    if (!Number.isFinite(amount)) return null;
+    return { amount, startup: parts.slice(2).join('::') };
+  };
+
   return (
     <div className="flex flex-col h-full bg-card border-l border-border">
       <div className="px-4 py-3 border-b border-border">
@@ -110,20 +122,48 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
 
       <ScrollArea className="flex-1 px-4 py-2">
         <div className="space-y-3" data-testid="chat-message-list">
-          {messages.map((msg) => (
-            <div key={msg.id} className="group">
-              <div className="flex items-baseline gap-2">
-                <span className={`text-xs font-semibold ${roleColor(msg.sender_role)}`}>
-                  {msg.sender_name || msg.sender_email}
-                  <span className="font-normal text-muted-foreground"> ({msg.sender_role})</span>
-                </span>
-                <span className="text-[10px] text-muted-foreground">
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
+          {messages.map((msg) => {
+            const commit = parseCommitment(msg.message);
+            if (commit) {
+              return (
+                <div
+                  key={msg.id}
+                  className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2"
+                  data-testid="chat-commitment-message"
+                >
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-xs font-semibold text-emerald-500">
+                      💰 {msg.sender_name || msg.sender_email}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="text-sm text-emerald-100 mt-0.5">
+                    pledged{' '}
+                    <span className="font-bold mono">
+                      ${commit.amount.toLocaleString()} (USD)
+                    </span>{' '}
+                    to <span className="font-semibold">{commit.startup}</span>
+                  </p>
+                </div>
+              );
+            }
+            return (
+              <div key={msg.id} className="group">
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-xs font-semibold ${roleColor(msg.sender_role)}`}>
+                    {msg.sender_name || msg.sender_email}
+                    <span className="font-normal text-muted-foreground"> ({msg.sender_role})</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+                <p className="text-sm text-foreground/90 mt-0.5">{msg.message}</p>
               </div>
-              <p className="text-sm text-foreground/90 mt-0.5">{msg.message}</p>
-            </div>
-          ))}
+            );
+          })}
           <div ref={scrollRef} />
         </div>
       </ScrollArea>
