@@ -11,6 +11,8 @@ import Admin from "./pages/Admin";
 import DemoLogins from "./pages/DemoLogins";
 import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
+import EventLanding from "./pages/EventLanding";
+
 import HelpButton from "./components/HelpButton";
 
 const queryClient = new QueryClient();
