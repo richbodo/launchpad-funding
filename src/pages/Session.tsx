@@ -115,6 +115,7 @@ export default function SessionPage() {
     prev,
     goToStage,
     togglePause,
+    resetStage,
     syncState,
     activeStartupIndex,
   } = useSessionStages(startups);
