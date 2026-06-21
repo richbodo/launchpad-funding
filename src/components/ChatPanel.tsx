@@ -225,15 +225,54 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
             className="flex gap-2"
           >
             <Input
+              ref={inputRef}
               data-testid="chat-input"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Ask a question..."
               className="flex-1 bg-muted/50 border-border"
             />
+            {/* Issue #43: emoji palette button. Popover keeps the picker
+                lightweight and self-contained; clicking an emoji inserts at
+                the caret and returns focus to the input. */}
+            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="shrink-0"
+                  aria-label="Insert emoji"
+                  data-testid="chat-emoji-btn"
+                >
+                  <Smile className="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="top"
+                className="w-64 p-2"
+                data-testid="chat-emoji-palette"
+              >
+                <div className="grid grid-cols-6 gap-1">
+                  {EMOJI_PALETTE.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => { insertEmoji(emoji); setEmojiOpen(false); }}
+                      className="text-xl leading-none p-1.5 rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                      aria-label={`Insert ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button data-testid="chat-send-btn" type="submit" size="icon" variant="default" className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0">
               <Send className="w-4 h-4" />
             </Button>
+
           </form>
         </div>
       )}
