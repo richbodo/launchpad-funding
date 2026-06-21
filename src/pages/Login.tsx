@@ -141,6 +141,7 @@ export default function Login() {
       role: loginRole,
       displayName: participant.display_name || participant.email.split('@')[0],
       sessionId: selectedSession,
+      investorClass: loginRole === 'investor' ? investorClass : undefined,
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
@@ -154,7 +155,7 @@ export default function Login() {
     supabase.from('session_logs').insert({
       session_id: selectedSession,
       event_type: 'login',
-      event_data: { email: participant.email, role: loginRole },
+      event_data: { email: participant.email, role: loginRole, investor_class: loginRole === 'investor' ? investorClass : null },
       actor_email: participant.email,
     }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
