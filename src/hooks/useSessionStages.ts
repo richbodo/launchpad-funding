@@ -24,6 +24,8 @@ interface UseSessionStagesReturn {
   prev: () => void;
   goToStage: (index: number) => void;
   togglePause: () => void;
+  /** Reset the current stage's timer back to its full duration (and pause). */
+  resetStage: () => void;
   syncState: (index: number, paused: boolean, remaining: number) => void;
   activeStartupIndex: number | undefined;
 }
