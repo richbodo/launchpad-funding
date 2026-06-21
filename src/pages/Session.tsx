@@ -1089,7 +1089,30 @@ function ScreenShareButton({ currentStageIndex }: { currentStageIndex: number })
 
   const handleToggle = async () => {
     try {
-      await localParticipant.setScreenShareEnabled(!isSharing);
+      // Issue #36: pitch decks are mostly static vector slides, so we ask the
+      // browser/encoder to prefer DETAIL over motion and publish a high-bitrate
+      // 1080p track. Without these overrides LiveKit defaults to a 720p/motion
+      // profile that pixelated graphs in the trial run.
+      await localParticipant.setScreenShareEnabled(
+        !isSharing,
+        !isSharing
+          ? {
+              resolution: ScreenSharePresets.h1080fps15.resolution,
+              contentHint: 'detail',
+              audio: false,
+            }
+          : undefined,
+        !isSharing
+          ? {
+              videoEncoding: {
+                maxBitrate: 3_000_000, // 3 Mbps — plenty for legible slides
+                maxFramerate: 15,
+                priority: 'high',
+              },
+              degradationPreference: 'maintain-resolution',
+            }
+          : undefined,
+      );
     } catch {
       // User cancelled the screen share picker — not an error
     }
