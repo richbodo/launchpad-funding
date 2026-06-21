@@ -55,7 +55,8 @@ export function buildStages(startups: Startup[]): Stage[] {
       label: `${name} Q&A`,
       fullLabel: `Stage ${qaNum} — ${name} Q&A`,
       type: 'qa',
-      durationSeconds: 3 * 60,
+      // Bumped from 3 → 5 min per issue #39 (trial-run feedback).
+      durationSeconds: 5 * 60,
       startupIndex: i,
     });
   });
