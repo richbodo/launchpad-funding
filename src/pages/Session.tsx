@@ -464,6 +464,20 @@ export default function SessionPage() {
     }
   }, [currentStageIndex, isPaused, stageIdentity, remainingSeconds, user?.role, broadcastStage]);
 
+  // Issue #34: heartbeat re-broadcast so late joiners and drifting clients
+  // resync the countdown. Without this, the facilitator only broadcasts on
+  // discrete state changes (play/pause/next/prev), so the `remainingSeconds`
+  // tracked in presence goes stale and clients (e.g. Diraj in the trial run)
+  // can fall seconds-to-minutes out of sync.
+  useEffect(() => {
+    if (user?.role !== 'facilitator' || isPaused) return;
+    const interval = setInterval(() => {
+      broadcastStage(currentStageIndex, isPaused, remainingSeconds, stageIdentity);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [user?.role, isPaused, currentStageIndex, remainingSeconds, stageIdentity, broadcastStage]);
+
+
   // Auto-open edit dialog for startups: on ?edit=true URL param, or if funding_goal not set
   useEffect(() => {
     if (user?.role !== 'startup' || editAutoOpened.current || startups.length === 0) return;
