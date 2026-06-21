@@ -91,7 +91,7 @@ export default function FundingMeter({ startupFunded, fundingGoal, currentStartu
             )}
             {hasGoal && (
               <p className="text-xs text-muted-foreground text-right mt-0.5" data-testid="funding-goal">
-                Goal: {formatCurrency(fundingGoal)}
+                Goal: {formatCurrency(fundingGoal)} (USD)
               </p>
             )}
           </div>
