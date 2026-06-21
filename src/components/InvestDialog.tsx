@@ -26,20 +26,34 @@ export default function InvestDialog({ open, onOpenChange, sessionId, startupNam
     if (!amount || !user) return;
     setSubmitting(true);
 
+    const amt = parseFloat(amount);
+
     await supabase.from('investments').insert({
       session_id: sessionId,
       investor_email: user.email,
       investor_name: user.displayName,
       startup_email: startupEmail,
       startup_name: startupName,
-      amount: parseFloat(amount),
+      amount: amt,
+    });
+
+    // Surface commitment as a highlighted message in the live chat for social
+    // proof / momentum (issue #40). The sentinel prefix is detected by
+    // ChatPanel to render the row in green. Sender role stays 'investor' to
+    // satisfy the participant_role enum.
+    await supabase.from('chat_messages').insert({
+      session_id: sessionId,
+      sender_email: user.email,
+      sender_name: user.displayName,
+      sender_role: user.role,
+      message: `__COMMIT__::${amt}::${startupName}`,
     });
 
     // Log the event
     await supabase.from('session_logs').insert({
       session_id: sessionId,
       event_type: 'investment',
-      event_data: { investor: user.email, startup: startupEmail, amount: parseFloat(amount) },
+      event_data: { investor: user.email, startup: startupEmail, amount: amt },
       actor_email: user.email,
     });
 
