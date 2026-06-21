@@ -1078,7 +1078,7 @@ function MicToggleButton({ currentStageIndex, currentStageType, userRole }: {
 
 // ── Screen share button (must be rendered inside LiveKitRoom) ────────
 
-function ScreenShareButton({ currentStageIndex }: { currentStageIndex: number }) {
+function ScreenShareButton({ currentStageIndex, isOnStage }: { currentStageIndex: number; isOnStage: boolean }) {
   const { localParticipant } = useLocalParticipant();
   const isSharing = localParticipant.isScreenShareEnabled;
   const stageRef = useRef(currentStageIndex);
@@ -1124,13 +1124,24 @@ function ScreenShareButton({ currentStageIndex }: { currentStageIndex: number })
     }
   };
 
+  // Issue #37: keep the button visible even when not on stage so the
+  // affordance is discoverable, but disable it with an explanatory tooltip.
+  const disabled = !isOnStage && !isSharing;
+
   return (
     <Button
       data-testid="present-btn"
       variant={isSharing ? 'destructive' : 'outline'}
       size="sm"
       onClick={handleToggle}
-      title={isSharing ? 'Stop sharing your screen' : 'Share your screen'}
+      disabled={disabled}
+      title={
+        disabled
+          ? 'Screen sharing is available once you\'re on stage'
+          : isSharing
+            ? 'Stop sharing your screen with everyone'
+            : 'Share your screen with everyone in the session'
+      }
     >
       {isSharing ? (
         <><MonitorOff className="w-4 h-4 mr-1" /> Stop Presenting</>
