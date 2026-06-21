@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { useSessionUser, UserRole } from '@/lib/sessionContext';
+import { useSessionUser, UserRole, InvestorClass } from '@/lib/sessionContext';
 import { useDemoMode } from '@/hooks/useDemoMode';
 import { setAdminToken } from '@/lib/adminAuth';
 import { Button } from '@/components/ui/button';
