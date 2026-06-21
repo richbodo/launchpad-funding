@@ -126,7 +126,12 @@ Deno.serve(async (req) => {
           "funding_goal",
           "password_hash",
           "invite_sent_at",
+          // Issue #44: landing-page signup workflow
+          "approved",
+          "image_url",
+          "investor_class",
         ]) {
+
           if (k in fields) allowed[k] = fields[k];
         }
         const { data, error } = await supabase.from("session_participants").update(allowed).eq("id", id).select().single();
