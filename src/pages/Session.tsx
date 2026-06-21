@@ -704,17 +704,20 @@ export default function SessionPage() {
             })()}
           </div>
 
-          {/* Present button — visible to the on-stage participant */}
-          {isConnected && (() => {
+          {/* Present button — visible to all on-call presenters; clearly
+              disabled with an explanation when they're not the on-stage one.
+              Issue #37: Diraj couldn't find how to share once on stage. */}
+          {isConnected && user.role !== 'investor' && (() => {
             const onStageEmail = stageIdentity || currentStartup?.email;
-            if (onStageEmail && onStageEmail === user.email) {
-              return (
-                <div className="flex justify-center mt-2">
-                  <ScreenShareButton currentStageIndex={currentStageIndex} />
-                </div>
-              );
-            }
-            return null;
+            const isOnStage = !!onStageEmail && onStageEmail === user.email;
+            return (
+              <div className="flex justify-center mt-2">
+                <ScreenShareButton
+                  currentStageIndex={currentStageIndex}
+                  isOnStage={isOnStage}
+                />
+              </div>
+            );
           })()}
 
           {/* Audio controls — below the stage */}
@@ -723,15 +726,17 @@ export default function SessionPage() {
             {isConnected && user.role !== 'investor' && (
               <MicToggleButton currentStageIndex={currentStageIndex} currentStageType={currentStage?.type} userRole={user.role} />
             )}
-            {/* Personal volume mute — all roles, no LiveKit hooks needed */}
+            {/* Personal volume mute — all roles, no LiveKit hooks needed.
+                Labeled distinctly from the mic mute (issue #37). */}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setLocalMuted(m => !m)}
-              title={localMuted ? 'Unmute app audio' : 'Mute app audio'}
+              title={localMuted ? 'Unmute call audio for yourself only' : 'Mute call audio for yourself only (others still hear)'}
               data-testid="personal-mute-btn"
             >
-              {localMuted ? <VolumeOff className="w-4 h-4 text-destructive" /> : <Volume2 className="w-4 h-4" />}
+              {localMuted ? <VolumeOff className="w-4 h-4 mr-1 text-destructive" /> : <Volume2 className="w-4 h-4 mr-1" />}
+              <span className="text-xs">{localMuted ? 'Unmute audio' : 'Mute audio'}</span>
             </Button>
           </div>
 
