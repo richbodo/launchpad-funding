@@ -104,14 +104,21 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
 
   // Commitment messages are written by InvestDialog with a sentinel prefix so
   // we can render them as green social-proof banners inline with the chat.
-  // Format: `__COMMIT__::<amount>::<startupName>`
-  const parseCommitment = (text: string): { amount: number; startup: string } | null => {
+  // Format (issue #40): `__COMMIT__::<amount>::<startupName>`
+  // Format (issue #41): `__COMMIT__::<amount>::<startupName>::<equity|gift>`
+  const parseCommitment = (text: string): { amount: number; startup: string; pledgeType: 'equity' | 'gift' } | null => {
     if (!text?.startsWith('__COMMIT__::')) return null;
     const parts = text.split('::');
     if (parts.length < 3) return null;
     const amount = Number(parts[1]);
     if (!Number.isFinite(amount)) return null;
-    return { amount, startup: parts.slice(2).join('::') };
+    // The last segment is the pledge type when present; otherwise the rest is
+    // the startup name (which may itself contain "::").
+    const last = parts[parts.length - 1];
+    const hasType = last === 'equity' || last === 'gift';
+    const pledgeType: 'equity' | 'gift' = hasType ? (last as 'equity' | 'gift') : 'equity';
+    const nameParts = hasType ? parts.slice(2, -1) : parts.slice(2);
+    return { amount, startup: nameParts.join('::'), pledgeType };
   };
 
   return (
