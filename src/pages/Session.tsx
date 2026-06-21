@@ -1064,13 +1064,14 @@ function MicToggleButton({ currentStageIndex, currentStageType, userRole }: {
 
   return (
     <Button
-      variant="ghost"
+      variant={isMicOn ? 'ghost' : 'destructive'}
       size="sm"
       onClick={handleToggle}
-      title={isMicOn ? 'Mute your mic' : 'Unmute your mic'}
+      title={isMicOn ? 'Mute your microphone (others won\'t hear you)' : 'Unmute your microphone'}
       data-testid="mic-toggle-btn"
     >
-      {isMicOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4 text-destructive" />}
+      {isMicOn ? <Mic className="w-4 h-4 mr-1" /> : <MicOff className="w-4 h-4 mr-1" />}
+      <span className="text-xs">{isMicOn ? 'Mute me' : 'Unmute me'}</span>
     </Button>
   );
 }
