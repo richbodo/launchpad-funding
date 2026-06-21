@@ -1,10 +1,26 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
-import { Send } from 'lucide-react';
+import { Send, Smile } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+
+/**
+ * Issue #43: curated emoji palette for the chat composer. A small, opinionated
+ * set covers the common reactions investors/founders reach for during pitches
+ * (👏 fire, 💯, 🚀, 💰, 🤔, ❤️) without pulling in a multi-MB emoji-picker dep.
+ * Grouped only loosely — order is "most likely to be tapped" first.
+ */
+const EMOJI_PALETTE: string[] = [
+  '👏', '🔥', '💯', '🚀', '💰', '🎉',
+  '❤️', '👍', '👎', '😂', '😮', '🤔',
+  '🙌', '🙏', '✨', '⭐', '💡', '🎯',
+  '✅', '❌', '⚡', '📈', '📉', '🦄',
+  '😅', '😎', '🤯', '👀', '🥳', '🤝',
+];
+
 
 interface ChatMessage {
   id: string;
@@ -21,9 +37,35 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
   const { user } = useSessionUser();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Track every id we've rendered so reconnects / dual-sources never double-post
   const seenIdsRef = useRef<Set<string>>(new Set());
+
+  /**
+   * Insert an emoji at the current input cursor position (or append if the
+   * input hasn't been focused yet). Keeps focus in the input so the user can
+   * keep typing — they don't have to re-click after picking.
+   */
+  const insertEmoji = (emoji: string) => {
+    const input = inputRef.current;
+    if (!input) {
+      setNewMessage(prev => prev + emoji);
+      return;
+    }
+    const start = input.selectionStart ?? newMessage.length;
+    const end = input.selectionEnd ?? newMessage.length;
+    const next = newMessage.slice(0, start) + emoji + newMessage.slice(end);
+    setNewMessage(next);
+    // Restore caret after the inserted emoji on the next paint.
+    requestAnimationFrame(() => {
+      input.focus();
+      const pos = start + emoji.length;
+      input.setSelectionRange(pos, pos);
+    });
+  };
+
 
   const appendIfNew = (msg: ChatMessage) => {
     if (!msg?.id) return;
@@ -183,15 +225,54 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
             className="flex gap-2"
           >
             <Input
+              ref={inputRef}
               data-testid="chat-input"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               placeholder="Ask a question..."
               className="flex-1 bg-muted/50 border-border"
             />
+            {/* Issue #43: emoji palette button. Popover keeps the picker
+                lightweight and self-contained; clicking an emoji inserts at
+                the caret and returns focus to the input. */}
+            <Popover open={emojiOpen} onOpenChange={setEmojiOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  className="shrink-0"
+                  aria-label="Insert emoji"
+                  data-testid="chat-emoji-btn"
+                >
+                  <Smile className="w-4 h-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="end"
+                side="top"
+                className="w-64 p-2"
+                data-testid="chat-emoji-palette"
+              >
+                <div className="grid grid-cols-6 gap-1">
+                  {EMOJI_PALETTE.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => { insertEmoji(emoji); setEmojiOpen(false); }}
+                      className="text-xl leading-none p-1.5 rounded hover:bg-muted focus:bg-muted focus:outline-none"
+                      aria-label={`Insert ${emoji}`}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
             <Button data-testid="chat-send-btn" type="submit" size="icon" variant="default" className="bg-accent text-accent-foreground hover:bg-accent/90 shrink-0">
               <Send className="w-4 h-4" />
             </Button>
+
           </form>
         </div>
       )}
