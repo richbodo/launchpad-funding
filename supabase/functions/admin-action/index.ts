@@ -65,13 +65,22 @@ Deno.serve(async (req) => {
         const { id, ...fields } = payload;
         if (!id) return bad(400, "id required");
         const allowed: Record<string, unknown> = {};
-        for (const k of ["name", "start_time", "end_time", "timezone", "status"]) {
+        for (const k of [
+          "name", "start_time", "end_time", "timezone", "status",
+          // Issue #44: landing-page fields
+          "slug", "hero_image_url", "description", "max_attendees", "is_full",
+        ]) {
           if (k in fields) allowed[k] = fields[k];
+        }
+        // Normalize slug to a URL-safe lower-case form.
+        if (typeof allowed.slug === "string") {
+          allowed.slug = (allowed.slug as string).trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || null;
         }
         const { data, error } = await supabase.from("sessions").update(allowed).eq("id", id).select().single();
         if (error) throw error;
         return ok({ session: data });
       }
+
       case "delete_session": {
         const { id } = payload;
         if (!id) return bad(400, "id required");
