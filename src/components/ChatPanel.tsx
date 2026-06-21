@@ -137,17 +137,18 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
                   key={msg.id}
                   className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2"
                   data-testid="chat-commitment-message"
+                  data-pledge-type={commit.pledgeType}
                 >
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-semibold text-emerald-500">
-                      💰 {msg.sender_name || msg.sender_email}
+                      {commit.pledgeType === 'gift' ? '🎁' : '💰'} {msg.sender_name || msg.sender_email}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <p className="text-sm text-emerald-100 mt-0.5">
-                    pledged{' '}
+                    {commit.pledgeType === 'gift' ? 'pledged a gift of' : 'pledged'}{' '}
                     <span className="font-bold mono">
                       ${commit.amount.toLocaleString()} (USD)
                     </span>{' '}
