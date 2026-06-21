@@ -11,6 +11,8 @@ import Admin from "./pages/Admin";
 import DemoLogins from "./pages/DemoLogins";
 import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
+import EventLanding from "./pages/EventLanding";
+
 import HelpButton from "./components/HelpButton";
 
 const queryClient = new QueryClient();
@@ -29,7 +31,9 @@ const App = () => (
             <Route path="/session/:id" element={<Session />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/demo-logins" element={<DemoLogins />} />
+            <Route path="/event/:slug" element={<EventLanding />} />
             <Route path="/unsubscribe" element={<Unsubscribe />} />
+
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

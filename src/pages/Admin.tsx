@@ -20,6 +20,8 @@ import { motion } from 'framer-motion';
 import DemoModeBanner from '@/components/DemoModeBanner';
 import TimePicker from '@/components/TimePicker';
 import TimezonePicker from '@/components/TimezonePicker';
+import EventLandingAdminCard from '@/components/EventLandingAdminCard';
+
 import { reportError } from '@/lib/logError';
 import { externalLinkHandler } from '@/lib/openExternal';
 import {
@@ -54,6 +56,12 @@ interface SessionRow {
   end_time: string;
   timezone: string;
   status: string;
+  // Issue #44: event landing page fields
+  slug?: string | null;
+  hero_image_url?: string | null;
+  description?: string | null;
+  max_attendees?: number | null;
+  is_full?: boolean | null;
 }
 
 interface ParticipantRow {
@@ -66,7 +74,12 @@ interface ParticipantRow {
   website_link: string | null;
   funding_goal: number | null;
   invite_sent_at: string | null;
+  // Issue #44: self-signup workflow
+  approved?: boolean | null;
+  image_url?: string | null;
+  investor_class?: 'accredited' | 'community' | null;
 }
+
 
 interface InvestmentRow {
   id: string;
@@ -1497,8 +1510,48 @@ export default function Admin() {
                 </Card>
 
 
+                {/* Issue #44: Event landing-page controls.
+                    The slug drives the /event/:slug public URL. Hero image,
+                    description, max attendees, and the "Mark session full"
+                    toggle all flow through the same admin-action update_session
+                    handler. */}
+                <EventLandingAdminCard
+                  session={selectedSession}
+                  participants={participants}
+                  onUpdated={(updated) => {
+                    setSelectedSession(updated);
+                    fetchSessions();
+                  }}
+                  onApproveParticipant={async (p) => {
+                    const { error } = await invokeAdmin('update_participant', {
+                      id: p.id,
+                      approved: true,
+                    });
+                    if (error) {
+                      toast.error('Failed to approve');
+                      return;
+                    }
+                    toast.success(
+                      `${p.email} approved. Use the "Send invitation" button in the Participants list to email them their login link.`,
+                      { duration: 10000 },
+                    );
+                    fetchParticipants(selectedSession.id);
+                  }}
+                  onRejectParticipant={async (p) => {
+                    if (!confirm(`Remove signup request from ${p.email}?`)) return;
+                    const { error } = await invokeAdmin('delete_participant', { id: p.id });
+                    if (error) {
+                      toast.error('Failed to remove');
+                      return;
+                    }
+                    toast.success('Signup removed');
+                    fetchParticipants(selectedSession.id);
+                  }}
+                />
+
                 {/* Participants */}
                 <Card>
+
                   <CardHeader className="flex flex-row items-center justify-between gap-2">
                     <CardTitle className="flex items-center gap-2">
                       <Users className="w-5 h-5" /> Participants

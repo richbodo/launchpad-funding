@@ -250,12 +250,14 @@ export type Database = {
       }
       session_participants: {
         Row: {
+          approved: boolean
           created_at: string
           dd_room_link: string | null
           display_name: string | null
           email: string
           funding_goal: number | null
           id: string
+          image_url: string | null
           investor_class: string | null
           invite_sent_at: string | null
           is_logged_in: boolean
@@ -267,12 +269,14 @@ export type Database = {
           website_link: string | null
         }
         Insert: {
+          approved?: boolean
           created_at?: string
           dd_room_link?: string | null
           display_name?: string | null
           email: string
           funding_goal?: number | null
           id?: string
+          image_url?: string | null
           investor_class?: string | null
           invite_sent_at?: string | null
           is_logged_in?: boolean
@@ -284,12 +288,14 @@ export type Database = {
           website_link?: string | null
         }
         Update: {
+          approved?: boolean
           created_at?: string
           dd_room_link?: string | null
           display_name?: string | null
           email?: string
           funding_goal?: number | null
           id?: string
+          image_url?: string | null
           investor_class?: string | null
           invite_sent_at?: string | null
           is_logged_in?: boolean
@@ -314,9 +320,14 @@ export type Database = {
         Row: {
           created_at: string
           created_by: string | null
+          description: string | null
           end_time: string
+          hero_image_url: string | null
           id: string
+          is_full: boolean
+          max_attendees: number
           name: string
+          slug: string | null
           start_time: string
           status: Database["public"]["Enums"]["session_status"]
           timezone: string
@@ -325,9 +336,14 @@ export type Database = {
         Insert: {
           created_at?: string
           created_by?: string | null
+          description?: string | null
           end_time: string
+          hero_image_url?: string | null
           id?: string
+          is_full?: boolean
+          max_attendees?: number
           name: string
+          slug?: string | null
           start_time: string
           status?: Database["public"]["Enums"]["session_status"]
           timezone?: string
@@ -336,9 +352,14 @@ export type Database = {
         Update: {
           created_at?: string
           created_by?: string | null
+          description?: string | null
           end_time?: string
+          hero_image_url?: string | null
           id?: string
+          is_full?: boolean
+          max_attendees?: number
           name?: string
+          slug?: string | null
           start_time?: string
           status?: Database["public"]["Enums"]["session_status"]
           timezone?: string
