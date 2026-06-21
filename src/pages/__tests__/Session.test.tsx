@@ -97,11 +97,15 @@ vi.mock('@/integrations/supabase/client', () => ({
           insert: vi.fn().mockResolvedValue({ error: null }),
         };
       }
-      // Default fallback — support .select().eq().order() chains
+      // Default fallback — support .select().eq().order().limit() chains
       return {
         select: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            order: vi.fn().mockResolvedValue({ data: [], error: null }),
+            order: vi.fn().mockReturnValue({
+              limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+              // Some callers await .order() directly
+              then: (resolve: any) => resolve({ data: [], error: null }),
+            }),
           }),
         }),
       };
