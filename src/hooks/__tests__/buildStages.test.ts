@@ -84,12 +84,13 @@ describe('buildStages', () => {
     expect(pres.label).toContain('founder@startup.io');
   });
 
-  it('durations: intro=300s, presentation=300s, qa=180s, outro=300s', () => {
+  it('durations: intro=300s, presentation=300s, qa=300s, outro=300s', () => {
     const stages = buildStages([makeStartup('a@test.com', 'Alpha', 1)]);
     const byType = (t: string) => stages.find(s => s.type === t)!;
     expect(byType('intro').durationSeconds).toBe(300);
     expect(byType('presentation').durationSeconds).toBe(300);
-    expect(byType('qa').durationSeconds).toBe(180);
+    // Q&A bumped from 3 → 5 min per issue #39.
+    expect(byType('qa').durationSeconds).toBe(300);
     expect(byType('outro').durationSeconds).toBe(300);
   });
 });
