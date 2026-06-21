@@ -30,6 +30,10 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole | null>(null);
+  // Issue #41: investors choose a class (accredited vs community supporter)
+  // before submitting. Defaults to 'accredited' so existing behavior is
+  // preserved for users who don't think about it.
+  const [investorClass, setInvestorClass] = useState<InvestorClass>('accredited');
   const [activeSessions, setActiveSessions] = useState<ActiveSession[]>([]);
   const [selectedSession, setSelectedSession] = useState<string>('');
   const [loading, setLoading] = useState(false);
