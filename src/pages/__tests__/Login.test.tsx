@@ -216,4 +216,36 @@ describe('Login Page', () => {
     fireEvent.click(eyeButton!);
     expect(passwordInput).toHaveAttribute('type', 'password');
   });
+
+  // Regression test for GitHub issue #32 — "Magic-link login unreliable on first
+  // attempt". A slow/hanging participant-presence edge call used to strand users
+  // on the "Joining…" screen. completeLogin must navigate BEFORE awaiting any
+  // background side-effects so first-click magic links always land in-session.
+  it('navigates to session even when participant-presence call hangs (issue #32)', async () => {
+    setParticipantMock({
+      id: 'p-99',
+      email: 'investor@test.com',
+      role: 'investor',
+      display_name: 'Investor',
+      is_logged_in: false,
+    });
+    // Simulate a hanging edge function — never resolves.
+    const { supabase } = await import('@/integrations/supabase/client');
+    (supabase.functions.invoke as any).mockImplementation(
+      () => new Promise(() => {})
+    );
+
+    renderLogin();
+    await waitFor(() => expect(screen.getByText('Investor')).toBeInTheDocument());
+    fireEvent.change(screen.getByPlaceholderText('you@company.com'), {
+      target: { value: 'investor@test.com' },
+    });
+    fireEvent.click(screen.getByText('Investor'));
+
+    // Navigate must fire even though the background presence call never resolves.
+    await waitFor(
+      () => expect(mockNavigate).toHaveBeenCalledWith('/session/session-1'),
+      { timeout: 1500 }
+    );
+  });
 });
