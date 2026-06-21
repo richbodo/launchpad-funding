@@ -640,7 +640,7 @@ export default function SessionPage() {
                         onClick={() => setStageIdentity(s.email)}
                         disabled={isOnStage}
                       >
-                        <Monitor className="w-4 h-4 mr-1" />
+                        <Eye className="w-4 h-4 mr-1" />
                         {isOnStage ? 'On Stage' : 'Take Stage'}
                       </Button>
                       <AdminMuteButton
