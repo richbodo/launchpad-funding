@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { act, render, screen } from '@testing-library/react';
 import '@/test/mocks/livekit';
 import VideoPane from '../VideoPane';
 
@@ -100,5 +100,34 @@ describe('VideoPane', () => {
     });
     expect(screen.getByText('Test Label')).toBeInTheDocument();
     expect(screen.getByText('Test Sublabel')).toBeInTheDocument();
+  });
+
+  // Regression test for GitHub issue #33:
+  // When a remote LiveKit track never arrives for a participant we expect a
+  // joining placeholder, then — after the 12s watchdog — an automatic
+  // "Taking longer than usual…" message with a Refresh button (the recovery
+  // path users had to discover manually by leaving and rejoining).
+  it('surfaces Refresh button after 12s when remote track never arrives', async () => {
+    vi.useFakeTimers();
+    try {
+      renderVideoPane({
+        label: 'AlphaTech',
+        participantIdentity: 'startup-a@test.com',
+      });
+
+      // Before the watchdog fires we should just see the joining state.
+      expect(screen.queryByText(/Taking longer than usual/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Refresh/i })).not.toBeInTheDocument();
+
+      // Advance past the 12s stale-track watchdog.
+      await act(async () => {
+        vi.advanceTimersByTime(12_000);
+      });
+
+      expect(screen.getByText(/Taking longer than usual/i)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Refresh/i })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
