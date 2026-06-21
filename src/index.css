@@ -124,3 +124,29 @@
     font-family: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
   }
 }
+
+/* Issue #42: always-visible scrollbar for the session left pane on desktop.
+   WebKit hides overlay scrollbars unless an element is being scrolled, which
+   made it non-obvious that the facilitator's vertical video list scrolls when
+   there are many startups. This forces a slim, themed, persistent track. */
+.left-pane-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.left-pane-scroll::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.4);
+  border-radius: 6px;
+}
+.left-pane-scroll::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.5);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.left-pane-scroll::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.8);
+}
+.left-pane-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.5) hsl(var(--muted) / 0.4);
+}
+
