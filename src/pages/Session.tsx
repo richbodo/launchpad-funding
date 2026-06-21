@@ -562,7 +562,7 @@ export default function SessionPage() {
                         onClick={() => setStageIdentity(f.email)}
                         disabled={isOnStage}
                       >
-                        <Monitor className="w-4 h-4 mr-1" />
+                        <Eye className="w-4 h-4 mr-1" />
                         {isOnStage ? 'On Stage' : 'Take Stage'}
                       </Button>
                       {f.email === user.email ? (
@@ -640,7 +640,7 @@ export default function SessionPage() {
                         onClick={() => setStageIdentity(s.email)}
                         disabled={isOnStage}
                       >
-                        <Monitor className="w-4 h-4 mr-1" />
+                        <Eye className="w-4 h-4 mr-1" />
                         {isOnStage ? 'On Stage' : 'Take Stage'}
                       </Button>
                       <AdminMuteButton
@@ -704,17 +704,20 @@ export default function SessionPage() {
             })()}
           </div>
 
-          {/* Present button — visible to the on-stage participant */}
-          {isConnected && (() => {
+          {/* Present button — visible to all on-call presenters; clearly
+              disabled with an explanation when they're not the on-stage one.
+              Issue #37: Diraj couldn't find how to share once on stage. */}
+          {isConnected && user.role !== 'investor' && (() => {
             const onStageEmail = stageIdentity || currentStartup?.email;
-            if (onStageEmail && onStageEmail === user.email) {
-              return (
-                <div className="flex justify-center mt-2">
-                  <ScreenShareButton currentStageIndex={currentStageIndex} />
-                </div>
-              );
-            }
-            return null;
+            const isOnStage = !!onStageEmail && onStageEmail === user.email;
+            return (
+              <div className="flex justify-center mt-2">
+                <ScreenShareButton
+                  currentStageIndex={currentStageIndex}
+                  isOnStage={isOnStage}
+                />
+              </div>
+            );
           })()}
 
           {/* Audio controls — below the stage */}
@@ -723,15 +726,17 @@ export default function SessionPage() {
             {isConnected && user.role !== 'investor' && (
               <MicToggleButton currentStageIndex={currentStageIndex} currentStageType={currentStage?.type} userRole={user.role} />
             )}
-            {/* Personal volume mute — all roles, no LiveKit hooks needed */}
+            {/* Personal volume mute — all roles, no LiveKit hooks needed.
+                Labeled distinctly from the mic mute (issue #37). */}
             <Button
               variant="ghost"
               size="sm"
               onClick={() => setLocalMuted(m => !m)}
-              title={localMuted ? 'Unmute app audio' : 'Mute app audio'}
+              title={localMuted ? 'Unmute call audio for yourself only' : 'Mute call audio for yourself only (others still hear)'}
               data-testid="personal-mute-btn"
             >
-              {localMuted ? <VolumeOff className="w-4 h-4 text-destructive" /> : <Volume2 className="w-4 h-4" />}
+              {localMuted ? <VolumeOff className="w-4 h-4 mr-1 text-destructive" /> : <Volume2 className="w-4 h-4 mr-1" />}
+              <span className="text-xs">{localMuted ? 'Unmute audio' : 'Mute audio'}</span>
             </Button>
           </div>
 
@@ -1059,20 +1064,21 @@ function MicToggleButton({ currentStageIndex, currentStageType, userRole }: {
 
   return (
     <Button
-      variant="ghost"
+      variant={isMicOn ? 'ghost' : 'destructive'}
       size="sm"
       onClick={handleToggle}
-      title={isMicOn ? 'Mute your mic' : 'Unmute your mic'}
+      title={isMicOn ? 'Mute your microphone (others won\'t hear you)' : 'Unmute your microphone'}
       data-testid="mic-toggle-btn"
     >
-      {isMicOn ? <Mic className="w-4 h-4" /> : <MicOff className="w-4 h-4 text-destructive" />}
+      {isMicOn ? <Mic className="w-4 h-4 mr-1" /> : <MicOff className="w-4 h-4 mr-1" />}
+      <span className="text-xs">{isMicOn ? 'Mute me' : 'Unmute me'}</span>
     </Button>
   );
 }
 
 // ── Screen share button (must be rendered inside LiveKitRoom) ────────
 
-function ScreenShareButton({ currentStageIndex }: { currentStageIndex: number }) {
+function ScreenShareButton({ currentStageIndex, isOnStage }: { currentStageIndex: number; isOnStage: boolean }) {
   const { localParticipant } = useLocalParticipant();
   const isSharing = localParticipant.isScreenShareEnabled;
   const stageRef = useRef(currentStageIndex);
@@ -1118,13 +1124,24 @@ function ScreenShareButton({ currentStageIndex }: { currentStageIndex: number })
     }
   };
 
+  // Issue #37: keep the button visible even when not on stage so the
+  // affordance is discoverable, but disable it with an explanatory tooltip.
+  const disabled = !isOnStage && !isSharing;
+
   return (
     <Button
       data-testid="present-btn"
       variant={isSharing ? 'destructive' : 'outline'}
       size="sm"
       onClick={handleToggle}
-      title={isSharing ? 'Stop sharing your screen' : 'Share your screen'}
+      disabled={disabled}
+      title={
+        disabled
+          ? 'Screen sharing is available once you\'re on stage'
+          : isSharing
+            ? 'Stop sharing your screen with everyone'
+            : 'Share your screen with everyone in the session'
+      }
     >
       {isSharing ? (
         <><MonitorOff className="w-4 h-4 mr-1" /> Stop Presenting</>
