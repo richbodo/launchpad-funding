@@ -539,7 +539,13 @@ export default function SessionPage() {
       {/* Main content: 3-pane layout */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left pane: Facilitator video(s) + startup previews */}
-        <div className="md:w-72 lg:w-80 shrink-0 p-3 border-b md:border-b-0 md:border-r border-border flex flex-col gap-2 overflow-y-auto">
+        {/* Issue #42: force an always-visible scrollbar on desktop so facilitators
+            with many startups can see at a glance that the pane scrolls.
+            `overflow-y-scroll` reserves the track on every platform; the
+            `left-pane-scroll` class re-styles WebKit's normally-hidden
+            overlay scrollbar to be permanently visible. */}
+        <div className="md:w-72 lg:w-80 shrink-0 p-3 border-b md:border-b-0 md:border-r border-border flex flex-col gap-2 overflow-y-scroll left-pane-scroll [scrollbar-gutter:stable]">
+
           {facilitators.length > 0 ? (
             facilitators.slice(0, 3).map((f) => {
               const isOnStage = stageIdentity === f.email;
