@@ -887,6 +887,7 @@ export default function SessionPage() {
           sessionId={id}
           startupName={currentStartup.display_name || currentStartup.email}
           startupEmail={currentStartup.email}
+          pledgeType={investPledgeType}
         />
       )}
 
