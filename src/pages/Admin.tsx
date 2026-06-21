@@ -54,6 +54,12 @@ interface SessionRow {
   end_time: string;
   timezone: string;
   status: string;
+  // Issue #44: event landing page fields
+  slug?: string | null;
+  hero_image_url?: string | null;
+  description?: string | null;
+  max_attendees?: number | null;
+  is_full?: boolean | null;
 }
 
 interface ParticipantRow {
@@ -66,7 +72,12 @@ interface ParticipantRow {
   website_link: string | null;
   funding_goal: number | null;
   invite_sent_at: string | null;
+  // Issue #44: self-signup workflow
+  approved?: boolean | null;
+  image_url?: string | null;
+  investor_class?: 'accredited' | 'community' | null;
 }
+
 
 interface InvestmentRow {
   id: string;
