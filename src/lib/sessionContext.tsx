@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { supabase } from '@/integrations/supabase/client';
 
 export type UserRole = 'investor' | 'startup' | 'facilitator';
+export type InvestorClass = 'accredited' | 'community';
 
 export interface SessionUser {
   /** session_participants.id — required so presence flips don't need a UPDATE policy */
@@ -10,6 +11,11 @@ export interface SessionUser {
   role: UserRole;
   displayName: string;
   sessionId: string;
+  /**
+   * Only meaningful when role === 'investor'. Issue #41: distinguishes
+   * accredited investors (equity + gift) from community supporters (gift only).
+   */
+  investorClass?: InvestorClass;
 }
 
 interface SessionContextType {
