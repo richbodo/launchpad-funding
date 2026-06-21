@@ -180,7 +180,10 @@ describe('EventLandingAdminCard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Approve/i }));
     await waitFor(() => expect(onApprove).toHaveBeenCalledWith(participants[0]));
 
-    fireEvent.click(screen.getByRole('button', { name: '' })); // ghost X button has no label text
+    const rejectBtn = screen
+      .getAllByRole('button')
+      .find((b) => b.querySelector('svg.lucide-x') && !b.textContent?.match(/Approve/i));
+    fireEvent.click(rejectBtn!);
     await waitFor(() => expect(onReject).toHaveBeenCalledWith(participants[0]));
   });
 
