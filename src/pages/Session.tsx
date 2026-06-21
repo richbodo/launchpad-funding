@@ -955,8 +955,18 @@ export default function SessionPage() {
           video={user.role !== 'investor'}
           audio={user.role !== 'investor'}
           style={{ display: 'contents' }}
-          onDisconnected={() => { reset(); setCallState('idle'); }}
-          onError={(err) => console.error('LiveKit error:', err)}
+          // Explicit subscribe + adaptive defaults — Issue #33 diagnostics.
+          // autoSubscribe ensures remote tracks flow without per-component opt-in,
+          // adaptiveStream/dynacast keep bandwidth sane when many tiles render.
+          connectOptions={{ autoSubscribe: true }}
+          options={{ adaptiveStream: true, dynacast: true }}
+          onConnected={() => console.info('[LiveKit] connected')}
+          onDisconnected={() => {
+            console.info('[LiveKit] disconnected');
+            reset();
+            setCallState('idle');
+          }}
+          onError={(err) => console.error('[LiveKit] error:', err)}
         >
           {sessionContent}
           <RoomAudioRenderer muted={localMuted} />
@@ -964,6 +974,7 @@ export default function SessionPage() {
       ) : (
         sessionContent
       )}
+
 
       {/* Startup metadata editing dialog */}
       {user.role === 'startup' && (
