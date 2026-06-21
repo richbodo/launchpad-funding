@@ -21,6 +21,7 @@ import DemoModeBanner from '@/components/DemoModeBanner';
 import TimePicker from '@/components/TimePicker';
 import TimezonePicker from '@/components/TimezonePicker';
 import EventLandingAdminCard from '@/components/EventLandingAdminCard';
+import ImageUploadField from '@/components/ImageUploadField';
 
 import { reportError } from '@/lib/logError';
 import { externalLinkHandler } from '@/lib/openExternal';
@@ -170,6 +171,7 @@ export default function Admin() {
   const [metaDDRoom, setMetaDDRoom] = useState('');
   const [metaWebsite, setMetaWebsite] = useState('');
   const [metaFundingGoal, setMetaFundingGoal] = useState('');
+  const [metaImageUrl, setMetaImageUrl] = useState('');
 
   // Send email dialog
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -1146,6 +1148,7 @@ export default function Admin() {
       dd_room_link: metaDDRoom || null,
       website_link: metaWebsite || null,
       funding_goal: metaFundingGoal ? parseFloat(metaFundingGoal) : null,
+      image_url: metaImageUrl || null,
     });
     if (error || data?.error) {
       toast.error('Failed to save metadata');
@@ -1161,6 +1164,7 @@ export default function Admin() {
     setMetaDDRoom(p.dd_room_link || '');
     setMetaWebsite(p.website_link || '');
     setMetaFundingGoal(p.funding_goal != null ? String(p.funding_goal) : '');
+    setMetaImageUrl(p.image_url || '');
   };
 
   const toggleSort = (col: 'role' | 'display_name') => {
@@ -2178,6 +2182,16 @@ export default function Admin() {
                 className="mt-1"
               />
             </div>
+            {metaParticipant && (
+              <ImageUploadField
+                label="Photo / logo"
+                value={metaImageUrl}
+                onChange={setMetaImageUrl}
+                kind="participant"
+                refId={metaParticipant.id}
+                helpText="Square images look best. Max 5MB."
+              />
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setMetaParticipant(null)}>Cancel</Button>
