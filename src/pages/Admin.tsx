@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
-import { useDemoMode } from '@/hooks/useDemoMode';
+import { useDemoMode, clearDemoModeCache } from '@/hooks/useDemoMode';
 import { setAdminToken, getAdminToken, clearAdminToken } from '@/lib/adminAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -591,6 +591,7 @@ export default function Admin() {
         if (error || data?.error) throw new Error(data?.error || 'Cleanup failed');
         toast.success('Demo mode disabled, demo data cleaned up');
       }
+      clearDemoModeCache();
       setDemoMode(enabled);
       fetchSessions();
     } catch (err: any) {
