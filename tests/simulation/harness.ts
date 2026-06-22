@@ -27,9 +27,10 @@ export interface SeededSession {
 }
 
 function psql(sql: string): string {
-  return execSync(`psql -tA -v ON_ERROR_STOP=1 -c ${JSON.stringify(sql)}`, {
+  return execSync(`psql -tA -v ON_ERROR_STOP=1`, {
     encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
+    input: sql,
+    stdio: ["pipe", "pipe", "pipe"],
   }).trim();
 }
 
