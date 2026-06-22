@@ -195,21 +195,22 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(machine.currentStage.startupIndex).toBe(0);
 
     await acc1.invest(startupA, 1_000);
-    recordCommitment(startupA.email, "equity", 1_000);
+    recordCommitment(startupA.email, "equity", 1_000, acc1.email);
     await acc1.invest(startupA, 5_000);
-    recordCommitment(startupA.email, "equity", 5_000);
+    recordCommitment(startupA.email, "equity", 5_000, acc1.email);
     await acc1.invest(startupA, 10_000);
-    recordCommitment(startupA.email, "equity", 10_000);
+    recordCommitment(startupA.email, "equity", 10_000, acc1.email);
     await acc2.invest(startupA, 2_000);
-    recordCommitment(startupA.email, "equity", 2_000);
+    recordCommitment(startupA.email, "equity", 2_000, acc2.email);
     await acc2.pledge(startupA, 50);
-    recordCommitment(startupA.email, "gift", 50);
+    recordCommitment(startupA.email, "gift", 50, acc2.email);
     await com1.pledge(startupA, 20);
-    recordCommitment(startupA.email, "gift", 20);
+    recordCommitment(startupA.email, "gift", 20, com1.email);
     await com1.pledge(startupA, 80);
-    recordCommitment(startupA.email, "gift", 80);
+    recordCommitment(startupA.email, "gift", 80, com1.email);
 
     await com2.logout();
+    recordLogout(com2.email);
     await post(startupA, "Thanks for the questions!");
 
     // Checkpoint A
@@ -231,6 +232,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(machine.currentStage.type).toBe("qa");
 
     await com2.rejoin();
+    recordLogin(com2.email);
     const rejoinCheck = await anon
       .from("session_participants")
       .select("is_logged_in")
@@ -242,7 +244,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     // rejected before any DB write.
     await expect(acc1.pledge(startupA, 150)).rejects.toThrow(/cap exceeded/);
     await acc1.pledge(startupA, 100);
-    recordCommitment(startupA.email, "gift", 100);
+    recordCommitment(startupA.email, "gift", 100, acc1.email);
     await post(fac, "Great pitch from A");
 
     const aRows2 = await anon
@@ -273,9 +275,9 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(refetched.data).toMatchObject(newMeta);
 
     await acc2.invest(startupB, 25_000);
-    recordCommitment(startupB.email, "equity", 25_000);
+    recordCommitment(startupB.email, "equity", 25_000, acc2.email);
     await com1.pledge(startupB, 40);
-    recordCommitment(startupB.email, "gift", 40);
+    recordCommitment(startupB.email, "gift", 40, com1.email);
 
     // ---- 7. Startup B Q&A: cross-role chat burst ----------------------------
     machine.next();
@@ -290,9 +292,9 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     machine.next();
     expect(machine.currentStage.startupIndex).toBe(2);
     await acc1.invest(startupC, 7_500);
-    recordCommitment(startupC.email, "equity", 7_500);
+    recordCommitment(startupC.email, "equity", 7_500, acc1.email);
     await com2.pledge(startupC, 25);
-    recordCommitment(startupC.email, "gift", 25);
+    recordCommitment(startupC.email, "gift", 25, com2.email);
     machine.next();
     expect(machine.currentStage.type).toBe("qa");
     await post(startupC, "Q&A for C — fire away");
