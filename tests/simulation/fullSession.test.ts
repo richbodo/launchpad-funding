@@ -383,12 +383,51 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
       .map((m) => ({ email: m.sender_email, role: m.sender_role, message: m.message }));
     expect(humanMessages).toEqual(chatLedger);
 
-    // session_logs has one investment event per commitment (read via psql —
-    // anon role can't SELECT session_logs).
-    const logCountRaw = execSync(
-      `psql -tA -c "SELECT count(*) FROM public.session_logs WHERE session_id='${seeded.sessionId}' AND event_type='investment';"`,
+    // session_logs ordered ledger check. Anon can't SELECT session_logs, so
+    // we read via psql (matches the seeded-smoke pattern). We assert:
+    //   (a) the row count matches the local ledger,
+    //   (b) the (event_type, actor_email) sequence — ordered by created_at,
+    //       tie-broken by id — exactly matches the ledger,
+    //   (c) created_at is strictly non-decreasing (no rows out of time order).
+    //
+    // Note: stage transitions, metadata edits, and chat messages are
+    // intentionally not part of session_logs in this app; they're covered by
+    // the StageMachine assertions and chatLedger comparison above.
+    const logsRaw = execSync(
+      `psql -tA -F '|' -c "SELECT event_type, actor_email, extract(epoch from created_at)::text FROM public.session_logs WHERE session_id='${seeded.sessionId}' ORDER BY created_at ASC, id ASC;"`,
       { encoding: "utf8" },
-    ).trim();
-    expect(Number(logCountRaw)).toBe(commitCount);
+    );
+    const logRows = logsRaw
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !/^(INSERT|UPDATE|DELETE|SELECT)\s+\d/.test(l))
+      .map((l) => {
+        const [event_type, actor_email, ts] = l.split("|");
+        return { event_type, actor_email, ts: Number(ts) };
+      });
+
+    // (a) row count
+    expect(logRows.length).toBe(eventLedger.length);
+
+    // (b) exact ordered sequence
+    expect(
+      logRows.map((r) => ({ event_type: r.event_type, actor_email: r.actor_email })),
+    ).toEqual(eventLedger);
+
+    // (c) timestamps non-decreasing
+    for (let i = 1; i < logRows.length; i += 1) {
+      expect(logRows[i].ts).toBeGreaterThanOrEqual(logRows[i - 1].ts);
+    }
+
+    // Spot checks per event type, derived from the ledger.
+    const investmentCount = eventLedger.filter((e) => e.event_type === "investment").length;
+    const loginCount = eventLedger.filter((e) => e.event_type === "login").length;
+    const logoutCount = eventLedger.filter((e) => e.event_type === "logout").length;
+    expect(investmentCount).toBe(commitCount);
+    expect(loginCount).toBe(8 + 1); // 8 initial joins + 1 rejoin (com2)
+    expect(logoutCount).toBe(1); // com2 left once
+    // Facilitator log appears (joins are the facilitator's first row).
+    expect(logRows[0]).toMatchObject({ event_type: "login", actor_email: fac.email });
   });
 });
+
