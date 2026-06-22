@@ -170,7 +170,7 @@ Deno.serve(async (req) => {
         email: "facilitator@demo.com",
         display_name: "Facilitator 1",
         role: "facilitator",
-        password_hash: "demo123",
+        password_hash: DEMO_FACILITATOR_PASSWORD,
         image_url: avatarImg("facilitator-1"),
       },
       {
@@ -178,7 +178,7 @@ Deno.serve(async (req) => {
         email: "admin@demo.com",
         display_name: "Facilitator 2",
         role: "facilitator",
-        password_hash: "demo123",
+        password_hash: DEMO_FACILITATOR_PASSWORD,
         image_url: avatarImg("facilitator-2"),
       },
     ];
