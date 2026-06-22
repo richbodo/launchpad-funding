@@ -2261,37 +2261,73 @@ export default function Admin() {
       <Dialog open={!!metaParticipant} onOpenChange={open => { if (!open) setMetaParticipant(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Startup Metadata — {metaParticipant?.display_name || metaParticipant?.email}</DialogTitle>
+            <DialogTitle>
+              {metaParticipant?.role === 'facilitator' ? 'Facilitator Bio' : 'Startup Metadata'} — {metaParticipant?.display_name || metaParticipant?.email}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <Label>Funding Goal ($)</Label>
-              <Input
-                type="number"
-                value={metaFundingGoal}
-                onChange={e => setMetaFundingGoal(e.target.value)}
-                placeholder="125000"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label>DD Room Link</Label>
-              <Input
-                value={metaDDRoom}
-                onChange={e => setMetaDDRoom(e.target.value)}
-                placeholder="https://..."
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label>Website Link</Label>
-              <Input
-                value={metaWebsite}
-                onChange={e => setMetaWebsite(e.target.value)}
-                placeholder="https://..."
-                className="mt-1"
-              />
-            </div>
+            {metaParticipant?.role === 'startup' && (
+              <>
+                <div>
+                  <Label>
+                    Description <span className="text-destructive">*</span>
+                    <span className="ml-1 text-xs text-muted-foreground">(about two sentences)</span>
+                  </Label>
+                  <textarea
+                    rows={3}
+                    maxLength={600}
+                    value={metaDescription}
+                    onChange={e => setMetaDescription(e.target.value)}
+                    placeholder="One or two sentences describing what this startup does."
+                    className="mt-1 flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+                <div>
+                  <Label>Funding Goal ($)</Label>
+                  <Input
+                    type="number"
+                    value={metaFundingGoal}
+                    onChange={e => setMetaFundingGoal(e.target.value)}
+                    placeholder="125000"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>DD Room Link</Label>
+                  <Input
+                    value={metaDDRoom}
+                    onChange={e => setMetaDDRoom(e.target.value)}
+                    placeholder="https://..."
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Website Link</Label>
+                  <Input
+                    value={metaWebsite}
+                    onChange={e => setMetaWebsite(e.target.value)}
+                    placeholder="https://..."
+                    className="mt-1"
+                  />
+                </div>
+              </>
+            )}
+            {metaParticipant?.role === 'facilitator' && (
+              <div>
+                <Label>
+                  Bio <span className="ml-1 text-xs text-muted-foreground">(optional, up to 500 characters)</span>
+                </Label>
+                <textarea
+                  rows={6}
+                  maxLength={500}
+                  value={metaBio}
+                  onChange={e => setMetaBio(e.target.value.slice(0, 500))}
+                  placeholder="Short bio shown on the public event page."
+                  className="mt-1 flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <div className="text-right text-xs text-muted-foreground mt-1">{metaBio.length}/500</div>
+              </div>
+            )}
             {metaParticipant && (
               <ImageUploadField
                 label="Photo / logo"
@@ -2309,6 +2345,7 @@ export default function Admin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Send Email Dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={open => { if (!open) { setEmailDialogOpen(false); setPendingParticipant(null); } }}>
