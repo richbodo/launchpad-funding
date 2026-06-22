@@ -314,10 +314,8 @@ JSON
   [ -n "$NEW_SID" ] && CREATED_SESSION_IDS+=("$NEW_SID")
 
   # And confirm the row is actually queryable post-write.
-  res=$(srest GET "/sessions?id=eq.$NEW_SID&select=id,name")
-  s=$(split_status "$res"); b=$(split_body "$res")
-  ok="0"; [ "$s" = "200" ] && echo "$b" | grep -q "$CREATE_NAME" && ok="1"
-  check "created session is readable via REST" "$ok" "status=$s body=$b"
+  found=$(session_has_name "$NEW_SID" "$CREATE_NAME")
+  check "created session is readable" "$found" "id=$NEW_SID"
 fi
 
 # ── Summary ───────────────────────────────────────────────────────────────────
