@@ -154,6 +154,9 @@ interface ParticipantRow {
   approved?: boolean | null;
   image_url?: string | null;
   investor_class?: 'accredited' | 'community' | null;
+  // Per-role narrative metadata
+  description?: string | null; // startups
+  bio?: string | null;         // facilitators
 }
 
 
