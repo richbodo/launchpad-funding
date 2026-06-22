@@ -41,6 +41,19 @@ if [ -z "$SUPABASE_URL" ] || [ -z "$ANON_KEY" ]; then
   exit 2
 fi
 
+# Safety net: refuse to seed [SMOKE] rows into the production project unless
+# explicitly overridden. Prevents the script from polluting prod when run
+# from a shell that happens to have prod env vars loaded.
+PROD_PROJECT_REF="bjtnmtdmgjkdnztgbaau"
+if [ "${FUNDFLOW_ALLOW_PROD:-0}" != "1" ]; then
+  if echo "$SUPABASE_URL" | grep -q "$PROD_PROJECT_REF" \
+     || echo "${PGHOST:-}" | grep -q "$PROD_PROJECT_REF"; then
+    echo "❌  Refusing to run seeded-smoke against the production Supabase project ($PROD_PROJECT_REF)." >&2
+    echo "    Point SUPABASE_URL/PGHOST at a dev project, or set FUNDFLOW_ALLOW_PROD=1 to override." >&2
+    exit 2
+  fi
+fi
+
 # Seeding/cleanup uses one of two backends, in this priority order:
 #   1. SUPABASE_SERVICE_ROLE_KEY → REST writes (works from any machine)
 #   2. PGHOST/psql                → direct DB writes (used in CI sandboxes)

@@ -18,6 +18,26 @@ import { buildStages, type Stage } from "@/hooks/useSessionStages";
 
 export const SIM_TAG = "[SIM]";
 
+/**
+ * Safety net: refuse to run against the production Supabase project. The
+ * simulation seeds rows directly via psql (using whatever PG* env the shell
+ * happens to have), so accidentally pointing it at prod would litter the
+ * live database with `[SIM]` sessions. Bypass with FUNDFLOW_ALLOW_PROD=1
+ * if you really mean it.
+ */
+const PROD_PROJECT_REF = "bjtnmtdmgjkdnztgbaau";
+function assertNotProd(): void {
+  if (process.env.FUNDFLOW_ALLOW_PROD === "1") return;
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || "";
+  const host = process.env.PGHOST || "";
+  if (url.includes(PROD_PROJECT_REF) || host.includes(PROD_PROJECT_REF)) {
+    throw new Error(
+      `Refusing to run the [SIM] harness against the production Supabase project (${PROD_PROJECT_REF}). ` +
+        `Point VITE_SUPABASE_URL / PGHOST at a dev project, or set FUNDFLOW_ALLOW_PROD=1 to override.`,
+    );
+  }
+}
+
 export interface SeededSession {
   sessionId: string;
   facilitator: { id: string; email: string; password: string };
@@ -50,6 +70,7 @@ function psql(sql: string): string {
  * `hash_participant_password` BEFORE INSERT trigger bcrypts it automatically.
  */
 export function seedSession(runId: string): SeededSession {
+  assertNotProd();
   const sessionName = `${SIM_TAG} ${runId}`;
   const slug = `sim-${runId.toLowerCase()}`;
 

@@ -512,12 +512,9 @@ export default function SessionPage() {
 
   const handleLogout = async () => {
     if (user && id) {
-      await supabase
-        .from('session_participants')
-        .update({ is_logged_in: false })
-        .eq('session_id', id)
-        .eq('email', user.email);
-
+      // is_logged_in is cleared inside SessionProvider.logout() via the
+      // participant-presence edge function. Direct UPDATE on
+      // session_participants is no longer allowed from the browser.
       await supabase.from('session_logs').insert({
         session_id: id,
         event_type: 'logout',
@@ -1245,6 +1242,8 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
   const [saving, setSaving] = useState(false);
   const loaded = useRef(false);
 
+  const [participantId, setParticipantId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!open) { loaded.current = false; return; }
     if (loaded.current) return;
@@ -1252,12 +1251,13 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
 
     supabase
       .from('session_participants')
-      .select('funding_goal, dd_room_link, website_link')
+      .select('id, funding_goal, dd_room_link, website_link')
       .eq('session_id', sessionId)
       .eq('email', email)
       .single()
       .then(({ data }) => {
         if (data) {
+          setParticipantId(data.id);
           setFundingGoal(data.funding_goal != null ? String(data.funding_goal) : '');
           setDdRoomLink(data.dd_room_link || '');
           setWebsiteLink(data.website_link || '');
@@ -1266,20 +1266,25 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
   }, [open, sessionId, email]);
 
   const handleSave = async () => {
+    if (!participantId) {
+      toast.error('Could not identify startup row');
+      return;
+    }
     setSaving(true);
     const updates: any = {
       funding_goal: fundingGoal ? parseFloat(fundingGoal) : null,
       dd_room_link: ddRoomLink || null,
       website_link: websiteLink || null,
     };
-    const { error } = await supabase
-      .from('session_participants')
-      .update(updates)
-      .eq('session_id', sessionId)
-      .eq('email', email);
+    // Direct UPDATE on session_participants is no longer allowed from the
+    // browser (RLS locked to service_role). Go through the edge function,
+    // which verifies the target row is role='startup'.
+    const { data, error } = await supabase.functions.invoke('startup-update-self', {
+      body: { participant_id: participantId, ...updates },
+    });
 
     setSaving(false);
-    if (error) {
+    if (error || data?.error) {
       toast.error('Failed to save startup info');
     } else {
       toast.success('Startup info saved');
