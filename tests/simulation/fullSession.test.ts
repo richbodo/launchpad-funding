@@ -422,13 +422,16 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     //   (a) the row count matches the local ledger,
     //   (b) the (event_type, actor_email) sequence — ordered by created_at,
     //       tie-broken by id — exactly matches the ledger,
-    //   (c) created_at is strictly non-decreasing (no rows out of time order).
+    //   (c) created_at is strictly non-decreasing (no rows out of time order),
+    //   (d) consecutive `stage_change` row deltas match the leaving stage's
+    //       configured duration (scaled by STAGE_TIME_SCALE_MS) within
+    //       DRIFT_MS — i.e. the timer config drives the observed cadence.
     //
-    // Note: stage transitions, metadata edits, and chat messages are
-    // intentionally not part of session_logs in this app; they're covered by
-    // the StageMachine assertions and chatLedger comparison above.
+    // Metadata edits and chat messages are intentionally not part of
+    // session_logs in this app; they're covered by the table queries and
+    // chatLedger comparison above.
     const logsRaw = execSync(
-      `psql -tA -F '|' -c "SELECT event_type, actor_email, extract(epoch from created_at)::text FROM public.session_logs WHERE session_id='${seeded.sessionId}' ORDER BY created_at ASC, id ASC;"`,
+      `psql -tA -F '|' -c "SELECT event_type, actor_email, extract(epoch from created_at)::text, event_data::text FROM public.session_logs WHERE session_id='${seeded.sessionId}' ORDER BY created_at ASC, id ASC;"`,
       { encoding: "utf8" },
     );
     const logRows = logsRaw
@@ -436,8 +439,13 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
       .map((l) => l.trim())
       .filter((l) => l && !/^(INSERT|UPDATE|DELETE|SELECT)\s+\d/.test(l))
       .map((l) => {
-        const [event_type, actor_email, ts] = l.split("|");
-        return { event_type, actor_email, ts: Number(ts) };
+        const [event_type, actor_email, ts, data] = l.split("|");
+        return {
+          event_type,
+          actor_email,
+          ts: Number(ts),
+          data: data ? (JSON.parse(data) as Record<string, unknown>) : null,
+        };
       });
 
     // (a) row count
@@ -453,15 +461,59 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
       expect(logRows[i].ts).toBeGreaterThanOrEqual(logRows[i - 1].ts);
     }
 
+    // (d) stage_change cadence vs. configured timers.
+    // Walk pairs of consecutive `stage_change` rows. The first row's
+    // event_data carries the duration of the stage we *left* — that should
+    // equal `(ts1 - ts0) / STAGE_TIME_SCALE_MS_IN_SECONDS` within tolerance.
+    const stageRows = logRows.filter((r) => r.event_type === "stage_change");
+    // 8 stages → 7 transitions logged.
+    expect(stageRows.length).toBe(machine.stages.length - 1);
+    for (let i = 1; i < stageRows.length; i += 1) {
+      const prev = stageRows[i - 1];
+      const cur = stageRows[i];
+      const deltaMs = (cur.ts - prev.ts) * 1000;
+      // The "configured_duration_seconds" on the *current* row is the stage
+      // we were sitting in between prev and cur (the one cur is leaving).
+      const configuredSeconds = Number(
+        (cur.data as { configured_duration_seconds?: number } | null)?.configured_duration_seconds,
+      );
+      expect(Number.isFinite(configuredSeconds)).toBe(true);
+      const expectedMs = configuredSeconds * STAGE_TIME_SCALE_MS;
+      // Drift tolerance covers REST round-trip for both the prev and cur
+      // session_logs inserts, plus setTimeout jitter.
+      expect(
+        Math.abs(deltaMs - expectedMs),
+        `stage_change[${i}] delta ${deltaMs.toFixed(0)}ms vs expected ${expectedMs}ms ` +
+          `(configured ${configuredSeconds}s * ${STAGE_TIME_SCALE_MS}ms/s)`,
+      ).toBeLessThanOrEqual(DRIFT_MS);
+      // Sanity: deltas are positive.
+      expect(deltaMs).toBeGreaterThan(0);
+    }
+    // Every stage_change row carries the expected event_data shape.
+    for (const r of stageRows) {
+      expect(r.data).toMatchObject({
+        from_index: expect.any(Number),
+        to_index: expect.any(Number),
+        stage_type: expect.any(String),
+        configured_duration_seconds: expect.any(Number),
+      });
+    }
+
     // Spot checks per event type, derived from the ledger.
     const investmentCount = eventLedger.filter((e) => e.event_type === "investment").length;
     const loginCount = eventLedger.filter((e) => e.event_type === "login").length;
     const logoutCount = eventLedger.filter((e) => e.event_type === "logout").length;
+    const stageChangeCount = eventLedger.filter((e) => e.event_type === "stage_change").length;
     expect(investmentCount).toBe(commitCount);
     expect(loginCount).toBe(8 + 1); // 8 initial joins + 1 rejoin (com2)
     expect(logoutCount).toBe(1); // com2 left once
+    expect(stageChangeCount).toBe(machine.stages.length - 1);
     // Facilitator log appears (joins are the facilitator's first row).
     expect(logRows[0]).toMatchObject({ event_type: "login", actor_email: fac.email });
+    // All stage_change rows are emitted by the facilitator.
+    expect(stageRows.every((r) => r.actor_email === fac.email)).toBe(true);
   });
+});
+
 });
 
