@@ -116,7 +116,7 @@ export default function Login() {
       setEmail(pick.email);
       setRole(targetRole);
 
-      if (targetRole === 'facilitator' && !isDemoMode) {
+      if (targetRole === 'facilitator') {
         setPendingParticipant(pick);
         setStep('facilitator-password');
         setLoading(false);
