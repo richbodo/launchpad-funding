@@ -756,6 +756,7 @@ export default function Login() {
                   </button>
                 </div>
               </motion.div>
+            ) : (
               <motion.div
                 key="password"
                 initial={{ opacity: 0, x: 20 }}
