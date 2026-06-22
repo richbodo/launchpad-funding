@@ -277,8 +277,30 @@ export default function Login() {
           return;
         }
 
-        // Facilitator access always requires the password — even from a magic link.
-        if (normalizedRole === 'facilitator' && !isDemoMode) {
+        // Facilitator access always requires a real password handshake — no
+        // demo-mode bypass. The /demo-logins jump-in URL supplies the demo
+        // password via the `password` query param so the handshake can run
+        // without a manual prompt; magic-link emails omit it and the user is
+        // routed to the password step instead.
+        if (normalizedRole === 'facilitator') {
+          const urlPassword = searchParams.get('password');
+          if (urlPassword) {
+            const { data: loginData, error: loginErr } = await supabase.functions.invoke('participant-login', {
+              body: {
+                session_id: selectedSession,
+                email: participant.email,
+                password: urlPassword,
+              },
+            });
+            if (loginErr || !loginData?.success) {
+              toast.error(loginData?.error || 'Auto-login failed: invalid demo password');
+              autoLoginAttempted.current = false;
+              return;
+            }
+            if (loginData.admin_token) setAdminToken(loginData.admin_token);
+            await completeLoginWith(participant, 'facilitator');
+            return;
+          }
           setEmail(participant.email);
           setRole('facilitator');
           setPendingParticipant(participant);
