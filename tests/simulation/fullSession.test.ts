@@ -57,12 +57,31 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
   const tally: Record<string, { equity: number; gift: number; count: number }> = {};
   /** Local tally of every chat message posted (excluding `__COMMIT__::` auto-messages). */
   const chatLedger: Array<{ email: string; role: string; message: string }> = [];
+  /**
+   * Local ordered ledger of every event the app writes to `session_logs`.
+   * Mirrors the exact sequence of `login` / `logout` / `investment` rows the
+   * UI would produce. Stage transitions, metadata edits, and chat messages
+   * are intentionally NOT included — the production app does not log those
+   * to `session_logs` (verified by grepping the codebase). The stage machine
+   * is verified separately via `machine.*` invariants, and chat messages via
+   * `chatLedger`.
+   */
+  const eventLedger: Array<{ event_type: "login" | "logout" | "investment"; actor_email: string }> = [];
 
-  const recordCommitment = (startupEmail: string, type: "equity" | "gift", amt: number) => {
+  const recordCommitment = (
+    startupEmail: string,
+    type: "equity" | "gift",
+    amt: number,
+    investorEmail: string,
+  ) => {
     const t = (tally[startupEmail] ||= { equity: 0, gift: 0, count: 0 });
     t[type] += amt;
     t.count += 1;
+    eventLedger.push({ event_type: "investment", actor_email: investorEmail });
   };
+
+  const recordLogin = (email: string) => eventLedger.push({ event_type: "login", actor_email: email });
+  const recordLogout = (email: string) => eventLedger.push({ event_type: "logout", actor_email: email });
 
   const post = async (
     actor: { postChat: (m: string) => Promise<void>; email: string; role: string },
@@ -71,6 +90,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     await actor.postChat(message);
     chatLedger.push({ email: actor.email, role: actor.role, message });
   };
+
 
   beforeAll(async () => {
     const runId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
