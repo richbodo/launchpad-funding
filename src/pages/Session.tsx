@@ -102,6 +102,7 @@ export default function SessionPage() {
   // either 'equity' or 'gift' mode. Community supporters only get 'gift'.
   const [investPledgeType, setInvestPledgeType] = useState<'equity' | 'gift'>('equity');
   const [editStartupOpen, setEditStartupOpen] = useState(false);
+  const [editFacilitatorOpen, setEditFacilitatorOpen] = useState(false);
   const editAutoOpened = useRef(false);
   const [session, setSession] = useState<any>(null);
   const [callState, setCallState] = useState<CallState>('idle');
