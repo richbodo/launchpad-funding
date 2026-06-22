@@ -217,18 +217,30 @@ export default function EventLandingAdminCard({
             <span className="text-xs text-muted-foreground">
               {approvedInvestors.length} / {session.max_attendees ?? 100} approved
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={refreshing}
-              onClick={async () => {
-                setRefreshing(true);
-                try { await onRefresh(); } finally { setRefreshing(false); }
-              }}
-            >
-              <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
-              Refresh
-            </Button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Switch
+                  id="auto-refresh"
+                  checked={autoRefresh}
+                  onCheckedChange={setAutoRefresh}
+                />
+                <Label htmlFor="auto-refresh" className="text-xs cursor-pointer">
+                  Auto-refresh
+                </Label>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={refreshing}
+                onClick={async () => {
+                  setRefreshing(true);
+                  try { await onRefresh(); } finally { setRefreshing(false); }
+                }}
+              >
+                <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+                Refresh
+              </Button>
+            </div>
           </div>
 
           {/* Pending self-signups awaiting approval */}
