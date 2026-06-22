@@ -57,12 +57,31 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
   const tally: Record<string, { equity: number; gift: number; count: number }> = {};
   /** Local tally of every chat message posted (excluding `__COMMIT__::` auto-messages). */
   const chatLedger: Array<{ email: string; role: string; message: string }> = [];
+  /**
+   * Local ordered ledger of every event the app writes to `session_logs`.
+   * Mirrors the exact sequence of `login` / `logout` / `investment` rows the
+   * UI would produce. Stage transitions, metadata edits, and chat messages
+   * are intentionally NOT included — the production app does not log those
+   * to `session_logs` (verified by grepping the codebase). The stage machine
+   * is verified separately via `machine.*` invariants, and chat messages via
+   * `chatLedger`.
+   */
+  const eventLedger: Array<{ event_type: "login" | "logout" | "investment"; actor_email: string }> = [];
 
-  const recordCommitment = (startupEmail: string, type: "equity" | "gift", amt: number) => {
+  const recordCommitment = (
+    startupEmail: string,
+    type: "equity" | "gift",
+    amt: number,
+    investorEmail: string,
+  ) => {
     const t = (tally[startupEmail] ||= { equity: 0, gift: 0, count: 0 });
     t[type] += amt;
     t.count += 1;
+    eventLedger.push({ event_type: "investment", actor_email: investorEmail });
   };
+
+  const recordLogin = (email: string) => eventLedger.push({ event_type: "login", actor_email: email });
+  const recordLogout = (email: string) => eventLedger.push({ event_type: "logout", actor_email: email });
 
   const post = async (
     actor: { postChat: (m: string) => Promise<void>; email: string; role: string },
@@ -71,6 +90,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     await actor.postChat(message);
     chatLedger.push({ email: actor.email, role: actor.role, message });
   };
+
 
   beforeAll(async () => {
     const runId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -124,11 +144,15 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
 
   it("runs the entire session and reconciles end state", async () => {
     // ---- 1. Join ------------------------------------------------------------
+    // Sequential so the session_logs ledger ordering is deterministic.
     await fac.login();
+    recordLogin(fac.email);
     expect(fac.adminToken).toBeTruthy();
-    await Promise.all(
-      [startupA, startupB, startupC, acc1, acc2, com1, com2].map((a) => a.login()),
-    );
+    for (const a of [startupA, startupB, startupC, acc1, acc2, com1, com2]) {
+      await a.login();
+      recordLogin(a.email);
+    }
+
 
     const anon = createClient(SUPABASE_URL, SUPABASE_ANON);
     const presence = await anon
@@ -171,21 +195,22 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(machine.currentStage.startupIndex).toBe(0);
 
     await acc1.invest(startupA, 1_000);
-    recordCommitment(startupA.email, "equity", 1_000);
+    recordCommitment(startupA.email, "equity", 1_000, acc1.email);
     await acc1.invest(startupA, 5_000);
-    recordCommitment(startupA.email, "equity", 5_000);
+    recordCommitment(startupA.email, "equity", 5_000, acc1.email);
     await acc1.invest(startupA, 10_000);
-    recordCommitment(startupA.email, "equity", 10_000);
+    recordCommitment(startupA.email, "equity", 10_000, acc1.email);
     await acc2.invest(startupA, 2_000);
-    recordCommitment(startupA.email, "equity", 2_000);
+    recordCommitment(startupA.email, "equity", 2_000, acc2.email);
     await acc2.pledge(startupA, 50);
-    recordCommitment(startupA.email, "gift", 50);
+    recordCommitment(startupA.email, "gift", 50, acc2.email);
     await com1.pledge(startupA, 20);
-    recordCommitment(startupA.email, "gift", 20);
+    recordCommitment(startupA.email, "gift", 20, com1.email);
     await com1.pledge(startupA, 80);
-    recordCommitment(startupA.email, "gift", 80);
+    recordCommitment(startupA.email, "gift", 80, com1.email);
 
     await com2.logout();
+    recordLogout(com2.email);
     await post(startupA, "Thanks for the questions!");
 
     // Checkpoint A
@@ -207,6 +232,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(machine.currentStage.type).toBe("qa");
 
     await com2.rejoin();
+    recordLogin(com2.email);
     const rejoinCheck = await anon
       .from("session_participants")
       .select("is_logged_in")
@@ -218,7 +244,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     // rejected before any DB write.
     await expect(acc1.pledge(startupA, 150)).rejects.toThrow(/cap exceeded/);
     await acc1.pledge(startupA, 100);
-    recordCommitment(startupA.email, "gift", 100);
+    recordCommitment(startupA.email, "gift", 100, acc1.email);
     await post(fac, "Great pitch from A");
 
     const aRows2 = await anon
@@ -249,9 +275,9 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(refetched.data).toMatchObject(newMeta);
 
     await acc2.invest(startupB, 25_000);
-    recordCommitment(startupB.email, "equity", 25_000);
+    recordCommitment(startupB.email, "equity", 25_000, acc2.email);
     await com1.pledge(startupB, 40);
-    recordCommitment(startupB.email, "gift", 40);
+    recordCommitment(startupB.email, "gift", 40, com1.email);
 
     // ---- 7. Startup B Q&A: cross-role chat burst ----------------------------
     machine.next();
@@ -266,9 +292,9 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     machine.next();
     expect(machine.currentStage.startupIndex).toBe(2);
     await acc1.invest(startupC, 7_500);
-    recordCommitment(startupC.email, "equity", 7_500);
+    recordCommitment(startupC.email, "equity", 7_500, acc1.email);
     await com2.pledge(startupC, 25);
-    recordCommitment(startupC.email, "gift", 25);
+    recordCommitment(startupC.email, "gift", 25, com2.email);
     machine.next();
     expect(machine.currentStage.type).toBe("qa");
     await post(startupC, "Q&A for C — fire away");
@@ -357,12 +383,51 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
       .map((m) => ({ email: m.sender_email, role: m.sender_role, message: m.message }));
     expect(humanMessages).toEqual(chatLedger);
 
-    // session_logs has one investment event per commitment (read via psql —
-    // anon role can't SELECT session_logs).
-    const logCountRaw = execSync(
-      `psql -tA -c "SELECT count(*) FROM public.session_logs WHERE session_id='${seeded.sessionId}' AND event_type='investment';"`,
+    // session_logs ordered ledger check. Anon can't SELECT session_logs, so
+    // we read via psql (matches the seeded-smoke pattern). We assert:
+    //   (a) the row count matches the local ledger,
+    //   (b) the (event_type, actor_email) sequence — ordered by created_at,
+    //       tie-broken by id — exactly matches the ledger,
+    //   (c) created_at is strictly non-decreasing (no rows out of time order).
+    //
+    // Note: stage transitions, metadata edits, and chat messages are
+    // intentionally not part of session_logs in this app; they're covered by
+    // the StageMachine assertions and chatLedger comparison above.
+    const logsRaw = execSync(
+      `psql -tA -F '|' -c "SELECT event_type, actor_email, extract(epoch from created_at)::text FROM public.session_logs WHERE session_id='${seeded.sessionId}' ORDER BY created_at ASC, id ASC;"`,
       { encoding: "utf8" },
-    ).trim();
-    expect(Number(logCountRaw)).toBe(commitCount);
+    );
+    const logRows = logsRaw
+      .split("\n")
+      .map((l) => l.trim())
+      .filter((l) => l && !/^(INSERT|UPDATE|DELETE|SELECT)\s+\d/.test(l))
+      .map((l) => {
+        const [event_type, actor_email, ts] = l.split("|");
+        return { event_type, actor_email, ts: Number(ts) };
+      });
+
+    // (a) row count
+    expect(logRows.length).toBe(eventLedger.length);
+
+    // (b) exact ordered sequence
+    expect(
+      logRows.map((r) => ({ event_type: r.event_type, actor_email: r.actor_email })),
+    ).toEqual(eventLedger);
+
+    // (c) timestamps non-decreasing
+    for (let i = 1; i < logRows.length; i += 1) {
+      expect(logRows[i].ts).toBeGreaterThanOrEqual(logRows[i - 1].ts);
+    }
+
+    // Spot checks per event type, derived from the ledger.
+    const investmentCount = eventLedger.filter((e) => e.event_type === "investment").length;
+    const loginCount = eventLedger.filter((e) => e.event_type === "login").length;
+    const logoutCount = eventLedger.filter((e) => e.event_type === "logout").length;
+    expect(investmentCount).toBe(commitCount);
+    expect(loginCount).toBe(8 + 1); // 8 initial joins + 1 rejoin (com2)
+    expect(logoutCount).toBe(1); // com2 left once
+    // Facilitator log appears (joins are the facilitator's first row).
+    expect(logRows[0]).toMatchObject({ event_type: "login", actor_email: fac.email });
   });
 });
+
