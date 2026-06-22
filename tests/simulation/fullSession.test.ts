@@ -515,5 +515,4 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
   });
 });
 
-});
 
