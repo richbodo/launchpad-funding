@@ -205,6 +205,27 @@ export default function Login() {
         return;
       }
 
+      // Fallback: any session whose scheduled window contains "now",
+      // regardless of status. This covers the case where a facilitator
+      // forgot to flip status to "live" or the session got auto-marked
+      // "completed" but is still meant to be running — they need to be
+      // able to log in and reopen it from the admin panel.
+      const nowIso = new Date().toISOString();
+      const { data: inWindow } = await supabase
+        .from('sessions')
+        .select('id, name, start_time, end_time')
+        .neq('status', 'draft')
+        .lte('start_time', nowIso)
+        .gte('end_time', nowIso)
+        .order('start_time', { ascending: true })
+        .limit(1);
+
+      if (inWindow && inWindow.length > 0) {
+        setActiveSessions(inWindow);
+        setSelectedSession(inWindow[0].id);
+        return;
+      }
+
       // Fallback: next scheduled session
       const { data: upcoming } = await supabase
         .from('sessions')
