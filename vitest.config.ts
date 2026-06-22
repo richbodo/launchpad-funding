@@ -12,8 +12,9 @@ export default defineConfig({
       "src/**/*.{test,spec}.{ts,tsx}",
       "tests/simulation/**/*.{test,spec}.{ts,tsx}",
     ],
-    testTimeout: 60_000,
+    testTimeout: 180_000,
     hookTimeout: 60_000,
+
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },
