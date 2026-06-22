@@ -39,9 +39,21 @@ function psqlAvailable(): boolean {
   }
 }
 
-const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
+// Guard rail: the [SIM] harness seeds and deletes rows directly via psql, so
+// it must never run against the live production Supabase project. When the
+// env points at prod (or no override is set), we skip the suite cleanly
+// instead of failing — pair with `scripts/test-infra.sh` for a local dev DB,
+// or set FUNDFLOW_ALLOW_PROD=1 to opt in explicitly.
+const PROD_PROJECT_REF = "bjtnmtdmgjkdnztgbaau";
+const pointsAtProd =
+  process.env.FUNDFLOW_ALLOW_PROD !== "1" &&
+  ((SUPABASE_URL || "").includes(PROD_PROJECT_REF) ||
+    (process.env.PGHOST || "").includes(PROD_PROJECT_REF));
+
+const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable() && !pointsAtProd;
 
 (canRun ? describe : describe.skip)("full session simulation", () => {
+
   let seeded: SeededSession;
   let fac: FacilitatorActor;
   let startupA: StartupActor;
