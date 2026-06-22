@@ -169,7 +169,7 @@ export default function DemoLogins() {
                   <TableRow key={f.email}>
                     <TableCell className="font-medium">{f.display_name || f.email}</TableCell>
                     <TableCell className="font-mono text-sm">{f.email}</TableCell>
-                    <TableCell className="font-mono text-sm">{f.password_hash || '—'}</TableCell>
+                    <TableCell className="font-mono text-sm">{demoPassword || '—'}</TableCell>
                     <TableCell className="text-right">
                       {facilitatorJumpSessionId ? (
                         <Button
