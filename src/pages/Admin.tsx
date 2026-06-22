@@ -36,11 +36,59 @@ import {
  * Invoke an admin edge function with the stored facilitator bearer token.
  * Returns `{ data, error }` mirroring supabase.functions.invoke's shape so
  * callers can check `error || data?.error` uniformly.
+ *
+ * When the token is missing or rejected (401), we short-circuit / surface
+ * an actionable message and clear the stale token so the next login mints
+ * a fresh one. Otherwise callers would just see the unhelpful default
+ * "Edge Function returned a non-2xx status code".
  */
 async function invokeAdmin(action: string, payload: Record<string, unknown> = {}) {
-  return supabase.functions.invoke('admin-action', {
-    body: { admin_token: getAdminToken(), action, payload },
+  const token = getAdminToken();
+  if (!token) {
+    return {
+      data: null,
+      error: new Error(
+        'Your facilitator session has expired. Please log out and sign in again as a facilitator, then retry.',
+      ),
+    };
+  }
+
+  const { data, error } = await supabase.functions.invoke('admin-action', {
+    body: { admin_token: token, action, payload },
   });
+
+  if (!error) return { data, error: null };
+
+  // Try to extract status + server message from the FunctionsHttpError context.
+  let status: number | undefined;
+  let bodyMessage: string | undefined;
+  const ctx = (error as any)?.context;
+  if (ctx && typeof ctx === 'object' && 'status' in ctx) {
+    status = (ctx as Response).status;
+    try {
+      const body = await (ctx as Response).clone().json();
+      bodyMessage = body?.error || body?.details;
+    } catch {
+      try {
+        bodyMessage = await (ctx as Response).clone().text();
+      } catch { /* ignore */ }
+    }
+  }
+
+  if (status === 401 || /unauthorized|admin token/i.test(bodyMessage ?? '')) {
+    clearAdminToken();
+    return {
+      data: null,
+      error: new Error(
+        'Facilitator authorization was rejected (token missing, expired, or revoked). Please log out and sign in again as a facilitator, then retry.',
+      ),
+    };
+  }
+
+  return {
+    data: null,
+    error: new Error(bodyMessage || error.message || `admin-action ${action} failed`),
+  };
 }
 
 /** Same pattern, dedicated to the small app_settings upsert surface. */
@@ -49,6 +97,7 @@ async function invokeAdminSetting(key: string, value: string) {
     body: { admin_token: getAdminToken(), key, value },
   });
 }
+
 
 /**
  * Invoke `seed-demo-data` with actionable error reporting.
