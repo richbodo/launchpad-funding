@@ -323,20 +323,25 @@ export default function EventLanding() {
         {facilitators.length > 0 && (
           <section>
             <h2 className="text-xl font-bold mb-4">Hosts</h2>
-            <div className="flex flex-wrap gap-4">
+            <div className="grid sm:grid-cols-2 gap-4">
               {facilitators.map((f, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <Card key={i} className="p-4 flex gap-3">
                   {f.image_url ? (
                     <img
                       src={f.image_url}
                       alt={f.display_name || 'Facilitator'}
-                      className="w-10 h-10 rounded-full object-cover bg-muted"
+                      className="w-12 h-12 rounded-full object-cover bg-muted shrink-0"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-muted" aria-hidden />
+                    <div className="w-12 h-12 rounded-full bg-muted shrink-0" aria-hidden />
                   )}
-                  <span className="text-sm">{f.display_name || 'Host'}</span>
-                </div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">{f.display_name || 'Host'}</div>
+                    {f.bio && (
+                      <p className="mt-1 text-xs text-foreground/80 line-clamp-5 whitespace-pre-line">{f.bio}</p>
+                    )}
+                  </div>
+                </Card>
               ))}
             </div>
           </section>
