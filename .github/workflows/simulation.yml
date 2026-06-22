@@ -1,0 +1,121 @@
+name: Simulation Suite
+
+# Runs the full-session simulation test against a controlled local Supabase
+# stack inside CI. The simulation suite explicitly refuses to run against the
+# production project, so the only way to exercise it in CI is to spin up a
+# local Supabase here. If any required piece (Supabase CLI, psql, migrations,
+# seed data, env vars) is missing, the job fails with a clear message instead
+# of silently skipping.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tests/simulation/**"
+      - "supabase/migrations/**"
+      - "supabase/functions/**"
+      - "tests/fixtures/seed.sql"
+      - ".github/workflows/simulation.yml"
+  pull_request:
+    paths:
+      - "tests/simulation/**"
+      - "supabase/migrations/**"
+      - "supabase/functions/**"
+      - "tests/fixtures/seed.sql"
+      - ".github/workflows/simulation.yml"
+  workflow_dispatch:
+
+jobs:
+  simulation:
+    name: Full session simulation
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    env:
+      # Local Supabase defaults (set by `supabase start`).
+      PGHOST: 127.0.0.1
+      PGPORT: "54322"
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: postgres
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+          psql --version
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start local Supabase
+        run: |
+          supabase start --exclude=studio,inbucket,imgproxy,realtime,storage-api
+        # Migrations under supabase/migrations are applied automatically by
+        # `supabase start` (db reset + migrate up).
+
+      - name: Capture local Supabase publishable key
+        id: supabase-keys
+        run: |
+          STATUS=$(supabase status -o env)
+          echo "$STATUS" | grep -E '^(ANON_KEY|API_URL)=' >> "$GITHUB_ENV"
+          # Map ANON_KEY -> VITE_SUPABASE_PUBLISHABLE_KEY for the simulation env contract.
+          ANON=$(echo "$STATUS" | grep '^ANON_KEY=' | cut -d= -f2-)
+          if [ -z "$ANON" ]; then
+            echo "::error::Could not read ANON_KEY from supabase status"
+            exit 1
+          fi
+          echo "VITE_SUPABASE_PUBLISHABLE_KEY=$ANON" >> "$GITHUB_ENV"
+
+      - name: Seed test fixture
+        run: |
+          psql "postgresql://postgres:postgres@127.0.0.1:54322/postgres" \
+            -v ON_ERROR_STOP=1 \
+            -f tests/fixtures/seed.sql
+
+      - name: Verify local Supabase reachable
+        run: |
+          curl -sf -o /dev/null \
+            -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" \
+            -H "Authorization: Bearer $VITE_SUPABASE_PUBLISHABLE_KEY" \
+            "$VITE_SUPABASE_URL/rest/v1/" \
+            || (echo "::error::Local Supabase REST API not reachable at $VITE_SUPABASE_URL" && exit 1)
+
+      - name: Run simulation suite
+        # FUNDFLOW_ALLOW_PROD is intentionally unset; the suite's prod-skip
+        # guard checks the project ref, and CI points at the local stack,
+        # so the suite will execute (not skip).
+        run: npx vitest run tests/simulation --reporter=verbose
+
+      - name: Dump Supabase logs on failure
+        if: failure()
+        run: |
+          echo "::group::supabase status"
+          supabase status || true
+          echo "::endgroup::"
+          echo "::group::db logs"
+          supabase logs db --tail 200 || true
+          echo "::endgroup::"
+          echo "::group::edge function logs"
+          supabase functions logs --tail 200 || true
+          echo "::endgroup::"
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup || true
