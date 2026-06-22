@@ -224,7 +224,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     await post(fac, "Welcome everyone");
 
     // ---- 4. Startup A presentation ------------------------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("presentation");
     expect(machine.currentStage.startupIndex).toBe(0);
 
@@ -262,7 +262,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(aRows.data!.filter((r) => r.pledge_type === "gift").every((r) => Number(r.amount) <= GIFT_MAX_USD)).toBe(true);
 
     // ---- 5. Startup A Q&A ---------------------------------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("qa");
 
     await com2.rejoin();
@@ -289,7 +289,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(aRows2.count).toBe(8);
 
     // ---- 6. Startup B presentation: metadata edit --------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("presentation");
     expect(machine.currentStage.startupIndex).toBe(1);
 
@@ -314,7 +314,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     recordCommitment(startupB.email, "gift", 40, com1.email);
 
     // ---- 7. Startup B Q&A: cross-role chat burst ----------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("qa");
 
     await post(fac, "Q for B: timeline?");
@@ -323,18 +323,18 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     await post(com2, "Cheering you on!");
 
     // ---- 8. Startup C presentation + Q&A ------------------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.startupIndex).toBe(2);
     await acc1.invest(startupC, 7_500);
     recordCommitment(startupC.email, "equity", 7_500, acc1.email);
     await com2.pledge(startupC, 25);
     recordCommitment(startupC.email, "gift", 25, com2.email);
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("qa");
     await post(startupC, "Q&A for C — fire away");
 
     // ---- 9. Outro -----------------------------------------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("outro");
     expect(machine.index).toBe(machine.stages.length - 1);
     // Commitments are blocked again at outro per the stage-gate rule.
