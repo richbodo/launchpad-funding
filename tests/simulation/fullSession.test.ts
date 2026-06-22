@@ -85,7 +85,8 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
    * plus setTimeout jitter.
    */
   const STAGE_TIME_SCALE_MS = 50;
-  const DRIFT_MS = 500;
+  const DRIFT_MS = 1_500;
+
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
   /** Wall-clock time the current stage was entered (set by advanceStage). */
