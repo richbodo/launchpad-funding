@@ -1101,6 +1101,37 @@ export default function Admin() {
     toast.success(`Queued ${sent} invitation${sent === 1 ? '' : 's'}${failed ? ` · ${failed} failed` : ''}.`, { duration: failed ? 15000 : 6000 });
   };
 
+  /**
+   * Send a test invitation email to the address currently in the add-participant
+   * email field. The recipient does not need to exist as a participant; this is
+   * useful for previewing the updated investor invitation template before adding
+   * real investors.
+   */
+  const sendTestInvite = async () => {
+    if (!selectedSession) {
+      toast.error('Select a session first');
+      return;
+    }
+    const email = addEmail.toLowerCase().trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Enter a valid investor email address');
+      return;
+    }
+
+    setSendingTestInvite(true);
+    try {
+      // Force role to investor so the test preview shows the full investor template
+      // including the landing-page event details section.
+      await buildAndSendInvite(email, addName || null, 'investor');
+      toast.success(`Test invite queued for ${email}`);
+    } catch (err) {
+      console.error('Test invite failed:', err);
+      toast.error(`Test invite failed: ${errMessage(err)}`, { duration: 15000 });
+    } finally {
+      setSendingTestInvite(false);
+    }
+  };
+
   // ── CSV bulk-add of participants ────────────────────────────────────────
   const CSV_HEADERS = ['Investor-Emails', 'Startup-Emails', 'Facilitator-Emails'];
 
