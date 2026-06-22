@@ -220,7 +220,7 @@ export default function SessionPage() {
 
       let { data: startupData } = await supabase
         .from('session_participants')
-        .select('email, display_name, presentation_order, funding_goal, dd_room_link, website_link')
+        .select('email, display_name, presentation_order, funding_goal, dd_room_link, website_link, description')
         .eq('session_id', id)
         .eq('role', 'startup')
         .order('presentation_order', { ascending: true });
@@ -236,6 +236,7 @@ export default function SessionPage() {
           funding_goal: null,
           dd_room_link: null,
           website_link: null,
+          description: null,
         })) ?? null;
       }
       if (startupData) setStartups(startupData as Startup[]);
