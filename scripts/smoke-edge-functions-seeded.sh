@@ -96,6 +96,61 @@ srest() {
   printf '%s|%s' "$status" "$body"
 }
 
+# psql seeding helpers (used when SEED_MODE=psql). Bypass RLS via direct DB.
+psql_scalar() { psql -tA -c "$1" 2>/dev/null | head -1 | tr -d '[:space:]'; }
+psql_exec()   { psql -q -c "$1" >/dev/null 2>&1; }
+
+# Unified seed/cleanup API — dispatches on $SEED_MODE so the same script runs
+# whether the operator has the service-role key or local DB access.
+seed_session() {
+  # args: slug, max_attendees, name, start_iso, end_iso → echoes inserted id
+  local slug="$1" cap="$2" name="$3" start="$4" end="$5"
+  if [ "$SEED_MODE" = "rest" ]; then
+    local res; res=$(srest POST "/sessions" \
+      -d "{\"name\":\"$name\",\"slug\":\"$slug\",\"start_time\":\"$start\",\"end_time\":\"$end\",\"timezone\":\"UTC\",\"status\":\"scheduled\",\"max_attendees\":$cap}")
+    [ "$(split_status "$res")" = "201" ] && json_str "$(split_body "$res")" "id"
+  else
+    psql_scalar "INSERT INTO public.sessions (name, slug, start_time, end_time, timezone, status, max_attendees) VALUES ('$name', '$slug', '$start'::timestamptz, '$end'::timestamptz, 'UTC', 'scheduled', $cap) RETURNING id"
+  fi
+}
+seed_participant() {
+  # args: session_id, email, role, approved(true/false), [password_hash]
+  local sid="$1" email="$2" role="$3" approved="$4" pw="${5:-}"
+  if [ "$SEED_MODE" = "rest" ]; then
+    local payload
+    if [ -n "$pw" ]; then
+      payload="{\"session_id\":\"$sid\",\"email\":\"$email\",\"role\":\"$role\",\"approved\":$approved,\"password_hash\":\"$pw\"}"
+    else
+      payload="{\"session_id\":\"$sid\",\"email\":\"$email\",\"role\":\"$role\",\"approved\":$approved,\"investor_class\":\"accredited\"}"
+    fi
+    [ "$(split_status "$(srest POST "/session_participants" -d "$payload")")" = "201" ]
+  else
+    local pw_col="" pw_val=""
+    if [ -n "$pw" ]; then pw_col=", password_hash"; pw_val=", '$pw'"; fi
+    psql_exec "INSERT INTO public.session_participants (session_id, email, role, approved, investor_class$pw_col) VALUES ('$sid', '$email', '$role', $approved, 'accredited'$pw_val)"
+  fi
+}
+delete_session_by_slug() {
+  if [ "$SEED_MODE" = "rest" ]; then srest DELETE "/sessions?slug=eq.$1" >/dev/null
+  else psql_exec "DELETE FROM public.sessions WHERE slug = '$1'"; fi
+}
+delete_session_by_id() {
+  if [ "$SEED_MODE" = "rest" ]; then srest DELETE "/sessions?id=eq.$1" >/dev/null
+  else psql_exec "DELETE FROM public.sessions WHERE id = '$1'"; fi
+}
+delete_participant_by_email() {
+  if [ "$SEED_MODE" = "rest" ]; then srest DELETE "/session_participants?email=eq.$1" >/dev/null
+  else psql_exec "DELETE FROM public.session_participants WHERE email = '$1'"; fi
+}
+session_has_name() {
+  # args: session_id, expected_name → echoes 1 if found, 0 otherwise
+  if [ "$SEED_MODE" = "rest" ]; then
+    split_body "$(srest GET "/sessions?id=eq.$1&select=name")" | grep -q "$2" && echo 1 || echo 0
+  else
+    [ "$(psql_scalar "SELECT name FROM public.sessions WHERE id = '$1'")" = "$2" ] && echo 1 || echo 0
+  fi
+}
+
 # Anon-key edge-function helper. Echoes "<status>|<body>".
 efn() {
   local method="$1" path="$2"; shift 2
