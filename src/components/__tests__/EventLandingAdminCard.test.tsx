@@ -209,4 +209,21 @@ describe('EventLandingAdminCard', () => {
     });
     expect(toast.success).toHaveBeenCalledWith('Landing page URL copied');
   });
+
+  it('polls onRefresh every 10 s when auto-refresh is enabled', async () => {
+    vi.useFakeTimers();
+    const { onRefresh } = renderCard();
+
+    const toggle = screen.getByRole('switch', { name: /Auto-refresh/i });
+    fireEvent.click(toggle);
+
+    // First tick is immediate because setInterval fires after the delay
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(onRefresh).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
 });
