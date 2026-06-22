@@ -145,3 +145,7 @@ const calendarLink = { fontSize: '14px', color: '#16a34a', textDecoration: 'unde
 const hr = { borderColor: '#e5e7eb', margin: '25px 0' }
 const footer = { fontSize: '12px', color: '#999', margin: '0 0 4px' }
 const linkStyle = { color: '#16a34a' }
+const metadataBox = { backgroundColor: '#f9fafb', borderRadius: '8px', padding: '14px 18px', margin: '0 0 20px', border: '1px solid #e5e7eb' }
+const metadataTitle = { fontSize: '14px', fontWeight: 'bold' as const, color: '#1a1a2e', margin: '0 0 8px' }
+const metadataItem = { fontSize: '13px', color: '#333', lineHeight: '1.5', margin: '0 0 4px' }
+const requiredTag = { color: '#b91c1c', fontWeight: 'bold' as const }
