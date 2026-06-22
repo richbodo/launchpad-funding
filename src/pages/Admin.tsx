@@ -1661,8 +1661,9 @@ export default function Admin() {
                     }
                     toast.success('Signup removed');
                     fetchParticipants(selectedSession.id);
-                  }}
+                  onRefresh={() => fetchParticipants(selectedSession.id)}
                 />
+
 
                 {/* Participants */}
                 <Card>
