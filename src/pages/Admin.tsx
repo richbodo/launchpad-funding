@@ -254,9 +254,10 @@ export default function Admin() {
   const [metaBio, setMetaBio] = useState('');                 // facilitator bio (≤500)
 
   // Send email dialog
-  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [pendingParticipant, setPendingParticipant] = useState<{ email: string; name: string; role: string } | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
+
+  // Test invite button state
+  const [sendingTestInvite, setSendingTestInvite] = useState(false);
 
   // Bulk invite send + CSV import
   const [sendingBulk, setSendingBulk] = useState(false);
