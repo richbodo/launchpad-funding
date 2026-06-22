@@ -591,6 +591,7 @@ export default function Admin() {
         if (error || data?.error) throw new Error(data?.error || 'Cleanup failed');
         toast.success('Demo mode disabled, demo data cleaned up');
       }
+      clearDemoModeCache();
       setDemoMode(enabled);
       fetchSessions();
     } catch (err: any) {
