@@ -131,6 +131,16 @@ export default function Login() {
   };
 
   const completeLoginWith = async (participant: any, loginRole: UserRole) => {
+    // Resolve the investor class from the seeded participant row when
+    // available — magic-link / auto-login paths don't use the local picker
+    // state, so a community supporter clicking "Jump in" on /demo-logins
+    // would otherwise be silently treated as accredited (issue surfaced
+    // when adding per-investor-class auto-login shortcuts).
+    const resolvedClass: InvestorClass | undefined =
+      loginRole === 'investor'
+        ? ((participant.investor_class as InvestorClass | null) ?? investorClass)
+        : undefined;
+
     // Set user + navigate IMMEDIATELY so the magic-link recipient lands in the
     // session without waiting on edge-function cold starts. Presence + audit
     // log are fire-and-forget — a slow or failing background call must never
@@ -141,7 +151,7 @@ export default function Login() {
       role: loginRole,
       displayName: participant.display_name || participant.email.split('@')[0],
       sessionId: selectedSession,
-      investorClass: loginRole === 'investor' ? investorClass : undefined,
+      investorClass: resolvedClass,
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
@@ -155,10 +165,11 @@ export default function Login() {
     supabase.from('session_logs').insert({
       session_id: selectedSession,
       event_type: 'login',
-      event_data: { email: participant.email, role: loginRole, investor_class: loginRole === 'investor' ? investorClass : null },
+      event_data: { email: participant.email, role: loginRole, investor_class: resolvedClass ?? null },
       actor_email: participant.email,
     }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
+
 
 
   useEffect(() => {
@@ -365,6 +376,14 @@ export default function Login() {
 
   const completeLogin = async (participant: any, loginRole?: UserRole) => {
     const resolvedRole = loginRole || role!;
+    // Investors who logged in via the email form picked their class with the
+    // class buttons, but auto-login flows (magic link / demo "Jump in") set
+    // the participant directly. Prefer the row-level class when set, fall
+    // back to the picker state otherwise.
+    const resolvedClass: InvestorClass | undefined =
+      resolvedRole === 'investor'
+        ? ((participant.investor_class as InvestorClass | null) ?? investorClass)
+        : undefined;
 
     // Navigate immediately; side effects run in the background so a slow
     // edge function never traps the user on the login screen.
@@ -374,7 +393,7 @@ export default function Login() {
       role: resolvedRole,
       displayName: participant.display_name || email.split('@')[0],
       sessionId: selectedSession,
-      investorClass: resolvedRole === 'investor' ? investorClass : undefined,
+      investorClass: resolvedClass,
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
@@ -387,10 +406,11 @@ export default function Login() {
     supabase.from('session_logs').insert({
       session_id: selectedSession,
       event_type: 'login',
-      event_data: { email, role: resolvedRole, investor_class: resolvedRole === 'investor' ? investorClass : null },
+      event_data: { email, role: resolvedRole, investor_class: resolvedClass ?? null },
       actor_email: email,
     }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
   };
+
 
 
   const roles: { value: UserRole; label: string; icon: React.ReactNode; desc: string }[] = [

@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
 
     const { data: sessions } = await supabase
       .from("sessions")
-      .select("id, name, status, start_time, end_time")
+      .select("id, name, status, start_time, end_time, slug, description, hero_image_url")
       .like("name", "[DEMO]%")
       .order("start_time", { ascending: true });
 
@@ -47,11 +47,12 @@ Deno.serve(async (req) => {
     if (ids.length > 0) {
       const { data } = await supabase
         .from("session_participants")
-        .select("email, display_name, role, password_hash, session_id")
+        .select("id, email, display_name, role, password_hash, session_id, investor_class, image_url")
         .in("session_id", ids)
         .order("role", { ascending: true });
       participants = data || [];
     }
+
 
     return new Response(JSON.stringify({ sessions: sessions || [], participants }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
