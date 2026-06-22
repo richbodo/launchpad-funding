@@ -19,7 +19,7 @@ interface ActiveSession {
   end_time: string;
 }
 
-type Step = 'login' | 'facilitator-password' | 'facilitator-create-password';
+type Step = 'login' | 'facilitator-password' | 'facilitator-create-password' | 'investor-class-select';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -328,6 +328,17 @@ export default function Login() {
           setStep(await facilitatorNeedsPassword(participant.email)
             ? 'facilitator-create-password'
             : 'facilitator-password');
+          return;
+        }
+
+        // Investors arriving via a magic link MUST declare their class before
+        // entering the session, unless an admin already set it on the row.
+        // The class drives which pledge UI they see (equity vs gift-only).
+        if (normalizedRole === 'investor' && !participant.investor_class) {
+          setEmail(participant.email);
+          setRole('investor');
+          setPendingParticipant(participant);
+          setStep('investor-class-select');
           return;
         }
 
@@ -679,6 +690,71 @@ export default function Login() {
                   {loading ? 'Saving...' : 'Create password'}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
+              </motion.div>
+            ) : step === 'investor-class-select' ? (
+              <motion.div
+                key="investor-class"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+                className="space-y-5"
+              >
+                <div className="text-center pb-2">
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-accent/10 mb-3">
+                    <Briefcase className="w-6 h-6 text-accent" />
+                  </div>
+                  <p className="text-sm text-muted-foreground">Before you join</p>
+                  <p className="font-semibold">{email}</p>
+                  {activeSessions.length === 1 && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      for <span className="font-medium">{activeSessions[0].name}</span>
+                    </p>
+                  )}
+                </div>
+
+                <p className="text-sm text-center text-muted-foreground">
+                  Please tell us which type of investor you are. This determines
+                  whether you can place equity commitments or gift pledges.
+                </p>
+
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    data-testid="investor-class-accredited"
+                    disabled={loading}
+                    onClick={async () => {
+                      setInvestorClass('accredited');
+                      setLoading(true);
+                      await completeLoginWith(
+                        { ...pendingParticipant, investor_class: 'accredited' },
+                        'investor',
+                      );
+                    }}
+                    className="flex flex-col items-start gap-1 p-4 rounded-lg border-2 border-border hover:border-accent transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="text-sm font-semibold">Accredited Investor</span>
+                    <span className="text-xs text-muted-foreground">
+                      Equity commitments + gift pledges
+                    </span>
+                  </button>
+                  <button
+                    data-testid="investor-class-community"
+                    disabled={loading}
+                    onClick={async () => {
+                      setInvestorClass('community');
+                      setLoading(true);
+                      await completeLoginWith(
+                        { ...pendingParticipant, investor_class: 'community' },
+                        'investor',
+                      );
+                    }}
+                    className="flex flex-col items-start gap-1 p-4 rounded-lg border-2 border-border hover:border-accent transition-all text-left disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <span className="text-sm font-semibold">Community Supporter</span>
+                    <span className="text-xs text-muted-foreground">
+                      Gift pledges only (max $100)
+                    </span>
+                  </button>
+                </div>
               </motion.div>
             ) : (
               <motion.div
