@@ -53,7 +53,7 @@ interface Props {
  *   actually email the magic-link login.
  */
 export default function EventLandingAdminCard({
-  session, participants, onUpdated, onApproveParticipant, onRejectParticipant,
+  session, participants, onUpdated, onApproveParticipant, onRejectParticipant, onRefresh,
 }: Props) {
   const [slug, setSlug] = useState(session.slug || '');
   const [description, setDescription] = useState(session.description || '');
@@ -61,6 +61,7 @@ export default function EventLandingAdminCard({
   const [maxAttendees, setMaxAttendees] = useState(String(session.max_attendees ?? 100));
   const [isFull, setIsFull] = useState(!!session.is_full);
   const [saving, setSaving] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     setSlug(session.slug || '');
