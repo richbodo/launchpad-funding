@@ -144,11 +144,15 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
 
   it("runs the entire session and reconciles end state", async () => {
     // ---- 1. Join ------------------------------------------------------------
+    // Sequential so the session_logs ledger ordering is deterministic.
     await fac.login();
+    recordLogin(fac.email);
     expect(fac.adminToken).toBeTruthy();
-    await Promise.all(
-      [startupA, startupB, startupC, acc1, acc2, com1, com2].map((a) => a.login()),
-    );
+    for (const a of [startupA, startupB, startupC, acc1, acc2, com1, com2]) {
+      await a.login();
+      recordLogin(a.email);
+    }
+
 
     const anon = createClient(SUPABASE_URL, SUPABASE_ANON);
     const presence = await anon
