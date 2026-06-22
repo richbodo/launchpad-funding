@@ -1128,8 +1128,11 @@ export default function Admin() {
     setSendingTestInvite(true);
     try {
       // Force role to investor so the test preview shows the full investor template
-      // including the landing-page event details section.
-      await buildAndSendInvite(email, addName || null, 'investor');
+      // including the landing-page event details section. Use a distinct
+      // idempotency key so a later real invite to the same address still sends.
+      await buildAndSendInvite(email, addName || null, 'investor', {
+        idempotencyKey: `session-invite-test-${selectedSession.id}-${email}`,
+      });
       toast.success(`Test invite queued for ${email}`);
     } catch (err) {
       console.error('Test invite failed:', err);
