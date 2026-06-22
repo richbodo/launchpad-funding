@@ -64,6 +64,21 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
+    // Require a valid facilitator admin_token. Without this anyone hitting
+    // the function URL could re-seed demo data (or use it as a way to
+    // bulk-delete sessions whose names start with `[DEMO]`).
+    let body: any = {};
+    try { body = await req.json(); } catch { /* allow empty body */ }
+    const auth = await authorizeFacilitator(body?.admin_token, supabase, serviceRoleKey);
+    if (!auth) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: facilitator admin token required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+
+
     const { data: modeSetting } = await supabase
       .from("app_settings")
       .select("value")
