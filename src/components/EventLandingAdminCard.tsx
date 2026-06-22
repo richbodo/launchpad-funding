@@ -62,6 +62,7 @@ export default function EventLandingAdminCard({
   const [isFull, setIsFull] = useState(!!session.is_full);
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [autoRefresh, setAutoRefresh] = useState(false);
 
   useEffect(() => {
     setSlug(session.slug || '');
@@ -70,6 +71,15 @@ export default function EventLandingAdminCard({
     setMaxAttendees(String(session.max_attendees ?? 100));
     setIsFull(!!session.is_full);
   }, [session.id, session.slug, session.description, session.hero_image_url, session.max_attendees, session.is_full]);
+
+  /** Poll for new signups every 10 s when the facilitator enables auto-refresh. */
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const id = setInterval(() => {
+      onRefresh();
+    }, 10000);
+    return () => clearInterval(id);
+  }, [autoRefresh, onRefresh]);
 
   const landingUrl = session.slug
     ? `${window.location.origin}/event/${session.slug}`
