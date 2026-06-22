@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
-import { useDemoMode } from '@/hooks/useDemoMode';
+import { useDemoMode, clearDemoModeCache } from '@/hooks/useDemoMode';
 import { setAdminToken, getAdminToken, clearAdminToken } from '@/lib/adminAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
