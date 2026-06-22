@@ -203,6 +203,7 @@ export default function SessionPage() {
                 funding_goal: updated.funding_goal ?? null,
                 dd_room_link: updated.dd_room_link ?? null,
                 website_link: updated.website_link ?? null,
+                description: updated.description ?? null,
               }
             : s
         ));
