@@ -186,19 +186,17 @@ cleanup() {
   local code=$?
   echo ""
   echo "── Cleanup ──"
-  # Delete any sessions seeded directly, by slug prefix (cascades children).
   for slug in "$FULL_SLUG" "$OPEN_SLUG"; do
-    srest DELETE "/sessions?slug=eq.$slug" >/dev/null || true
+    delete_session_by_slug "$slug" || true
     echo "  removed session slug=$slug"
   done
-  # Delete sessions created via admin-action (tracked by id).
   for sid in "${CREATED_SESSION_IDS[@]:-}"; do
     [ -z "$sid" ] && continue
-    srest DELETE "/sessions?id=eq.$sid" >/dev/null || true
+    delete_session_by_id "$sid" || true
     echo "  removed session id=$sid"
   done
   # Defensive: drop the facilitator row in case its session_id was already gone.
-  srest DELETE "/session_participants?email=eq.$FAC_EMAIL" >/dev/null || true
+  delete_participant_by_email "$FAC_EMAIL" || true
   exit $code
 }
 trap cleanup EXIT INT TERM
@@ -214,76 +212,34 @@ echo "── Seeding ──"
 NOW_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 END_ISO=$(date -u -d "+1 day" +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date -u -v+1d +%Y-%m-%dT%H:%M:%SZ)
 
-res=$(srest POST "/sessions" -d "$(cat <<JSON
-{
-  "name": "[SMOKE] $RUN_ID full",
-  "slug": "$FULL_SLUG",
-  "start_time": "$NOW_ISO",
-  "end_time": "$END_ISO",
-  "timezone": "UTC",
-  "status": "scheduled",
-  "max_attendees": 2
-}
-JSON
-)")
-s=$(split_status "$res"); b=$(split_body "$res")
-FULL_SID=$(json_str "$b" "id")
-ok="0"; [ "$s" = "201" ] && [ -n "$FULL_SID" ] && ok="1"
-check "seed: full-cap session created" "$ok" "status=$s body=$b"
+FULL_SID=$(seed_session "$FULL_SLUG" 2 "[SMOKE] $RUN_ID full" "$NOW_ISO" "$END_ISO")
+ok="0"; [ -n "$FULL_SID" ] && ok="1"
+check "seed: full-cap session created" "$ok" "id=$FULL_SID"
 [ "$ok" = "0" ] && exit 1
 
 # Fill the cap with 2 approved investors.
 for i in 1 2; do
-  res=$(srest POST "/session_participants" -d "$(cat <<JSON
-{
-  "session_id": "$FULL_SID",
-  "email": "$RUN_ID-inv$i@smoke.test",
-  "role": "investor",
-  "approved": true,
-  "investor_class": "accredited"
-}
-JSON
-)")
-  s=$(split_status "$res")
-  ok="0"; [ "$s" = "201" ] && ok="1"
-  check "seed: approved investor #$i in full-cap session" "$ok" "status=$s body=$(split_body "$res")"
+  if seed_participant "$FULL_SID" "$RUN_ID-inv$i@smoke.test" investor true; then
+    check "seed: approved investor #$i in full-cap session" "1"
+  else
+    check "seed: approved investor #$i in full-cap session" "0"
+  fi
 done
 
 # 'open' session with cap=10, no approved investors yet.
-res=$(srest POST "/sessions" -d "$(cat <<JSON
-{
-  "name": "[SMOKE] $RUN_ID open",
-  "slug": "$OPEN_SLUG",
-  "start_time": "$NOW_ISO",
-  "end_time": "$END_ISO",
-  "timezone": "UTC",
-  "status": "scheduled",
-  "max_attendees": 10
-}
-JSON
-)")
-s=$(split_status "$res"); b=$(split_body "$res")
-OPEN_SID=$(json_str "$b" "id")
-ok="0"; [ "$s" = "201" ] && [ -n "$OPEN_SID" ] && ok="1"
-check "seed: open-cap session created" "$ok" "status=$s"
+OPEN_SID=$(seed_session "$OPEN_SLUG" 10 "[SMOKE] $RUN_ID open" "$NOW_ISO" "$END_ISO")
+ok="0"; [ -n "$OPEN_SID" ] && ok="1"
+check "seed: open-cap session created" "$ok" "id=$OPEN_SID"
 [ "$ok" = "0" ] && exit 1
 
 # Seed a facilitator we can log in as. Plaintext password is fine — the
 # participant-login function falls back to plaintext compare when the stored
 # value doesn't start with '$2' (bcrypt).
-res=$(srest POST "/session_participants" -d "$(cat <<JSON
-{
-  "session_id": "$OPEN_SID",
-  "email": "$FAC_EMAIL",
-  "role": "facilitator",
-  "display_name": "Smoke Facilitator",
-  "password_hash": "$FAC_PASSWORD"
-}
-JSON
-)")
-s=$(split_status "$res")
-ok="0"; [ "$s" = "201" ] && ok="1"
-check "seed: facilitator with password" "$ok" "status=$s body=$(split_body "$res")"
+if seed_participant "$OPEN_SID" "$FAC_EMAIL" facilitator true "$FAC_PASSWORD"; then
+  check "seed: facilitator with password" "1"
+else
+  check "seed: facilitator with password" "0"
+fi
 
 # ── 2. event-signup: CAP logic ────────────────────────────────────────────────
 echo ""
