@@ -154,7 +154,35 @@ export class FacilitatorActor extends Actor {
     this.adminToken = body.admin_token;
     await super.login();
   }
+
+  /**
+   * Write a `stage_change` row to session_logs. The facilitator owns stage
+   * transitions in the running app; the simulation mirrors that ownership.
+   * `event_data.configured_duration_seconds` records the timer the stage was
+   * configured with so the test can later verify wall-clock deltas between
+   * consecutive transitions match the configured timers (scaled).
+   */
+  async logStageChange(opts: {
+    fromIndex: number;
+    toIndex: number;
+    stageType: string;
+    configuredDurationSeconds: number;
+  }): Promise<void> {
+    const { error } = await this.client.from("session_logs").insert({
+      session_id: this.sessionId,
+      event_type: "stage_change",
+      event_data: {
+        from_index: opts.fromIndex,
+        to_index: opts.toIndex,
+        stage_type: opts.stageType,
+        configured_duration_seconds: opts.configuredDurationSeconds,
+      },
+      actor_email: this.email,
+    });
+    if (error) throw new Error(`stage_change session_logs insert failed: ${error.message}`);
+  }
 }
+
 
 export class StartupActor extends Actor {
   constructor(init: ActorInit) {

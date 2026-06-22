@@ -59,14 +59,38 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
   const chatLedger: Array<{ email: string; role: string; message: string }> = [];
   /**
    * Local ordered ledger of every event the app writes to `session_logs`.
-   * Mirrors the exact sequence of `login` / `logout` / `investment` rows the
-   * UI would produce. Stage transitions, metadata edits, and chat messages
-   * are intentionally NOT included — the production app does not log those
-   * to `session_logs` (verified by grepping the codebase). The stage machine
-   * is verified separately via `machine.*` invariants, and chat messages via
-   * `chatLedger`.
+   * Mirrors the exact sequence of `login` / `logout` / `investment` /
+   * `stage_change` rows the simulation produces. (Metadata edits and chat
+   * messages are intentionally NOT in session_logs — the app doesn't log
+   * those; they're verified separately via the table queries and chatLedger.)
    */
-  const eventLedger: Array<{ event_type: "login" | "logout" | "investment"; actor_email: string }> = [];
+  const eventLedger: Array<{
+    event_type: "login" | "logout" | "investment" | "stage_change";
+    actor_email: string;
+  }> = [];
+
+  /**
+   * Time-scale for stage transitions: 1 configured second → STAGE_TIME_SCALE_MS
+   * milliseconds of real wall time. Preserves the *ratio* between configured
+   * durations so we can verify session_logs deltas against the timer config
+   * without waiting the full 30+ real minutes a live session takes.
+   *
+   * The scale is sized so that even the busiest stage (Startup A presentation,
+   * ~10s of network calls for 7 investments + 1 logout + 1 chat) fits inside
+   * the per-stage budget; otherwise the in-stage work would push the next
+   * `stage_change` past the deadline.
+   *
+   * DRIFT_MS is the per-transition tolerance — dominated by Supabase REST
+   * round-trip latency for the session_logs insert (typically 100-300ms),
+   * plus setTimeout jitter.
+   */
+  const STAGE_TIME_SCALE_MS = 50;
+  const DRIFT_MS = 1_500;
+
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+  /** Wall-clock time the current stage was entered (set by advanceStage). */
+  let stageEnteredAt = Date.now();
 
   const recordCommitment = (
     startupEmail: string,
@@ -82,6 +106,38 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
 
   const recordLogin = (email: string) => eventLedger.push({ event_type: "login", actor_email: email });
   const recordLogout = (email: string) => eventLedger.push({ event_type: "logout", actor_email: email });
+
+  /**
+   * Wait until the current stage's scaled deadline elapses (relative to when
+   * the stage was entered — *not* the moment advanceStage is called), then
+   * advance the StageMachine and write a `stage_change` row.
+   *
+   * This makes the wall-clock delta between consecutive `stage_change` log
+   * rows equal `configured_duration_seconds * STAGE_TIME_SCALE_MS` regardless
+   * of how much in-stage work happened between transitions — i.e. the
+   * configured timer drives the observed cadence.
+   */
+  const advanceStage = async () => {
+    const from = machine.index;
+    const leaving = machine.currentStage;
+    const deadline = stageEnteredAt + leaving.durationSeconds * STAGE_TIME_SCALE_MS;
+    const remaining = deadline - Date.now();
+    if (remaining > 0) await sleep(remaining);
+    machine.next();
+    await fac.logStageChange({
+      fromIndex: from,
+      toIndex: machine.index,
+      stageType: machine.currentStage.type,
+      configuredDurationSeconds: leaving.durationSeconds,
+    });
+    eventLedger.push({ event_type: "stage_change", actor_email: fac.email });
+    // Reset the entry clock *after* the log insert lands so the next stage's
+    // budget starts from the same instant the session_logs row was written.
+    stageEnteredAt = Date.now();
+  };
+
+
+
 
   const post = async (
     actor: { postChat: (m: string) => Promise<void>; email: string; role: string },
@@ -177,6 +233,9 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(machine.stages.at(-1)!.type).toBe("outro");
     expect(machine.currentStage.type).toBe("intro");
     expect(machine.remainingSeconds).toBe(5 * 60);
+    // Reset the stage entry clock: intro begins now, not at module load.
+    stageEnteredAt = Date.now();
+
 
     // ---- 3. Intro: only chat permitted --------------------------------------
     // Mirror Session.tsx button-disabled rule: no commitments during intro.
@@ -190,7 +249,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     await post(fac, "Welcome everyone");
 
     // ---- 4. Startup A presentation ------------------------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("presentation");
     expect(machine.currentStage.startupIndex).toBe(0);
 
@@ -228,7 +287,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(aRows.data!.filter((r) => r.pledge_type === "gift").every((r) => Number(r.amount) <= GIFT_MAX_USD)).toBe(true);
 
     // ---- 5. Startup A Q&A ---------------------------------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("qa");
 
     await com2.rejoin();
@@ -255,7 +314,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(aRows2.count).toBe(8);
 
     // ---- 6. Startup B presentation: metadata edit --------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("presentation");
     expect(machine.currentStage.startupIndex).toBe(1);
 
@@ -280,7 +339,7 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     recordCommitment(startupB.email, "gift", 40, com1.email);
 
     // ---- 7. Startup B Q&A: cross-role chat burst ----------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("qa");
 
     await post(fac, "Q for B: timeline?");
@@ -289,18 +348,18 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     await post(com2, "Cheering you on!");
 
     // ---- 8. Startup C presentation + Q&A ------------------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.startupIndex).toBe(2);
     await acc1.invest(startupC, 7_500);
     recordCommitment(startupC.email, "equity", 7_500, acc1.email);
     await com2.pledge(startupC, 25);
     recordCommitment(startupC.email, "gift", 25, com2.email);
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("qa");
     await post(startupC, "Q&A for C — fire away");
 
     // ---- 9. Outro -----------------------------------------------------------
-    machine.next();
+    await advanceStage();
     expect(machine.currentStage.type).toBe("outro");
     expect(machine.index).toBe(machine.stages.length - 1);
     // Commitments are blocked again at outro per the stage-gate rule.
@@ -388,13 +447,16 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     //   (a) the row count matches the local ledger,
     //   (b) the (event_type, actor_email) sequence — ordered by created_at,
     //       tie-broken by id — exactly matches the ledger,
-    //   (c) created_at is strictly non-decreasing (no rows out of time order).
+    //   (c) created_at is strictly non-decreasing (no rows out of time order),
+    //   (d) consecutive `stage_change` row deltas match the leaving stage's
+    //       configured duration (scaled by STAGE_TIME_SCALE_MS) within
+    //       DRIFT_MS — i.e. the timer config drives the observed cadence.
     //
-    // Note: stage transitions, metadata edits, and chat messages are
-    // intentionally not part of session_logs in this app; they're covered by
-    // the StageMachine assertions and chatLedger comparison above.
+    // Metadata edits and chat messages are intentionally not part of
+    // session_logs in this app; they're covered by the table queries and
+    // chatLedger comparison above.
     const logsRaw = execSync(
-      `psql -tA -F '|' -c "SELECT event_type, actor_email, extract(epoch from created_at)::text FROM public.session_logs WHERE session_id='${seeded.sessionId}' ORDER BY created_at ASC, id ASC;"`,
+      `psql -tA -F '|' -c "SELECT event_type, actor_email, extract(epoch from created_at)::text, event_data::text FROM public.session_logs WHERE session_id='${seeded.sessionId}' ORDER BY created_at ASC, id ASC;"`,
       { encoding: "utf8" },
     );
     const logRows = logsRaw
@@ -402,8 +464,13 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
       .map((l) => l.trim())
       .filter((l) => l && !/^(INSERT|UPDATE|DELETE|SELECT)\s+\d/.test(l))
       .map((l) => {
-        const [event_type, actor_email, ts] = l.split("|");
-        return { event_type, actor_email, ts: Number(ts) };
+        const [event_type, actor_email, ts, data] = l.split("|");
+        return {
+          event_type,
+          actor_email,
+          ts: Number(ts),
+          data: data ? (JSON.parse(data) as Record<string, unknown>) : null,
+        };
       });
 
     // (a) row count
@@ -419,15 +486,58 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
       expect(logRows[i].ts).toBeGreaterThanOrEqual(logRows[i - 1].ts);
     }
 
+    // (d) stage_change cadence vs. configured timers.
+    // Walk pairs of consecutive `stage_change` rows. The first row's
+    // event_data carries the duration of the stage we *left* — that should
+    // equal `(ts1 - ts0) / STAGE_TIME_SCALE_MS_IN_SECONDS` within tolerance.
+    const stageRows = logRows.filter((r) => r.event_type === "stage_change");
+    // 8 stages → 7 transitions logged.
+    expect(stageRows.length).toBe(machine.stages.length - 1);
+    for (let i = 1; i < stageRows.length; i += 1) {
+      const prev = stageRows[i - 1];
+      const cur = stageRows[i];
+      const deltaMs = (cur.ts - prev.ts) * 1000;
+      // The "configured_duration_seconds" on the *current* row is the stage
+      // we were sitting in between prev and cur (the one cur is leaving).
+      const configuredSeconds = Number(
+        (cur.data as { configured_duration_seconds?: number } | null)?.configured_duration_seconds,
+      );
+      expect(Number.isFinite(configuredSeconds)).toBe(true);
+      const expectedMs = configuredSeconds * STAGE_TIME_SCALE_MS;
+      // Drift tolerance covers REST round-trip for both the prev and cur
+      // session_logs inserts, plus setTimeout jitter.
+      expect(
+        Math.abs(deltaMs - expectedMs),
+        `stage_change[${i}] delta ${deltaMs.toFixed(0)}ms vs expected ${expectedMs}ms ` +
+          `(configured ${configuredSeconds}s * ${STAGE_TIME_SCALE_MS}ms/s)`,
+      ).toBeLessThanOrEqual(DRIFT_MS);
+      // Sanity: deltas are positive.
+      expect(deltaMs).toBeGreaterThan(0);
+    }
+    // Every stage_change row carries the expected event_data shape.
+    for (const r of stageRows) {
+      expect(r.data).toMatchObject({
+        from_index: expect.any(Number),
+        to_index: expect.any(Number),
+        stage_type: expect.any(String),
+        configured_duration_seconds: expect.any(Number),
+      });
+    }
+
     // Spot checks per event type, derived from the ledger.
     const investmentCount = eventLedger.filter((e) => e.event_type === "investment").length;
     const loginCount = eventLedger.filter((e) => e.event_type === "login").length;
     const logoutCount = eventLedger.filter((e) => e.event_type === "logout").length;
+    const stageChangeCount = eventLedger.filter((e) => e.event_type === "stage_change").length;
     expect(investmentCount).toBe(commitCount);
     expect(loginCount).toBe(8 + 1); // 8 initial joins + 1 rejoin (com2)
     expect(logoutCount).toBe(1); // com2 left once
+    expect(stageChangeCount).toBe(machine.stages.length - 1);
     // Facilitator log appears (joins are the facilitator's first row).
     expect(logRows[0]).toMatchObject({ event_type: "login", actor_email: fac.email });
+    // All stage_change rows are emitted by the facilitator.
+    expect(stageRows.every((r) => r.actor_email === fac.email)).toBe(true);
   });
 });
+
 
