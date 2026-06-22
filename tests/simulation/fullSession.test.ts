@@ -71,16 +71,25 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
 
   /**
    * Time-scale for stage transitions: 1 configured second → STAGE_TIME_SCALE_MS
-   * milliseconds of real wall time. Keeps the full 8-stage walk under ~5s
-   * while preserving the *ratio* between configured durations so we can
-   * verify session_logs deltas against the timer config.
+   * milliseconds of real wall time. Preserves the *ratio* between configured
+   * durations so we can verify session_logs deltas against the timer config
+   * without waiting the full 30+ real minutes a live session takes.
+   *
+   * The scale is sized so that even the busiest stage (Startup A presentation,
+   * ~10s of network calls for 7 investments + 1 logout + 1 chat) fits inside
+   * the per-stage budget; otherwise the in-stage work would push the next
+   * `stage_change` past the deadline.
    *
    * DRIFT_MS is the per-transition tolerance — dominated by Supabase REST
-   * round-trip latency for the session_logs insert (typically 100-300ms).
+   * round-trip latency for the session_logs insert (typically 100-300ms),
+   * plus setTimeout jitter.
    */
-  const STAGE_TIME_SCALE_MS = 8;
+  const STAGE_TIME_SCALE_MS = 50;
   const DRIFT_MS = 500;
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+  /** Wall-clock time the current stage was entered (set by advanceStage). */
+  let stageEnteredAt = Date.now();
 
   const recordCommitment = (
     startupEmail: string,
@@ -98,14 +107,21 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
   const recordLogout = (email: string) => eventLedger.push({ event_type: "logout", actor_email: email });
 
   /**
-   * Advance the StageMachine, wait the scaled duration of the stage we're
-   * leaving, then write a session_logs `stage_change` row. Mirrors what the
-   * facilitator's stage controls would do if the app logged transitions.
+   * Wait until the current stage's scaled deadline elapses (relative to when
+   * the stage was entered — *not* the moment advanceStage is called), then
+   * advance the StageMachine and write a `stage_change` row.
+   *
+   * This makes the wall-clock delta between consecutive `stage_change` log
+   * rows equal `configured_duration_seconds * STAGE_TIME_SCALE_MS` regardless
+   * of how much in-stage work happened between transitions — i.e. the
+   * configured timer drives the observed cadence.
    */
   const advanceStage = async () => {
     const from = machine.index;
     const leaving = machine.currentStage;
-    await sleep(leaving.durationSeconds * STAGE_TIME_SCALE_MS);
+    const deadline = stageEnteredAt + leaving.durationSeconds * STAGE_TIME_SCALE_MS;
+    const remaining = deadline - Date.now();
+    if (remaining > 0) await sleep(remaining);
     machine.next();
     await fac.logStageChange({
       fromIndex: from,
@@ -114,7 +130,12 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
       configuredDurationSeconds: leaving.durationSeconds,
     });
     eventLedger.push({ event_type: "stage_change", actor_email: fac.email });
+    // Reset the entry clock *after* the log insert lands so the next stage's
+    // budget starts from the same instant the session_logs row was written.
+    stageEnteredAt = Date.now();
   };
+
+
 
 
   const post = async (
