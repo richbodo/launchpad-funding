@@ -232,6 +232,9 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
     expect(machine.stages.at(-1)!.type).toBe("outro");
     expect(machine.currentStage.type).toBe("intro");
     expect(machine.remainingSeconds).toBe(5 * 60);
+    // Reset the stage entry clock: intro begins now, not at module load.
+    stageEnteredAt = Date.now();
+
 
     // ---- 3. Intro: only chat permitted --------------------------------------
     // Mirror Session.tsx button-disabled rule: no commitments during intro.
