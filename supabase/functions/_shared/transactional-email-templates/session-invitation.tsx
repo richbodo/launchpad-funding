@@ -129,6 +129,54 @@ const SessionInvitationEmail = ({
           </Section>
         )}
 
+        {showEventDetails && (
+          <Section style={detailsBox}>
+            <Hr style={hr} />
+            <Heading as="h2" style={h2}>About this event</Heading>
+            {eventDetails?.description && (
+              <Text style={text}>{eventDetails.description}</Text>
+            )}
+
+            {startups.length > 0 && (
+              <>
+                <Heading as="h3" style={h3}>Presenting startups</Heading>
+                {startups.map((s, i) => (
+                  <Section key={`s-${i}`} style={card}>
+                    <Text style={cardTitle}>{s.display_name || 'Startup'}</Text>
+                    {s.funding_goal != null && (
+                      <Text style={cardMeta}>Goal: ${Number(s.funding_goal).toLocaleString()} (USD)</Text>
+                    )}
+                    {s.description && <Text style={cardBody}>{s.description}</Text>}
+                    {(s.website_link || s.dd_room_link) && (
+                      <Text style={cardLinks}>
+                        {s.website_link && (
+                          <Link href={s.website_link} style={linkStyle}>Website</Link>
+                        )}
+                        {s.website_link && s.dd_room_link ? '  •  ' : ''}
+                        {s.dd_room_link && (
+                          <Link href={s.dd_room_link} style={linkStyle}>DD Room</Link>
+                        )}
+                      </Text>
+                    )}
+                  </Section>
+                ))}
+              </>
+            )}
+
+            {facilitators.length > 0 && (
+              <>
+                <Heading as="h3" style={h3}>Hosts</Heading>
+                {facilitators.map((f, i) => (
+                  <Section key={`f-${i}`} style={card}>
+                    <Text style={cardTitle}>{f.display_name || 'Host'}</Text>
+                    {f.bio && <Text style={cardBody}>{f.bio}</Text>}
+                  </Section>
+                ))}
+              </>
+            )}
+          </Section>
+        )}
+
         <Hr style={hr} />
 
         <Text style={footer}>
