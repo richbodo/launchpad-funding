@@ -488,11 +488,12 @@ export default function SessionPage() {
   }, [user?.role, isPaused, currentStageIndex, remainingSeconds, stageIdentity, broadcastStage]);
 
 
-  // Auto-open edit dialog for startups: on ?edit=true URL param, or if funding_goal not set
+  // Auto-open edit dialog for startups: on ?edit=true URL param, or if funding_goal or description not set
   useEffect(() => {
     if (user?.role !== 'startup' || editAutoOpened.current || startups.length === 0) return;
     const myRecord = startups.find(s => s.email === user.email);
-    if (searchParams.get('edit') === 'true' || (myRecord && myRecord.funding_goal == null)) {
+    const missingRequired = myRecord && (myRecord.funding_goal == null || !myRecord.description || !myRecord.description.trim());
+    if (searchParams.get('edit') === 'true' || missingRequired) {
       setEditStartupOpen(true);
       editAutoOpened.current = true;
       // Clean up the URL param
