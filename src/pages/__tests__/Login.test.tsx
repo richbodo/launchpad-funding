@@ -34,23 +34,26 @@ vi.mock('@/integrations/supabase/client', () => ({
         };
       }
       if (table === 'session_participants') {
+        // Chainable query stub: supports both
+        //   .select().eq().eq().eq().maybeSingle()  (role-scoped lookup)
+        //   .select().eq().eq().not().limit().maybeSingle?()  (facilitatorNeedsPassword)
+        // Returns `participantResult` from maybeSingle(); returns a non-empty
+        // array from limit() so facilitatorNeedsPassword() reports "has password".
+        const chain: any = {
+          eq: vi.fn(() => chain),
+          not: vi.fn(() => chain),
+          limit: vi.fn(() => Promise.resolve({ data: [{ id: 'p-existing' }], error: null })),
+          maybeSingle: vi.fn(() => Promise.resolve(participantResult)),
+          then: undefined,
+        };
         return {
-          select: vi.fn().mockReturnValue({
-            eq: vi.fn().mockReturnValue({
-              eq: vi.fn().mockReturnValue({
-                eq: vi.fn().mockReturnValue({
-                  maybeSingle: vi.fn().mockImplementation(() =>
-                    Promise.resolve(participantResult)
-                  ),
-                }),
-              }),
-            }),
-          }),
+          select: vi.fn(() => chain),
           update: vi.fn().mockReturnValue({
             eq: vi.fn().mockResolvedValue({ error: null }),
           }),
         };
       }
+
       if (table === 'session_logs') {
         return {
           insert: vi.fn().mockResolvedValue({ error: null }),
