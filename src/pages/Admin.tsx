@@ -1832,13 +1832,13 @@ export default function Admin() {
                                   >
                                     <Send className="w-3.5 h-3.5" />
                                   </Button>
-                                  {p.role === 'startup' && (
+                                  {(p.role === 'startup' || p.role === 'facilitator') && (
                                     <Button
                                       type="button"
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => openMetadataDialog(p)}
-                                      title="Edit metadata"
+                                      title={p.role === 'startup' ? 'Edit startup metadata' : 'Edit facilitator bio'}
                                     >
                                       <Settings2 className="w-3.5 h-3.5" />
                                     </Button>
