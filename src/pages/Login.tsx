@@ -349,8 +349,9 @@ export default function Login() {
         toast.info('Resuming your existing session...');
       }
 
-      // Facilitators need password on next step (skip in demo mode)
-      if (selectedRole === 'facilitator' && !isDemoMode) {
+      // Facilitators ALWAYS need to enter a password — including in demo
+      // mode, since admin mutations require a real admin_token now.
+      if (selectedRole === 'facilitator') {
         setPendingParticipant(participant);
         setStep(await facilitatorNeedsPassword(participant.email)
           ? 'facilitator-create-password'
