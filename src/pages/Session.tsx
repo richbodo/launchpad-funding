@@ -1393,3 +1393,97 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
   );
 }
 
+
+// ── Facilitator metadata editing dialog ──────────────────────────────
+//
+// Lets a logged-in facilitator self-update their bio (≤500 chars, optional)
+// without granting anon UPDATE on session_participants. Mirrors
+// StartupEditDialog and routes through the `facilitator-update-self` edge
+// function for the same RLS-bypass + role-verification pattern.
+
+interface FacilitatorEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sessionId: string;
+  email: string;
+}
+
+function FacilitatorEditDialog({ open, onOpenChange, sessionId, email }: FacilitatorEditDialogProps) {
+  const [bio, setBio] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [participantId, setParticipantId] = useState<string | null>(null);
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    if (!open) { loaded.current = false; return; }
+    if (loaded.current) return;
+    loaded.current = true;
+    supabase
+      .from('session_participants')
+      .select('id, bio')
+      .eq('session_id', sessionId)
+      .eq('email', email)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setParticipantId(data.id);
+          setBio((data as any).bio || '');
+        }
+      });
+  }, [open, sessionId, email]);
+
+  const handleSave = async () => {
+    if (!participantId) {
+      toast.error('Could not identify facilitator row');
+      return;
+    }
+    if (bio.length > 500) {
+      toast.error('Bio must be 500 characters or fewer.');
+      return;
+    }
+    setSaving(true);
+    const { data, error } = await supabase.functions.invoke('facilitator-update-self', {
+      body: { participant_id: participantId, bio: bio.trim() || null },
+    });
+    setSaving(false);
+    if (error || data?.error) {
+      toast.error('Failed to save bio');
+    } else {
+      toast.success('Bio saved');
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Your Bio</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="facilitator-bio">
+            Bio <span className="ml-1 text-xs text-muted-foreground">(optional, up to 500 characters)</span>
+          </Label>
+          <textarea
+            id="facilitator-bio"
+            rows={6}
+            maxLength={500}
+            placeholder="A short bio shown on the public event page."
+            value={bio}
+            onChange={(e) => setBio(e.target.value.slice(0, 500))}
+            className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="edit-facilitator-bio"
+          />
+          <div className="text-right text-xs text-muted-foreground">{bio.length}/500</div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving} data-testid="save-facilitator-bio-btn">
+            {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
