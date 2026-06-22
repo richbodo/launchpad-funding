@@ -1538,9 +1538,10 @@ export default function Admin() {
                           <Pencil className="w-4 h-4 mr-1" /> Edit
                         </Button>
                       )}
-                      {selectedSession.status === 'scheduled' && !isEditingSession && (
+                      {selectedSession.status !== 'live' && !isEditingSession && (
                         <Button size="sm" onClick={() => updateSessionStatus(selectedSession.id, 'live')} className="bg-accent text-accent-foreground">
-                          <Play className="w-4 h-4 mr-1" /> Go Live
+                          <Play className="w-4 h-4 mr-1" />
+                          {selectedSession.status === 'completed' ? 'Reopen (Go Live)' : 'Go Live'}
                         </Button>
                       )}
                       {!isEditingSession && (
