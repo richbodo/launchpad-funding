@@ -605,6 +605,8 @@ function runSimulationSuite() {
     // All stage_change rows are emitted by the facilitator.
     expect(stageRows.every((r) => r.actor_email === fac.email)).toBe(true);
   });
-});
+  });
+}
+
 
 
