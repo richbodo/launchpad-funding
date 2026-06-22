@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
     // Only expose presentable participant fields — no emails of attendees.
     const { data: participants } = await supabase
       .from("session_participants")
-      .select("role, display_name, image_url, presentation_order, website_link, dd_room_link, funding_goal")
+      .select("role, display_name, image_url, presentation_order, website_link, dd_room_link, funding_goal, description, bio")
       .eq("session_id", session.id)
       .in("role", ["startup", "facilitator"])
       .order("presentation_order", { ascending: true, nullsFirst: false });
@@ -79,12 +79,14 @@ Deno.serve(async (req) => {
         website_link: p.website_link,
         dd_room_link: p.dd_room_link,
         funding_goal: p.funding_goal,
+        description: p.description,
       }));
     const facilitators = (participants || [])
       .filter((p: any) => p.role === "facilitator")
       .map((p: any) => ({
         display_name: p.display_name,
         image_url: p.image_url,
+        bio: p.bio,
       }));
 
     // Cap check: count approved investor/community attendees.
