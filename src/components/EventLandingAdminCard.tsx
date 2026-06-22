@@ -35,6 +35,9 @@ interface Props {
   onUpdated: (updated: any) => void;
   onApproveParticipant: (p: ParticipantLike) => Promise<void>;
   onRejectParticipant: (p: ParticipantLike) => Promise<void>;
+  /** Re-fetch participants from the DB (used by the Refresh button so the
+   *  admin can pull in newly-arrived self-signups without re-logging in). */
+  onRefresh: () => Promise<void> | void;
 }
 
 /**
