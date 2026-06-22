@@ -608,7 +608,7 @@ export default function Admin() {
       toast.success(`Demo data refreshed: ${data?.summary?.sessions_created} sessions`);
       fetchSessions();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to refresh demo data');
+      toast.error('Could not refresh demo data', { description: err.message, duration: 10000 });
     } finally {
       setSeedingDemo(false);
     }
