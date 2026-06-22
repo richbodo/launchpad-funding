@@ -1820,6 +1820,19 @@ export default function Admin() {
                       <Button type="button" onClick={addParticipant} size="sm" className="bg-accent text-accent-foreground">
                         <Plus className="w-4 h-4" />
                       </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={sendTestInvite}
+                        disabled={sendingTestInvite || !addEmail.trim()}
+                        title="Send a test investor invitation to the email above without adding them as a participant"
+                      >
+                        {sendingTestInvite
+                          ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          : <Mail className="w-4 h-4 mr-1" />}
+                        {sendingTestInvite ? 'Sending…' : 'Send test invite'}
+                      </Button>
                     </div>
 
                     {/* Participant table */}
