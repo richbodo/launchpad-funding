@@ -70,6 +70,7 @@ function psql(sql: string): string {
  * `hash_participant_password` BEFORE INSERT trigger bcrypts it automatically.
  */
 export function seedSession(runId: string): SeededSession {
+  assertNotProd();
   const sessionName = `${SIM_TAG} ${runId}`;
   const slug = `sim-${runId.toLowerCase()}`;
 
