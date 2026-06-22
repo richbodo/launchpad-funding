@@ -287,6 +287,9 @@ export default function EventLanding() {
                     {s.funding_goal != null && (
                       <p className="text-xs text-muted-foreground">Goal: ${Number(s.funding_goal).toLocaleString()} (USD)</p>
                     )}
+                    {s.description && (
+                      <p className="mt-1.5 text-sm text-foreground/85 line-clamp-4">{s.description}</p>
+                    )}
                     <div className="mt-1 flex flex-wrap gap-2 text-xs">
                       {s.website_link && (
                         <a
