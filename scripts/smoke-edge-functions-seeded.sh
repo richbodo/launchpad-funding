@@ -40,11 +40,20 @@ if [ -z "$SUPABASE_URL" ] || [ -z "$ANON_KEY" ]; then
   echo "❌  SUPABASE_URL and SUPABASE_ANON_KEY must be set" >&2
   exit 2
 fi
-if [ -z "$SRK" ]; then
-  echo "❌  SUPABASE_SERVICE_ROLE_KEY is required to seed test data" >&2
-  echo "    (this script reads/writes real rows then deletes them)" >&2
+
+# Seeding/cleanup uses one of two backends, in this priority order:
+#   1. SUPABASE_SERVICE_ROLE_KEY → REST writes (works from any machine)
+#   2. PGHOST/psql                → direct DB writes (used in CI sandboxes)
+SEED_MODE=""
+if [ -n "$SRK" ]; then
+  SEED_MODE="rest"
+elif [ -n "${PGHOST:-}" ] && command -v psql >/dev/null 2>&1; then
+  SEED_MODE="psql"
+else
+  echo "❌  Need either SUPABASE_SERVICE_ROLE_KEY or PGHOST/psql to seed test data" >&2
   exit 2
 fi
+echo "    Seed mode: $SEED_MODE"
 
 FN="$SUPABASE_URL/functions/v1"
 REST="$SUPABASE_URL/rest/v1"
