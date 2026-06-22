@@ -6,6 +6,25 @@ import type { TemplateEntry } from './registry.ts'
 
 const SITE_NAME = "Pitch Pledge"
 
+interface EventStartup {
+  display_name?: string | null
+  image_url?: string | null
+  website_link?: string | null
+  dd_room_link?: string | null
+  funding_goal?: number | null
+  description?: string | null
+}
+interface EventFacilitator {
+  display_name?: string | null
+  image_url?: string | null
+  bio?: string | null
+}
+interface EventDetails {
+  description?: string | null
+  startups?: EventStartup[]
+  facilitators?: EventFacilitator[]
+}
+
 interface SessionInvitationProps {
   recipientName?: string
   roleName?: string
@@ -16,6 +35,7 @@ interface SessionInvitationProps {
   loginUrl?: string
   calendarUrl?: string
   contactEmail?: string
+  eventDetails?: EventDetails
 }
 
 /**
