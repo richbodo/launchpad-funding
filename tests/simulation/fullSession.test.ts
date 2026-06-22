@@ -59,14 +59,28 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
   const chatLedger: Array<{ email: string; role: string; message: string }> = [];
   /**
    * Local ordered ledger of every event the app writes to `session_logs`.
-   * Mirrors the exact sequence of `login` / `logout` / `investment` rows the
-   * UI would produce. Stage transitions, metadata edits, and chat messages
-   * are intentionally NOT included — the production app does not log those
-   * to `session_logs` (verified by grepping the codebase). The stage machine
-   * is verified separately via `machine.*` invariants, and chat messages via
-   * `chatLedger`.
+   * Mirrors the exact sequence of `login` / `logout` / `investment` /
+   * `stage_change` rows the simulation produces. (Metadata edits and chat
+   * messages are intentionally NOT in session_logs — the app doesn't log
+   * those; they're verified separately via the table queries and chatLedger.)
    */
-  const eventLedger: Array<{ event_type: "login" | "logout" | "investment"; actor_email: string }> = [];
+  const eventLedger: Array<{
+    event_type: "login" | "logout" | "investment" | "stage_change";
+    actor_email: string;
+  }> = [];
+
+  /**
+   * Time-scale for stage transitions: 1 configured second → STAGE_TIME_SCALE_MS
+   * milliseconds of real wall time. Keeps the full 8-stage walk under ~5s
+   * while preserving the *ratio* between configured durations so we can
+   * verify session_logs deltas against the timer config.
+   *
+   * DRIFT_MS is the per-transition tolerance — dominated by Supabase REST
+   * round-trip latency for the session_logs insert (typically 100-300ms).
+   */
+  const STAGE_TIME_SCALE_MS = 8;
+  const DRIFT_MS = 500;
+  const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
   const recordCommitment = (
     startupEmail: string,
@@ -82,6 +96,26 @@ const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable();
 
   const recordLogin = (email: string) => eventLedger.push({ event_type: "login", actor_email: email });
   const recordLogout = (email: string) => eventLedger.push({ event_type: "logout", actor_email: email });
+
+  /**
+   * Advance the StageMachine, wait the scaled duration of the stage we're
+   * leaving, then write a session_logs `stage_change` row. Mirrors what the
+   * facilitator's stage controls would do if the app logged transitions.
+   */
+  const advanceStage = async () => {
+    const from = machine.index;
+    const leaving = machine.currentStage;
+    await sleep(leaving.durationSeconds * STAGE_TIME_SCALE_MS);
+    machine.next();
+    await fac.logStageChange({
+      fromIndex: from,
+      toIndex: machine.index,
+      stageType: machine.currentStage.type,
+      configuredDurationSeconds: leaving.durationSeconds,
+    });
+    eventLedger.push({ event_type: "stage_change", actor_email: fac.email });
+  };
+
 
   const post = async (
     actor: { postChat: (m: string) => Promise<void>; email: string; role: string },
