@@ -512,12 +512,9 @@ export default function SessionPage() {
 
   const handleLogout = async () => {
     if (user && id) {
-      await supabase
-        .from('session_participants')
-        .update({ is_logged_in: false })
-        .eq('session_id', id)
-        .eq('email', user.email);
-
+      // is_logged_in is cleared inside SessionProvider.logout() via the
+      // participant-presence edge function. Direct UPDATE on
+      // session_participants is no longer allowed from the browser.
       await supabase.from('session_logs').insert({
         session_id: id,
         event_type: 'logout',
