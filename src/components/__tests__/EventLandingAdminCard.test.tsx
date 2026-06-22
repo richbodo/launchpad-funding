@@ -46,6 +46,7 @@ const renderCard = (overrides: Partial<typeof baseSession> = {}, participants: a
   const onUpdated = vi.fn();
   const onApprove = vi.fn().mockResolvedValue(undefined);
   const onReject = vi.fn().mockResolvedValue(undefined);
+  const onRefresh = vi.fn().mockResolvedValue(undefined);
   const utils = render(
     <EventLandingAdminCard
       session={{ ...baseSession, ...overrides }}
@@ -53,10 +54,12 @@ const renderCard = (overrides: Partial<typeof baseSession> = {}, participants: a
       onUpdated={onUpdated}
       onApproveParticipant={onApprove}
       onRejectParticipant={onReject}
+      onRefresh={onRefresh}
     />,
   );
-  return { ...utils, onUpdated, onApprove, onReject };
+  return { ...utils, onUpdated, onApprove, onReject, onRefresh };
 };
+
 
 /**
  * Issue #44: Admin card lets facilitators configure the public landing

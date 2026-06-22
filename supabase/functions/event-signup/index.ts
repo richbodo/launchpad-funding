@@ -70,15 +70,30 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Allow the same email to "re-sign-up" without error — return the existing row.
+    // Allow the same email to "re-sign-up" without error.
+    //
+    // The (session_id, email) unique constraint means we can't insert a
+    // separate investor row if the same address is already registered as
+    // a facilitator or startup. Surface that conflict explicitly so the
+    // signup user knows to use a different email — otherwise the toast
+    // would say "you're on the list" but no pending row would ever appear
+    // in the admin panel, leaving everyone confused.
     const { data: existing } = await supabase
       .from("session_participants")
-      .select("id, approved")
+      .select("id, role, approved")
       .eq("session_id", session.id)
       .eq("email", email)
       .maybeSingle();
 
     if (existing) {
+      if (existing.role !== "investor") {
+        return new Response(
+          JSON.stringify({
+            error: `This email is already registered for this event as a ${existing.role}. Please use a different email to sign up as an investor.`,
+          }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       return new Response(
         JSON.stringify({
           success: true,
@@ -88,6 +103,7 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+
 
     // Hard cap check (admin toggle OR approved-attendee count).
     if (session.is_full) {
