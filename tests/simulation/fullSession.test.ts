@@ -41,18 +41,73 @@ function psqlAvailable(): boolean {
 
 // Guard rail: the [SIM] harness seeds and deletes rows directly via psql, so
 // it must never run against the live production Supabase project. When the
-// env points at prod (or no override is set), we skip the suite cleanly
-// instead of failing — pair with `scripts/test-infra.sh` for a local dev DB,
-// or set FUNDFLOW_ALLOW_PROD=1 to opt in explicitly.
+// env points at prod, we skip the suite cleanly — pair with
+// `scripts/test-infra.sh` for a local dev DB, or set FUNDFLOW_ALLOW_PROD=1
+// to opt in explicitly.
 const PROD_PROJECT_REF = "bjtnmtdmgjkdnztgbaau";
 const pointsAtProd =
   process.env.FUNDFLOW_ALLOW_PROD !== "1" &&
   ((SUPABASE_URL || "").includes(PROD_PROJECT_REF) ||
     (process.env.PGHOST || "").includes(PROD_PROJECT_REF));
 
-const canRun = !!SUPABASE_URL && !!SUPABASE_ANON && psqlAvailable() && !pointsAtProd;
+/**
+ * Validate that a local Supabase stack is configured for the simulation.
+ * Returns null when ready, or a human-readable error explaining exactly
+ * which piece is missing and how to fix it. The prod-skip guard above
+ * takes precedence — env-var validation only runs when we're NOT pointed
+ * at production.
+ */
+function validateLocalSupabaseEnv(): string | null {
+  const missing: string[] = [];
+  if (!SUPABASE_URL) missing.push("VITE_SUPABASE_URL");
+  if (!SUPABASE_ANON) missing.push("VITE_SUPABASE_PUBLISHABLE_KEY");
+  const pgMissing: string[] = [];
+  if (!process.env.PGHOST) pgMissing.push("PGHOST");
+  if (!process.env.PGUSER) pgMissing.push("PGUSER");
+  if (!process.env.PGDATABASE) pgMissing.push("PGDATABASE");
+  if (missing.length === 0 && pgMissing.length === 0 && psqlAvailable()) {
+    return null;
+  }
+  const lines = [
+    "[SIM] Local Supabase is not configured for the simulation suite.",
+  ];
+  if (missing.length) {
+    lines.push(`  Missing Vite env vars: ${missing.join(", ")}`);
+  }
+  if (pgMissing.length) {
+    lines.push(`  Missing psql env vars: ${pgMissing.join(", ")}`);
+  }
+  if (!psqlAvailable()) {
+    lines.push("  psql is not on PATH or cannot connect with the current PG* env.");
+  }
+  lines.push("");
+  lines.push("  Fix: start a local Supabase stack via `scripts/test-infra.sh`,");
+  lines.push("  then re-run with the env it prints (VITE_SUPABASE_URL,");
+  lines.push("  VITE_SUPABASE_PUBLISHABLE_KEY, PGHOST/PGUSER/PGDATABASE/PGPASSWORD).");
+  lines.push("  To intentionally target a different project, set FUNDFLOW_ALLOW_PROD=1.");
+  return lines.join("\n");
+}
 
-(canRun ? describe : describe.skip)("full session simulation", () => {
+const envError = pointsAtProd ? null : validateLocalSupabaseEnv();
+
+if (pointsAtProd) {
+  describe.skip("full session simulation (skipped: prod project detected)", () => {
+    it("does not run against production", () => {});
+  });
+} else if (envError) {
+  describe("full session simulation", () => {
+    it("requires a configured local Supabase stack", () => {
+      throw new Error(envError);
+    });
+  });
+} else {
+  runSimulationSuite();
+}
+
+function runSimulationSuite() {
+  describe("full session simulation", () => {
+
+
 
   let seeded: SeededSession;
   let fac: FacilitatorActor;
