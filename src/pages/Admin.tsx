@@ -258,6 +258,9 @@ export default function Admin() {
   const [pendingParticipant, setPendingParticipant] = useState<{ email: string; name: string; role: string } | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
 
+  // Test invite button state
+  const [sendingTestInvite, setSendingTestInvite] = useState(false);
+
   // Bulk invite send + CSV import
   const [sendingBulk, setSendingBulk] = useState(false);
   const [bulkImporting, setBulkImporting] = useState(false);
@@ -946,7 +949,12 @@ export default function Admin() {
    * callers can count successes/failures. Does NOT touch UI state or sent
    * status — that is the caller's responsibility.
    */
-  const buildAndSendInvite = async (email: string, name: string | null, role: string) => {
+  const buildAndSendInvite = async (
+    email: string,
+    name: string | null,
+    role: string,
+    options?: { idempotencyKey?: string },
+  ) => {
     if (!selectedSession) throw new Error('No session selected');
     const welcomeMsg = role === 'facilitator' ? welcomeFacilitator
       : role === 'startup' ? welcomeStartup : welcomeInvestor;
@@ -990,11 +998,13 @@ export default function Admin() {
         }
       : undefined;
 
+    const idempotencyKey = options?.idempotencyKey || `session-invite-${selectedSession.id}-${email}`;
+
     const { data, error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
         templateName: 'session-invitation',
         recipientEmail: email,
-        idempotencyKey: `session-invite-${selectedSession.id}-${email}`,
+        idempotencyKey,
         templateData: {
           recipientName: name || undefined,
           roleName: role,
@@ -1096,6 +1106,40 @@ export default function Admin() {
     setSendingBulk(false);
     await fetchParticipants(selectedSession.id);
     toast.success(`Queued ${sent} invitation${sent === 1 ? '' : 's'}${failed ? ` · ${failed} failed` : ''}.`, { duration: failed ? 15000 : 6000 });
+  };
+
+  /**
+   * Send a test invitation email to the address currently in the add-participant
+   * email field. The recipient does not need to exist as a participant; this is
+   * useful for previewing the updated investor invitation template before adding
+   * real investors.
+   */
+  const sendTestInvite = async () => {
+    if (!selectedSession) {
+      toast.error('Select a session first');
+      return;
+    }
+    const email = addEmail.toLowerCase().trim();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      toast.error('Enter a valid investor email address');
+      return;
+    }
+
+    setSendingTestInvite(true);
+    try {
+      // Force role to investor so the test preview shows the full investor template
+      // including the landing-page event details section. Use a distinct
+      // idempotency key so a later real invite to the same address still sends.
+      await buildAndSendInvite(email, addName || null, 'investor', {
+        idempotencyKey: `session-invite-test-${selectedSession.id}-${email}`,
+      });
+      toast.success(`Test invite queued for ${email}`);
+    } catch (err) {
+      console.error('Test invite failed:', err);
+      toast.error(`Test invite failed: ${errMessage(err)}`, { duration: 15000 });
+    } finally {
+      setSendingTestInvite(false);
+    }
   };
 
   // ── CSV bulk-add of participants ────────────────────────────────────────
@@ -1785,6 +1829,19 @@ export default function Admin() {
                       )}
                       <Button type="button" onClick={addParticipant} size="sm" className="bg-accent text-accent-foreground">
                         <Plus className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={sendTestInvite}
+                        disabled={sendingTestInvite || !addEmail.trim()}
+                        title="Send a test investor invitation to the email above without adding them as a participant"
+                      >
+                        {sendingTestInvite
+                          ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          : <Mail className="w-4 h-4 mr-1" />}
+                        {sendingTestInvite ? 'Sending…' : 'Send test invite'}
                       </Button>
                     </div>
 
