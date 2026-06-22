@@ -27,11 +27,19 @@ export interface SeededSession {
 }
 
 function psql(sql: string): string {
-  return execSync(`psql -tA -v ON_ERROR_STOP=1`, {
+  const out = execSync(`psql -tA -v ON_ERROR_STOP=1`, {
     encoding: "utf8",
     input: sql,
     stdio: ["pipe", "pipe", "pipe"],
-  }).trim();
+  });
+  // -tA still emits the trailing "INSERT 0 1" status line. Return the first
+  // non-empty line that isn't a psql status (e.g. the RETURNING value).
+  return (
+    out
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => l && !/^(INSERT|UPDATE|DELETE|SELECT)\s+\d/.test(l)) ?? ""
+  );
 }
 
 /**
