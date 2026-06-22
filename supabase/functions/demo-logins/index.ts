@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { DEMO_FACILITATOR_PASSWORD } from "../seed-demo-data/index.ts";
+import { DEMO_FACILITATOR_PASSWORD } from "../_shared/demo.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
