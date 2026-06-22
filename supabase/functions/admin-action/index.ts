@@ -130,9 +130,15 @@ Deno.serve(async (req) => {
           "approved",
           "image_url",
           "investor_class",
+          // Per-role narrative metadata
+          "description", // startups: short pitch summary (required for live sessions)
+          "bio",         // facilitators: <=500 char bio
         ]) {
 
           if (k in fields) allowed[k] = fields[k];
+        }
+        if (typeof allowed.bio === "string" && (allowed.bio as string).length > 500) {
+          return bad(400, "bio exceeds 500 characters");
         }
         const { data, error } = await supabase.from("session_participants").update(allowed).eq("id", id).select().single();
         if (error) throw error;

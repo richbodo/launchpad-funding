@@ -18,6 +18,26 @@ interface SessionInvitationProps {
   contactEmail?: string
 }
 
+/**
+ * Per-role list of profile fields the recipient should fill in once they log
+ * in. Shown as a checklist in the invitation so startups and facilitators
+ * know what to prepare. Investors have no required profile fields, so the
+ * section is hidden for that role.
+ */
+const METADATA_BY_ROLE: Record<string, { label: string; required: boolean }[]> = {
+  startup: [
+    { label: 'Short pitch description (about two sentences)', required: true },
+    { label: 'Funding goal (USD)', required: true },
+    { label: 'Website link', required: false },
+    { label: 'Due-diligence room link', required: false },
+    { label: 'Logo or team photo', required: false },
+  ],
+  facilitator: [
+    { label: 'Short bio (up to 500 characters)', required: false },
+    { label: 'Profile photo', required: false },
+  ],
+}
+
 const SessionInvitationEmail = ({
   recipientName,
   roleName = 'participant',
@@ -28,7 +48,9 @@ const SessionInvitationEmail = ({
   loginUrl = '',
   calendarUrl = '',
   contactEmail = '',
-}: SessionInvitationProps) => (
+}: SessionInvitationProps) => {
+  const metadataItems = METADATA_BY_ROLE[roleName] || []
+  return (
   <Html lang="en" dir="ltr">
     <Head />
     <Preview>You're invited to {sessionName} — {SITE_NAME}</Preview>
@@ -50,6 +72,18 @@ const SessionInvitationEmail = ({
 
         {welcomeMessage && (
           <Text style={text}>{welcomeMessage}</Text>
+        )}
+
+        {metadataItems.length > 0 && (
+          <Section style={metadataBox}>
+            <Text style={metadataTitle}>What to fill in when you log in</Text>
+            {metadataItems.map((item, i) => (
+              <Text key={i} style={metadataItem}>
+                • {item.label}
+                {item.required ? <span style={requiredTag}> (required)</span> : null}
+              </Text>
+            ))}
+          </Section>
         )}
 
         {loginUrl && (
@@ -79,7 +113,8 @@ const SessionInvitationEmail = ({
       </Container>
     </Body>
   </Html>
-)
+  )
+}
 
 export const template = {
   component: SessionInvitationEmail,
@@ -87,12 +122,12 @@ export const template = {
   displayName: 'Session Invitation',
   previewData: {
     recipientName: 'Jane Doe',
-    roleName: 'investor',
+    roleName: 'startup',
     sessionName: 'Q1 Demo Day',
     sessionDate: 'March 30, 2026',
     sessionTime: '9:00 AM — 11:00 AM ET',
     welcomeMessage: 'We look forward to seeing you at the pitch session!',
-    loginUrl: 'https://pitch.globaldonut.com/login?session=abc&email=jane@example.com&role=investor',
+    loginUrl: 'https://pitch.globaldonut.com/login?session=abc&email=jane@example.com&role=startup',
     calendarUrl: 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=Q1+Demo+Day',
     contactEmail: 'facilitator@example.com',
   },
@@ -110,3 +145,7 @@ const calendarLink = { fontSize: '14px', color: '#16a34a', textDecoration: 'unde
 const hr = { borderColor: '#e5e7eb', margin: '25px 0' }
 const footer = { fontSize: '12px', color: '#999', margin: '0 0 4px' }
 const linkStyle = { color: '#16a34a' }
+const metadataBox = { backgroundColor: '#f9fafb', borderRadius: '8px', padding: '14px 18px', margin: '0 0 20px', border: '1px solid #e5e7eb' }
+const metadataTitle = { fontSize: '14px', fontWeight: 'bold' as const, color: '#1a1a2e', margin: '0 0 8px' }
+const metadataItem = { fontSize: '13px', color: '#333', lineHeight: '1.5', margin: '0 0 4px' }
+const requiredTag = { color: '#b91c1c', fontWeight: 'bold' as const }

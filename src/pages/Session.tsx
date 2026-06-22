@@ -61,6 +61,7 @@ interface Startup {
   funding_goal: number | null;
   dd_room_link: string | null;
   website_link: string | null;
+  description: string | null;
 }
 
 /**
@@ -101,6 +102,7 @@ export default function SessionPage() {
   // either 'equity' or 'gift' mode. Community supporters only get 'gift'.
   const [investPledgeType, setInvestPledgeType] = useState<'equity' | 'gift'>('equity');
   const [editStartupOpen, setEditStartupOpen] = useState(false);
+  const [editFacilitatorOpen, setEditFacilitatorOpen] = useState(false);
   const editAutoOpened = useRef(false);
   const [session, setSession] = useState<any>(null);
   const [callState, setCallState] = useState<CallState>('idle');
@@ -202,6 +204,7 @@ export default function SessionPage() {
                 funding_goal: updated.funding_goal ?? null,
                 dd_room_link: updated.dd_room_link ?? null,
                 website_link: updated.website_link ?? null,
+                description: updated.description ?? null,
               }
             : s
         ));
@@ -218,7 +221,7 @@ export default function SessionPage() {
 
       let { data: startupData } = await supabase
         .from('session_participants')
-        .select('email, display_name, presentation_order, funding_goal, dd_room_link, website_link')
+        .select('email, display_name, presentation_order, funding_goal, dd_room_link, website_link, description')
         .eq('session_id', id)
         .eq('role', 'startup')
         .order('presentation_order', { ascending: true });
@@ -234,6 +237,7 @@ export default function SessionPage() {
           funding_goal: null,
           dd_room_link: null,
           website_link: null,
+          description: null,
         })) ?? null;
       }
       if (startupData) setStartups(startupData as Startup[]);
@@ -485,11 +489,12 @@ export default function SessionPage() {
   }, [user?.role, isPaused, currentStageIndex, remainingSeconds, stageIdentity, broadcastStage]);
 
 
-  // Auto-open edit dialog for startups: on ?edit=true URL param, or if funding_goal not set
+  // Auto-open edit dialog for startups: on ?edit=true URL param, or if funding_goal or description not set
   useEffect(() => {
     if (user?.role !== 'startup' || editAutoOpened.current || startups.length === 0) return;
     const myRecord = startups.find(s => s.email === user.email);
-    if (searchParams.get('edit') === 'true' || (myRecord && myRecord.funding_goal == null)) {
+    const missingRequired = myRecord && (myRecord.funding_goal == null || !myRecord.description || !myRecord.description.trim());
+    if (searchParams.get('edit') === 'true' || missingRequired) {
       setEditStartupOpen(true);
       editAutoOpened.current = true;
       // Clean up the URL param
@@ -988,6 +993,17 @@ export default function SessionPage() {
               Edit Your Startup Info
             </Button>
           )}
+          {user.role === 'facilitator' && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditFacilitatorOpen(true)}
+              data-testid="edit-facilitator-btn"
+            >
+              <Settings className="w-4 h-4 mr-1" />
+              Edit Your Bio
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span
@@ -1049,6 +1065,15 @@ export default function SessionPage() {
               s.email === user.email ? { ...s, ...updates } : s
             ));
           }}
+        />
+      )}
+      {/* Facilitator bio editing dialog */}
+      {user.role === 'facilitator' && (
+        <FacilitatorEditDialog
+          open={editFacilitatorOpen}
+          onOpenChange={setEditFacilitatorOpen}
+          sessionId={id}
+          email={user.email}
         />
       )}
     </div>
@@ -1232,13 +1257,14 @@ interface StartupEditDialogProps {
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   email: string;
-  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null }) => void;
+  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null; description?: string | null }) => void;
 }
 
 function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
   const [fundingGoal, setFundingGoal] = useState('');
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
+  const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const loaded = useRef(false);
 
@@ -1251,7 +1277,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
 
     supabase
       .from('session_participants')
-      .select('id, funding_goal, dd_room_link, website_link')
+      .select('id, funding_goal, dd_room_link, website_link, description')
       .eq('session_id', sessionId)
       .eq('email', email)
       .single()
@@ -1261,6 +1287,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
           setFundingGoal(data.funding_goal != null ? String(data.funding_goal) : '');
           setDdRoomLink(data.dd_room_link || '');
           setWebsiteLink(data.website_link || '');
+          setDescription((data as any).description || '');
         }
       });
   }, [open, sessionId, email]);
@@ -1270,15 +1297,18 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
       toast.error('Could not identify startup row');
       return;
     }
+    // Description is required — keep dialog open until provided.
+    if (!description.trim()) {
+      toast.error('Please add a short description (about two sentences).');
+      return;
+    }
     setSaving(true);
     const updates: any = {
       funding_goal: fundingGoal ? parseFloat(fundingGoal) : null,
       dd_room_link: ddRoomLink || null,
       website_link: websiteLink || null,
+      description: description.trim(),
     };
-    // Direct UPDATE on session_participants is no longer allowed from the
-    // browser (RLS locked to service_role). Go through the edge function,
-    // which verifies the target row is role='startup'.
     const { data, error } = await supabase.functions.invoke('startup-update-self', {
       body: { participant_id: participantId, ...updates },
     });
@@ -1300,6 +1330,23 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
           <DialogTitle>Edit Startup Info</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="startup-description">
+              Description <span className="text-destructive">*</span>
+              <span className="ml-1 text-xs text-muted-foreground">(about two sentences)</span>
+            </Label>
+            <textarea
+              id="startup-description"
+              required
+              rows={3}
+              maxLength={600}
+              placeholder="One or two sentences describing what your startup does."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid="edit-startup-description"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="funding-goal">Funding Goal ($)</Label>
             <Input
@@ -1337,6 +1384,101 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSave} disabled={saving} data-testid="save-startup-info-btn">
+            {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+            Save
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+
+// ── Facilitator metadata editing dialog ──────────────────────────────
+//
+// Lets a logged-in facilitator self-update their bio (≤500 chars, optional)
+// without granting anon UPDATE on session_participants. Mirrors
+// StartupEditDialog and routes through the `facilitator-update-self` edge
+// function for the same RLS-bypass + role-verification pattern.
+
+interface FacilitatorEditDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  sessionId: string;
+  email: string;
+}
+
+function FacilitatorEditDialog({ open, onOpenChange, sessionId, email }: FacilitatorEditDialogProps) {
+  const [bio, setBio] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [participantId, setParticipantId] = useState<string | null>(null);
+  const loaded = useRef(false);
+
+  useEffect(() => {
+    if (!open) { loaded.current = false; return; }
+    if (loaded.current) return;
+    loaded.current = true;
+    supabase
+      .from('session_participants')
+      .select('id, bio')
+      .eq('session_id', sessionId)
+      .eq('email', email)
+      .single()
+      .then(({ data }) => {
+        if (data) {
+          setParticipantId(data.id);
+          setBio((data as any).bio || '');
+        }
+      });
+  }, [open, sessionId, email]);
+
+  const handleSave = async () => {
+    if (!participantId) {
+      toast.error('Could not identify facilitator row');
+      return;
+    }
+    if (bio.length > 500) {
+      toast.error('Bio must be 500 characters or fewer.');
+      return;
+    }
+    setSaving(true);
+    const { data, error } = await supabase.functions.invoke('facilitator-update-self', {
+      body: { participant_id: participantId, bio: bio.trim() || null },
+    });
+    setSaving(false);
+    if (error || data?.error) {
+      toast.error('Failed to save bio');
+    } else {
+      toast.success('Bio saved');
+      onOpenChange(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit Your Bio</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-2 py-2">
+          <Label htmlFor="facilitator-bio">
+            Bio <span className="ml-1 text-xs text-muted-foreground">(optional, up to 500 characters)</span>
+          </Label>
+          <textarea
+            id="facilitator-bio"
+            rows={6}
+            maxLength={500}
+            placeholder="A short bio shown on the public event page."
+            value={bio}
+            onChange={(e) => setBio(e.target.value.slice(0, 500))}
+            className="flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            data-testid="edit-facilitator-bio"
+          />
+          <div className="text-right text-xs text-muted-foreground">{bio.length}/500</div>
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button onClick={handleSave} disabled={saving} data-testid="save-facilitator-bio-btn">
             {saving ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
             Save
           </Button>

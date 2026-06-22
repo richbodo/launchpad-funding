@@ -251,8 +251,10 @@ export type Database = {
       session_participants: {
         Row: {
           approved: boolean
+          bio: string | null
           created_at: string
           dd_room_link: string | null
+          description: string | null
           display_name: string | null
           email: string
           funding_goal: number | null
@@ -270,8 +272,10 @@ export type Database = {
         }
         Insert: {
           approved?: boolean
+          bio?: string | null
           created_at?: string
           dd_room_link?: string | null
+          description?: string | null
           display_name?: string | null
           email: string
           funding_goal?: number | null
@@ -289,8 +293,10 @@ export type Database = {
         }
         Update: {
           approved?: boolean
+          bio?: string | null
           created_at?: string
           dd_room_link?: string | null
+          description?: string | null
           display_name?: string | null
           email?: string
           funding_goal?: number | null

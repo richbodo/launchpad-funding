@@ -154,6 +154,9 @@ interface ParticipantRow {
   approved?: boolean | null;
   image_url?: string | null;
   investor_class?: 'accredited' | 'community' | null;
+  // Per-role narrative metadata
+  description?: string | null; // startups
+  bio?: string | null;         // facilitators
 }
 
 
@@ -247,6 +250,8 @@ export default function Admin() {
   const [metaWebsite, setMetaWebsite] = useState('');
   const [metaFundingGoal, setMetaFundingGoal] = useState('');
   const [metaImageUrl, setMetaImageUrl] = useState('');
+  const [metaDescription, setMetaDescription] = useState(''); // startup short pitch
+  const [metaBio, setMetaBio] = useState('');                 // facilitator bio (≤500)
 
   // Send email dialog
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
@@ -1233,13 +1238,26 @@ export default function Admin() {
 
   const saveMetadata = async () => {
     if (!metaParticipant) return;
-    const { data, error } = await invokeAdmin('update_participant', {
+    const isStartup = metaParticipant.role === 'startup';
+    const isFacilitator = metaParticipant.role === 'facilitator';
+    if (isFacilitator && metaBio.length > 500) {
+      toast.error('Bio must be 500 characters or fewer');
+      return;
+    }
+    const payload: Record<string, unknown> = {
       id: metaParticipant.id,
-      dd_room_link: metaDDRoom || null,
-      website_link: metaWebsite || null,
-      funding_goal: metaFundingGoal ? parseFloat(metaFundingGoal) : null,
       image_url: metaImageUrl || null,
-    });
+    };
+    if (isStartup) {
+      payload.dd_room_link = metaDDRoom || null;
+      payload.website_link = metaWebsite || null;
+      payload.funding_goal = metaFundingGoal ? parseFloat(metaFundingGoal) : null;
+      payload.description = metaDescription.trim() || null;
+    }
+    if (isFacilitator) {
+      payload.bio = metaBio.trim() || null;
+    }
+    const { data, error } = await invokeAdmin('update_participant', payload);
     if (error || data?.error) {
       toast.error('Failed to save metadata');
       return;
@@ -1255,6 +1273,8 @@ export default function Admin() {
     setMetaWebsite(p.website_link || '');
     setMetaFundingGoal(p.funding_goal != null ? String(p.funding_goal) : '');
     setMetaImageUrl(p.image_url || '');
+    setMetaDescription(p.description || '');
+    setMetaBio(p.bio || '');
   };
 
   const toggleSort = (col: 'role' | 'display_name') => {
@@ -1812,13 +1832,13 @@ export default function Admin() {
                                   >
                                     <Send className="w-3.5 h-3.5" />
                                   </Button>
-                                  {p.role === 'startup' && (
+                                  {(p.role === 'startup' || p.role === 'facilitator') && (
                                     <Button
                                       type="button"
                                       variant="ghost"
                                       size="sm"
                                       onClick={() => openMetadataDialog(p)}
-                                      title="Edit metadata"
+                                      title={p.role === 'startup' ? 'Edit startup metadata' : 'Edit facilitator bio'}
                                     >
                                       <Settings2 className="w-3.5 h-3.5" />
                                     </Button>
@@ -2241,37 +2261,73 @@ export default function Admin() {
       <Dialog open={!!metaParticipant} onOpenChange={open => { if (!open) setMetaParticipant(null); }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Startup Metadata — {metaParticipant?.display_name || metaParticipant?.email}</DialogTitle>
+            <DialogTitle>
+              {metaParticipant?.role === 'facilitator' ? 'Facilitator Bio' : 'Startup Metadata'} — {metaParticipant?.display_name || metaParticipant?.email}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <Label>Funding Goal ($)</Label>
-              <Input
-                type="number"
-                value={metaFundingGoal}
-                onChange={e => setMetaFundingGoal(e.target.value)}
-                placeholder="125000"
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label>DD Room Link</Label>
-              <Input
-                value={metaDDRoom}
-                onChange={e => setMetaDDRoom(e.target.value)}
-                placeholder="https://..."
-                className="mt-1"
-              />
-            </div>
-            <div>
-              <Label>Website Link</Label>
-              <Input
-                value={metaWebsite}
-                onChange={e => setMetaWebsite(e.target.value)}
-                placeholder="https://..."
-                className="mt-1"
-              />
-            </div>
+            {metaParticipant?.role === 'startup' && (
+              <>
+                <div>
+                  <Label>
+                    Description <span className="text-destructive">*</span>
+                    <span className="ml-1 text-xs text-muted-foreground">(about two sentences)</span>
+                  </Label>
+                  <textarea
+                    rows={3}
+                    maxLength={600}
+                    value={metaDescription}
+                    onChange={e => setMetaDescription(e.target.value)}
+                    placeholder="One or two sentences describing what this startup does."
+                    className="mt-1 flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  />
+                </div>
+                <div>
+                  <Label>Funding Goal ($)</Label>
+                  <Input
+                    type="number"
+                    value={metaFundingGoal}
+                    onChange={e => setMetaFundingGoal(e.target.value)}
+                    placeholder="125000"
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>DD Room Link</Label>
+                  <Input
+                    value={metaDDRoom}
+                    onChange={e => setMetaDDRoom(e.target.value)}
+                    placeholder="https://..."
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label>Website Link</Label>
+                  <Input
+                    value={metaWebsite}
+                    onChange={e => setMetaWebsite(e.target.value)}
+                    placeholder="https://..."
+                    className="mt-1"
+                  />
+                </div>
+              </>
+            )}
+            {metaParticipant?.role === 'facilitator' && (
+              <div>
+                <Label>
+                  Bio <span className="ml-1 text-xs text-muted-foreground">(optional, up to 500 characters)</span>
+                </Label>
+                <textarea
+                  rows={6}
+                  maxLength={500}
+                  value={metaBio}
+                  onChange={e => setMetaBio(e.target.value.slice(0, 500))}
+                  placeholder="Short bio shown on the public event page."
+                  className="mt-1 flex min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                />
+                <div className="text-right text-xs text-muted-foreground mt-1">{metaBio.length}/500</div>
+              </div>
+            )}
             {metaParticipant && (
               <ImageUploadField
                 label="Photo / logo"
@@ -2289,6 +2345,7 @@ export default function Admin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
 
       {/* Send Email Dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={open => { if (!open) { setEmailDialogOpen(false); setPendingParticipant(null); } }}>
