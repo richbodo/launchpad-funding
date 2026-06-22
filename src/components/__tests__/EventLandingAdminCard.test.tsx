@@ -177,7 +177,7 @@ describe('EventLandingAdminCard', () => {
     const { onApprove, onReject } = renderCard({}, participants);
 
     expect(screen.getByText('Alice')).toBeInTheDocument();
-    expect(screen.queryByText('Bob')).not.toBeInTheDocument(); // approved → not in pending list
+    expect(screen.getByText('Bob')).toBeInTheDocument(); // approved → appears in approved list
     expect(screen.getByText(/1 \/ 100 approved/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Approve/i }));
