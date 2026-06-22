@@ -17,15 +17,21 @@ import { supabase } from '@/integrations/supabase/client';
  */
 let cachedPromise: Promise<boolean> | null = null;
 
+async function fetchDemoModeOnce(): Promise<boolean> {
+  try {
+    const { data } = await supabase
+      .from('app_settings')
+      .select('value')
+      .eq('key', 'mode')
+      .single();
+    return data?.value === 'demo';
+  } catch {
+    return false;
+  }
+}
+
 function fetchDemoMode(): Promise<boolean> {
-  if (cachedPromise) return cachedPromise;
-  cachedPromise = supabase
-    .from('app_settings')
-    .select('value')
-    .eq('key', 'mode')
-    .single()
-    .then(({ data }) => data?.value === 'demo')
-    .catch(() => false);
+  if (!cachedPromise) cachedPromise = fetchDemoModeOnce();
   return cachedPromise;
 }
 
