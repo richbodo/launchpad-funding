@@ -97,7 +97,9 @@ srest() {
 }
 
 # psql seeding helpers (used when SEED_MODE=psql). Bypass RLS via direct DB.
-psql_scalar() { psql -tA -c "$1" 2>/dev/null | head -1 | tr -d '[:space:]'; }
+# psql_scalar trims only trailing newlines so values with spaces (like
+# "[SMOKE] created-by-...") survive intact.
+psql_scalar() { psql -tA -c "$1" 2>/dev/null | head -1 | sed -e 's/[[:space:]]*$//'; }
 psql_exec()   { psql -q -c "$1" >/dev/null 2>&1; }
 
 # Unified seed/cleanup API — dispatches on $SEED_MODE so the same script runs
