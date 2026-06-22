@@ -19,6 +19,9 @@ const BodySchema = z.object({
   funding_goal: z.number().nonnegative().nullable().optional(),
   dd_room_link: z.string().url().max(500).nullable().optional(),
   website_link: z.string().url().max(500).nullable().optional(),
+  // Short pitch summary (~2 sentences). Required before going live, but the
+  // edge function accepts null so the dialog can be cleared/edited freely.
+  description: z.string().max(1000).nullable().optional(),
 });
 
 Deno.serve(async (req) => {
