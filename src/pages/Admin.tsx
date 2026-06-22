@@ -50,6 +50,81 @@ async function invokeAdminSetting(key: string, value: string) {
   });
 }
 
+/**
+ * Invoke `seed-demo-data` with actionable error reporting.
+ *
+ * `supabase.functions.invoke` surfaces a 401 as a generic
+ * `FunctionsHttpError: Edge Function returned a non-2xx status code`, which
+ * is useless to a facilitator staring at a toast. This helper:
+ *
+ *   1. Short-circuits when no admin token is in sessionStorage and returns
+ *      a clear "please log in again" message — no network call.
+ *   2. On HTTP error, reads the JSON body the edge function returned
+ *      (e.g. `{ error: "Unauthorized: facilitator admin token required" }`)
+ *      from `error.context` (the raw `Response`) and surfaces it.
+ *   3. Maps the 401 / unauthorized case to an actionable hint AND clears
+ *      the stale token so the next attempt forces a fresh login.
+ *
+ * Always returns `{ data, error }` where `error` is a user-facing string
+ * suitable for `toast.error`, never a raw `FunctionsHttpError`.
+ */
+async function invokeSeedDemoData(): Promise<{ data: any; error: string | null }> {
+  const token = getAdminToken();
+  if (!token) {
+    return {
+      data: null,
+      error:
+        'Your facilitator session has expired. Please log out and sign back in as a facilitator before seeding demo data.',
+    };
+  }
+
+  const { data, error } = await supabase.functions.invoke('seed-demo-data', {
+    body: { admin_token: token },
+  });
+
+  if (!error && !data?.error) return { data, error: null };
+
+  let status: number | undefined;
+  let bodyMessage: string | undefined;
+  const ctx = (error as any)?.context;
+  if (ctx && typeof ctx === 'object' && 'status' in ctx) {
+    status = (ctx as Response).status;
+    try {
+      const body = await (ctx as Response).clone().json();
+      bodyMessage = body?.error || body?.details;
+    } catch {
+      try {
+        bodyMessage = await (ctx as Response).clone().text();
+      } catch {
+        /* ignore — fall through to generic message */
+      }
+    }
+  }
+
+  const serverMessage = data?.error || bodyMessage;
+
+  if (status === 401 || /unauthorized|admin token/i.test(serverMessage ?? '')) {
+    clearAdminToken();
+    return {
+      data: null,
+      error:
+        'Facilitator authorization was rejected (token missing, expired, or revoked). Please log out and sign in again as a facilitator, then retry seeding demo data.',
+    };
+  }
+
+  if (serverMessage && /not in demo mode/i.test(serverMessage)) {
+    return {
+      data: null,
+      error: 'Demo mode is currently off. Enable demo mode before seeding demo data.',
+    };
+  }
+
+  return {
+    data: null,
+    error: serverMessage || error?.message || 'Failed to seed demo data',
+  };
+}
+
 interface SessionRow {
   id: string;
   name: string;
