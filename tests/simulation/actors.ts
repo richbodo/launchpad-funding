@@ -65,6 +65,18 @@ export class Actor {
       body: JSON.stringify({ participant_id: this.id, logged_in: true }),
     });
     if (!res.ok) throw new Error(`login failed for ${this.email}: ${res.status} ${await res.text()}`);
+    // Mirror Login.tsx: write a `login` event to session_logs.
+    const log = await this.client.from("session_logs").insert({
+      session_id: this.sessionId,
+      event_type: "login",
+      event_data: {
+        email: this.email,
+        role: this.role,
+        investor_class: this.investorClass ?? null,
+      },
+      actor_email: this.email,
+    });
+    if (log.error) throw new Error(`login session_logs insert failed: ${log.error.message}`);
   }
 
   /** Flip presence off. Mirrors the beforeunload handler in Session.tsx. */
@@ -79,12 +91,21 @@ export class Actor {
       body: JSON.stringify({ participant_id: this.id, logged_in: false }),
     });
     if (!res.ok) throw new Error(`logout failed for ${this.email}: ${res.status} ${await res.text()}`);
+    // Mirror Session.tsx handleLogout: write a `logout` event to session_logs.
+    const log = await this.client.from("session_logs").insert({
+      session_id: this.sessionId,
+      event_type: "logout",
+      event_data: { email: this.email, role: this.role },
+      actor_email: this.email,
+    });
+    if (log.error) throw new Error(`logout session_logs insert failed: ${log.error.message}`);
   }
 
   /** Convenience alias — same wire call as login(). */
   rejoin(): Promise<void> {
     return this.login();
   }
+
 
   async postChat(message: string): Promise<void> {
     const { error } = await this.client.from("chat_messages").insert({
