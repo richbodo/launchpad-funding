@@ -1067,6 +1067,15 @@ export default function SessionPage() {
           }}
         />
       )}
+      {/* Facilitator bio editing dialog */}
+      {user.role === 'facilitator' && (
+        <FacilitatorEditDialog
+          open={editFacilitatorOpen}
+          onOpenChange={setEditFacilitatorOpen}
+          sessionId={id}
+          email={user.email}
+        />
+      )}
     </div>
   );
 }
