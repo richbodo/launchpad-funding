@@ -1238,13 +1238,26 @@ export default function Admin() {
 
   const saveMetadata = async () => {
     if (!metaParticipant) return;
-    const { data, error } = await invokeAdmin('update_participant', {
+    const isStartup = metaParticipant.role === 'startup';
+    const isFacilitator = metaParticipant.role === 'facilitator';
+    if (isFacilitator && metaBio.length > 500) {
+      toast.error('Bio must be 500 characters or fewer');
+      return;
+    }
+    const payload: Record<string, unknown> = {
       id: metaParticipant.id,
-      dd_room_link: metaDDRoom || null,
-      website_link: metaWebsite || null,
-      funding_goal: metaFundingGoal ? parseFloat(metaFundingGoal) : null,
       image_url: metaImageUrl || null,
-    });
+    };
+    if (isStartup) {
+      payload.dd_room_link = metaDDRoom || null;
+      payload.website_link = metaWebsite || null;
+      payload.funding_goal = metaFundingGoal ? parseFloat(metaFundingGoal) : null;
+      payload.description = metaDescription.trim() || null;
+    }
+    if (isFacilitator) {
+      payload.bio = metaBio.trim() || null;
+    }
+    const { data, error } = await invokeAdmin('update_participant', payload);
     if (error || data?.error) {
       toast.error('Failed to save metadata');
       return;
@@ -1260,6 +1273,8 @@ export default function Admin() {
     setMetaWebsite(p.website_link || '');
     setMetaFundingGoal(p.funding_goal != null ? String(p.funding_goal) : '');
     setMetaImageUrl(p.image_url || '');
+    setMetaDescription(p.description || '');
+    setMetaBio(p.bio || '');
   };
 
   const toggleSort = (col: 'role' | 'display_name') => {
