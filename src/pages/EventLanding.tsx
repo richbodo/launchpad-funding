@@ -28,10 +28,12 @@ interface LandingStartup {
   website_link: string | null;
   dd_room_link: string | null;
   funding_goal: number | null;
+  description: string | null;
 }
 interface LandingFacilitator {
   display_name: string | null;
   image_url: string | null;
+  bio: string | null;
 }
 interface LandingPayload {
   session: {
