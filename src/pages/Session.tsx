@@ -61,6 +61,7 @@ interface Startup {
   funding_goal: number | null;
   dd_room_link: string | null;
   website_link: string | null;
+  description: string | null;
 }
 
 /**
