@@ -603,10 +603,8 @@ export default function Admin() {
   const refreshDemoData = async () => {
     setSeedingDemo(true);
     try {
-      const { data, error } = await supabase.functions.invoke('seed-demo-data', {
-        body: { admin_token: getAdminToken() },
-      });
-      if (error || data?.error) throw new Error(data?.error || error?.message || 'Seed failed');
+      const { data, error } = await invokeSeedDemoData();
+      if (error) throw new Error(error);
       toast.success(`Demo data refreshed: ${data?.summary?.sessions_created} sessions`);
       fetchSessions();
     } catch (err: any) {
