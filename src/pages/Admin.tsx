@@ -949,7 +949,12 @@ export default function Admin() {
    * callers can count successes/failures. Does NOT touch UI state or sent
    * status — that is the caller's responsibility.
    */
-  const buildAndSendInvite = async (email: string, name: string | null, role: string) => {
+  const buildAndSendInvite = async (
+    email: string,
+    name: string | null,
+    role: string,
+    options?: { idempotencyKey?: string },
+  ) => {
     if (!selectedSession) throw new Error('No session selected');
     const welcomeMsg = role === 'facilitator' ? welcomeFacilitator
       : role === 'startup' ? welcomeStartup : welcomeInvestor;
@@ -993,11 +998,13 @@ export default function Admin() {
         }
       : undefined;
 
+    const idempotencyKey = options?.idempotencyKey || `session-invite-${selectedSession.id}-${email}`;
+
     const { data, error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
         templateName: 'session-invitation',
         recipientEmail: email,
-        idempotencyKey: `session-invite-${selectedSession.id}-${email}`,
+        idempotencyKey,
         templateData: {
           recipientName: name || undefined,
           roleName: role,
