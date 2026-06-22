@@ -198,10 +198,32 @@ export default function EventLandingAdminCard({
           </Button>
         </div>
 
-        {/* Pending self-signups */}
-        <div className="border-t border-border pt-4">
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="font-semibold text-sm flex items-center gap-2">
+        {/* Signups (pending + completed). Both lists pull from the same
+            `participants` prop fetched by Admin. The Refresh button re-runs
+            that fetch so newly-arrived self-signups appear without forcing
+            the facilitator to reload the page or re-authenticate. */}
+        <div className="border-t border-border pt-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">
+              {approvedInvestors.length} / {session.max_attendees ?? 100} approved
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                try { await onRefresh(); } finally { setRefreshing(false); }
+              }}
+            >
+              <RefreshCw className={`w-4 h-4 mr-1 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+
+          {/* Pending self-signups awaiting approval */}
+          <div>
+            <h4 className="font-semibold text-sm flex items-center gap-2 mb-2">
               <UserCheck className="w-4 h-4" /> Pending signups
               {pendingSignups.length > 0 && (
                 <span className="text-xs font-normal text-muted-foreground">
@@ -209,35 +231,63 @@ export default function EventLandingAdminCard({
                 </span>
               )}
             </h4>
-            <span className="text-xs text-muted-foreground">
-              {approvedInvestors.length} / {session.max_attendees ?? 100} approved
-            </span>
-          </div>
-          {pendingSignups.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No pending signups.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {pendingSignups.map((p) => (
-                <li key={p.id} className="py-2 flex items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm truncate">{p.display_name || p.email}</div>
-                    <div className="text-xs text-muted-foreground truncate">
-                      {p.email}
-                      {p.investor_class ? ` · ${p.investor_class}` : ''}
+            {pendingSignups.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No pending signups.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {pendingSignups.map((p) => (
+                  <li key={p.id} className="py-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm truncate">{p.display_name || p.email}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {p.email}
+                        {p.investor_class ? ` · ${p.investor_class}` : ''}
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button size="sm" variant="outline" onClick={() => onApproveParticipant(p)}>
-                      <Check className="w-4 h-4 mr-1" /> Approve
-                    </Button>
-                    <Button size="sm" variant="ghost" onClick={() => onRejectParticipant(p)}>
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+                    <div className="flex gap-1 shrink-0">
+                      <Button size="sm" variant="outline" onClick={() => onApproveParticipant(p)}>
+                        <Check className="w-4 h-4 mr-1" /> Approve
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => onRejectParticipant(p)}>
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Completed (approved) investor signups. Approving a pending row
+              moves it down here on the next render. */}
+          <div>
+            <h4 className="font-semibold text-sm flex items-center gap-2 mb-2">
+              <Users className="w-4 h-4" /> Approved signups
+              {approvedInvestors.length > 0 && (
+                <span className="text-xs font-normal text-muted-foreground">
+                  ({approvedInvestors.length})
+                </span>
+              )}
+            </h4>
+            {approvedInvestors.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No approved signups yet.</p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {approvedInvestors.map((p) => (
+                  <li key={p.id} className="py-2 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="text-sm truncate">{p.display_name || p.email}</div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {p.email}
+                        {p.investor_class ? ` · ${p.investor_class}` : ''}
+                      </div>
+                    </div>
+                    <span className="text-[11px] text-emerald-600 font-medium shrink-0">Approved</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
