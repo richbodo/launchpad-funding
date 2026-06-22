@@ -551,20 +551,34 @@ export default function Admin() {
     }
   }, [sessionUser, isAuthenticated]);
 
-  // In demo mode, auto-login as the first available facilitator
+  // In demo mode, auto-login as the first available facilitator using the
+  // well-known demo password. We perform a REAL participant-login handshake
+  // (no demo-mode auth bypass) so subsequent admin-action calls have a
+  // valid admin_token.
   useEffect(() => {
     if (!isDemoModeActive || isAuthenticated) return;
     const autoLogin = async () => {
-      const { data: facilitators } = await supabase
-        .from('session_participants')
-        .select('email')
-        .eq('role', 'facilitator')
-        .limit(1);
-      if (facilitators && facilitators.length > 0) {
-        setAdminEmail(facilitators[0].email);
-        setIsAuthenticated(true);
-        fetchSessions();
-      }
+      // Pull both the demo password and the seeded facilitator roster from
+      // the demo-logins edge function (which only responds when mode=demo).
+      const { data: demoData, error: demoErr } = await supabase.functions.invoke('demo-logins', { body: {} });
+      if (demoErr || demoData?.error) return;
+      const facilitator = (demoData?.participants || []).find((p: any) => p.role === 'facilitator');
+      const password = demoData?.demo_facilitator_password;
+      if (!facilitator || !password) return;
+
+      const { data: loginData, error: loginErr } = await supabase.functions.invoke('participant-login', {
+        body: {
+          session_id: facilitator.session_id,
+          email: facilitator.email,
+          password,
+        },
+      });
+      if (loginErr || !loginData?.success || !loginData.admin_token) return;
+
+      setAdminToken(loginData.admin_token);
+      setAdminEmail(facilitator.email);
+      setIsAuthenticated(true);
+      fetchSessions();
     };
     autoLogin();
   }, [isDemoModeActive, isAuthenticated]);
