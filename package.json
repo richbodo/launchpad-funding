@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:simulation": "vitest run tests/simulation",
     "test:e2e": "playwright test",
     "test:e2e:login": "playwright test tests/e2e/login.spec.ts",
     "test:smoke": "bash scripts/smoke-edge-functions.sh",
