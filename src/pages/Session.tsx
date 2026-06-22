@@ -992,6 +992,17 @@ export default function SessionPage() {
               Edit Your Startup Info
             </Button>
           )}
+          {user.role === 'facilitator' && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setEditFacilitatorOpen(true)}
+              data-testid="edit-facilitator-btn"
+            >
+              <Settings className="w-4 h-4 mr-1" />
+              Edit Your Bio
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span
