@@ -1,4 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authorizeFacilitator } from "../_shared/admin-token.ts";
+import { DEMO_FACILITATOR_PASSWORD } from "../_shared/demo.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -59,6 +61,21 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, serviceRoleKey);
+
+    // Require a valid facilitator admin_token. Without this anyone hitting
+    // the function URL could re-seed demo data (or use it as a way to
+    // bulk-delete sessions whose names start with `[DEMO]`).
+    let body: any = {};
+    try { body = await req.json(); } catch { /* allow empty body */ }
+    const auth = await authorizeFacilitator(body?.admin_token, supabase, serviceRoleKey);
+    if (!auth) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized: facilitator admin token required" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+
 
     const { data: modeSetting } = await supabase
       .from("app_settings")
@@ -153,7 +170,7 @@ Deno.serve(async (req) => {
         email: "facilitator@demo.com",
         display_name: "Facilitator 1",
         role: "facilitator",
-        password_hash: "demo123",
+        password_hash: DEMO_FACILITATOR_PASSWORD,
         image_url: avatarImg("facilitator-1"),
       },
       {
@@ -161,7 +178,7 @@ Deno.serve(async (req) => {
         email: "admin@demo.com",
         display_name: "Facilitator 2",
         role: "facilitator",
-        password_hash: "demo123",
+        password_hash: DEMO_FACILITATOR_PASSWORD,
         image_url: avatarImg("facilitator-2"),
       },
     ];

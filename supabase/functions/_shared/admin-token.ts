@@ -71,25 +71,18 @@ export async function verifyAdminToken(token: string | null | undefined, secret:
  * Verify the admin token AND confirm the email is still a registered facilitator.
  * Returns null if either check fails. Callers should respond 401 on null.
  *
- * Demo-mode bypass: when `app_settings.mode === 'demo'`, the check is skipped
- * so the auto-login flows on /demo-logins and the demo Admin panel can perform
- * mutations without a real password. Demo mode already exposes facilitator
- * passwords on /demo-logins, so this is consistent with that posture.
+ * NOTE: there is intentionally NO demo-mode bypass. Even when
+ * `app_settings.mode === 'demo'`, all admin mutations must present a valid
+ * admin_token minted by `participant-login`. Demo facilitators have real
+ * (well-known) passwords seeded by `seed-demo-data`, and the /demo-logins
+ * page exposes that password so the demo auto-login flow can perform a real
+ * login handshake.
  */
 export async function authorizeFacilitator(
   token: string | null | undefined,
   supabase: { from: (t: string) => any },
   secret: string,
 ): Promise<AdminTokenPayload | null> {
-  const { data: modeRow } = await supabase
-    .from("app_settings")
-    .select("value")
-    .eq("key", "mode")
-    .maybeSingle();
-  if (modeRow?.value === "demo") {
-    return { email: "demo", exp: Math.floor(Date.now() / 1000) + 3600 };
-  }
-
   const payload = await verifyAdminToken(token, secret);
   if (!payload) return null;
   const { data, error } = await supabase
