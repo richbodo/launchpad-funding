@@ -47,6 +47,7 @@ export default function DemoLogins() {
   const navigate = useNavigate();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([]);
+  const [demoPassword, setDemoPassword] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,6 +61,7 @@ export default function DemoLogins() {
       }
       setSessions(data.sessions || []);
       setParticipants(data.participants || []);
+      setDemoPassword(data.demo_facilitator_password || '');
       setLoading(false);
     };
     fetchData();
@@ -68,9 +70,16 @@ export default function DemoLogins() {
   /**
    * Build the auto-login URL for a specific participant. Mirrors the magic-
    * link parameters Login.tsx recognises in its `doAutoLogin` effect.
+   * Facilitators additionally carry the demo password so Login.tsx can
+   * perform a real participant-login handshake (no demo-mode auth bypass).
    */
-  const autoLoginHref = (sessionId: string, email: string, role: string) =>
-    `/login?session=${encodeURIComponent(sessionId)}&email=${encodeURIComponent(email)}&role=${encodeURIComponent(role)}`;
+  const autoLoginHref = (sessionId: string, email: string, role: string) => {
+    const base = `/login?session=${encodeURIComponent(sessionId)}&email=${encodeURIComponent(email)}&role=${encodeURIComponent(role)}`;
+    if (role === 'facilitator' && demoPassword) {
+      return `${base}&password=${encodeURIComponent(demoPassword)}`;
+    }
+    return base;
+  };
 
   const facilitators = participants.filter(p => p.role === 'facilitator');
   // Facilitators are identical across all sessions, but their auto-login URL
