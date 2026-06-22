@@ -177,7 +177,7 @@ describe('EventLandingAdminCard', () => {
     const { onApprove, onReject } = renderCard({}, participants);
 
     expect(screen.getByText('Alice')).toBeInTheDocument();
-    expect(screen.queryByText('Bob')).not.toBeInTheDocument(); // approved → not in pending list
+    expect(screen.getByText('Bob')).toBeInTheDocument(); // approved → appears in approved list
     expect(screen.getByText(/1 \/ 100 approved/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: /Approve/i }));
@@ -208,5 +208,22 @@ describe('EventLandingAdminCard', () => {
       expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/\/event\/spring-demo$/));
     });
     expect(toast.success).toHaveBeenCalledWith('Landing page URL copied');
+  });
+
+  it('polls onRefresh every 10 s when auto-refresh is enabled', async () => {
+    vi.useFakeTimers();
+    const { onRefresh } = renderCard();
+
+    const toggle = screen.getByRole('switch', { name: /Auto-refresh/i });
+    fireEvent.click(toggle);
+
+    // First tick is immediate because setInterval fires after the delay
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10000);
+    expect(onRefresh).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
   });
 });
