@@ -70,6 +70,7 @@ Deno.serve(async (req) => {
     if ("funding_goal" in fields) updates.funding_goal = fields.funding_goal ?? null;
     if ("dd_room_link" in fields) updates.dd_room_link = fields.dd_room_link ?? null;
     if ("website_link" in fields) updates.website_link = fields.website_link ?? null;
+    if ("description" in fields) updates.description = fields.description ?? null;
 
     if (Object.keys(updates).length === 0) {
       return new Response(JSON.stringify({ ok: true, updated: false }), {
