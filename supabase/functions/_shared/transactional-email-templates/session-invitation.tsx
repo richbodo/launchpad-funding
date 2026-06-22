@@ -68,8 +68,15 @@ const SessionInvitationEmail = ({
   loginUrl = '',
   calendarUrl = '',
   contactEmail = '',
+  eventDetails,
 }: SessionInvitationProps) => {
   const metadataItems = METADATA_BY_ROLE[roleName] || []
+  const isInvestor = roleName === 'investor'
+  const startups = eventDetails?.startups || []
+  const facilitators = eventDetails?.facilitators || []
+  const showEventDetails = isInvestor && (
+    !!eventDetails?.description || startups.length > 0 || facilitators.length > 0
+  )
   return (
   <Html lang="en" dir="ltr">
     <Head />
