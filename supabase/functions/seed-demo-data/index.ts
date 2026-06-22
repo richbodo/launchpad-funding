@@ -1,4 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { authorizeFacilitator } from "../_shared/admin-token.ts";
+
+/** Well-known password seeded onto every demo facilitator row. */
+export const DEMO_FACILITATOR_PASSWORD = "demo123";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
