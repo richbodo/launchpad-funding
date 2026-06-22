@@ -581,10 +581,8 @@ export default function Admin() {
       await invokeAdminSetting('mode', enabled ? 'demo' : 'production');
 
       if (enabled) {
-        const { data, error } = await supabase.functions.invoke('seed-demo-data', {
-          body: { admin_token: getAdminToken() },
-        });
-        if (error || data?.error) throw new Error(data?.error || error?.message || 'Seed failed');
+        const { data, error } = await invokeSeedDemoData();
+        if (error) throw new Error(error);
         toast.success(`Demo data seeded: ${data?.summary?.sessions_created} sessions, ${data?.summary?.participants_created} participants`);
       } else {
         // Atomic cleanup via admin-action so all locked-down writes happen
