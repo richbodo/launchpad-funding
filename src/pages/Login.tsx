@@ -331,6 +331,17 @@ export default function Login() {
           return;
         }
 
+        // Investors arriving via a magic link MUST declare their class before
+        // entering the session, unless an admin already set it on the row.
+        // The class drives which pledge UI they see (equity vs gift-only).
+        if (normalizedRole === 'investor' && !participant.investor_class) {
+          setEmail(participant.email);
+          setRole('investor');
+          setPendingParticipant(participant);
+          setStep('investor-class-select');
+          return;
+        }
+
         await completeLoginWith(participant, normalizedRole!);
       } catch (err) {
         console.error('auto-login failed', err);
