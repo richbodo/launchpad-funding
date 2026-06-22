@@ -55,9 +55,18 @@ Deno.serve(async (req) => {
     }
 
 
-    return new Response(JSON.stringify({ sessions: sessions || [], participants }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({
+        sessions: sessions || [],
+        participants,
+        // The bcrypt'd hash in `password_hash` is unreadable plaintext, so we
+        // expose the well-known demo password explicitly. The /demo-logins
+        // page shows it, and the facilitator jump-in link uses it to perform
+        // a real participant-login handshake (no demo-mode auth bypass).
+        demo_facilitator_password: DEMO_FACILITATOR_PASSWORD,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err: any) {
     return new Response(JSON.stringify({ error: err?.message || "Failed" }), {
       status: 500,
