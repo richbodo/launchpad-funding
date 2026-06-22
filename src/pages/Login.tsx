@@ -19,7 +19,7 @@ interface ActiveSession {
   end_time: string;
 }
 
-type Step = 'login' | 'facilitator-password' | 'facilitator-create-password';
+type Step = 'login' | 'facilitator-password' | 'facilitator-create-password' | 'investor-class-select';
 
 export default function Login() {
   const navigate = useNavigate();
