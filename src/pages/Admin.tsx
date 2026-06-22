@@ -250,6 +250,8 @@ export default function Admin() {
   const [metaWebsite, setMetaWebsite] = useState('');
   const [metaFundingGoal, setMetaFundingGoal] = useState('');
   const [metaImageUrl, setMetaImageUrl] = useState('');
+  const [metaDescription, setMetaDescription] = useState(''); // startup short pitch
+  const [metaBio, setMetaBio] = useState('');                 // facilitator bio (≤500)
 
   // Send email dialog
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
