@@ -1236,13 +1236,14 @@ interface StartupEditDialogProps {
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   email: string;
-  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null }) => void;
+  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null; description?: string | null }) => void;
 }
 
 function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
   const [fundingGoal, setFundingGoal] = useState('');
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
+  const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const loaded = useRef(false);
 
@@ -1255,7 +1256,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
 
     supabase
       .from('session_participants')
-      .select('id, funding_goal, dd_room_link, website_link')
+      .select('id, funding_goal, dd_room_link, website_link, description')
       .eq('session_id', sessionId)
       .eq('email', email)
       .single()
@@ -1265,6 +1266,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
           setFundingGoal(data.funding_goal != null ? String(data.funding_goal) : '');
           setDdRoomLink(data.dd_room_link || '');
           setWebsiteLink(data.website_link || '');
+          setDescription((data as any).description || '');
         }
       });
   }, [open, sessionId, email]);
@@ -1274,15 +1276,18 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
       toast.error('Could not identify startup row');
       return;
     }
+    // Description is required — keep dialog open until provided.
+    if (!description.trim()) {
+      toast.error('Please add a short description (about two sentences).');
+      return;
+    }
     setSaving(true);
     const updates: any = {
       funding_goal: fundingGoal ? parseFloat(fundingGoal) : null,
       dd_room_link: ddRoomLink || null,
       website_link: websiteLink || null,
+      description: description.trim(),
     };
-    // Direct UPDATE on session_participants is no longer allowed from the
-    // browser (RLS locked to service_role). Go through the edge function,
-    // which verifies the target row is role='startup'.
     const { data, error } = await supabase.functions.invoke('startup-update-self', {
       body: { participant_id: participantId, ...updates },
     });
@@ -1304,6 +1309,23 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
           <DialogTitle>Edit Startup Info</DialogTitle>
         </DialogHeader>
         <div className="space-y-4 py-2">
+          <div className="space-y-2">
+            <Label htmlFor="startup-description">
+              Description <span className="text-destructive">*</span>
+              <span className="ml-1 text-xs text-muted-foreground">(about two sentences)</span>
+            </Label>
+            <textarea
+              id="startup-description"
+              required
+              rows={3}
+              maxLength={600}
+              placeholder="One or two sentences describing what your startup does."
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              data-testid="edit-startup-description"
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="funding-goal">Funding Goal ($)</Label>
             <Input
@@ -1349,3 +1371,4 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
     </Dialog>
   );
 }
+
