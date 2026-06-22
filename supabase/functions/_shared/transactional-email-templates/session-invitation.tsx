@@ -6,6 +6,25 @@ import type { TemplateEntry } from './registry.ts'
 
 const SITE_NAME = "Pitch Pledge"
 
+interface EventStartup {
+  display_name?: string | null
+  image_url?: string | null
+  website_link?: string | null
+  dd_room_link?: string | null
+  funding_goal?: number | null
+  description?: string | null
+}
+interface EventFacilitator {
+  display_name?: string | null
+  image_url?: string | null
+  bio?: string | null
+}
+interface EventDetails {
+  description?: string | null
+  startups?: EventStartup[]
+  facilitators?: EventFacilitator[]
+}
+
 interface SessionInvitationProps {
   recipientName?: string
   roleName?: string
@@ -16,6 +35,7 @@ interface SessionInvitationProps {
   loginUrl?: string
   calendarUrl?: string
   contactEmail?: string
+  eventDetails?: EventDetails
 }
 
 /**
@@ -48,8 +68,15 @@ const SessionInvitationEmail = ({
   loginUrl = '',
   calendarUrl = '',
   contactEmail = '',
+  eventDetails,
 }: SessionInvitationProps) => {
   const metadataItems = METADATA_BY_ROLE[roleName] || []
+  const isInvestor = roleName === 'investor'
+  const startups = eventDetails?.startups || []
+  const facilitators = eventDetails?.facilitators || []
+  const showEventDetails = isInvestor && (
+    !!eventDetails?.description || startups.length > 0 || facilitators.length > 0
+  )
   return (
   <Html lang="en" dir="ltr">
     <Head />
@@ -102,6 +129,54 @@ const SessionInvitationEmail = ({
           </Section>
         )}
 
+        {showEventDetails && (
+          <Section style={detailsBox}>
+            <Hr style={hr} />
+            <Heading as="h2" style={h2}>About this event</Heading>
+            {eventDetails?.description && (
+              <Text style={text}>{eventDetails.description}</Text>
+            )}
+
+            {startups.length > 0 && (
+              <>
+                <Heading as="h3" style={h3}>Presenting startups</Heading>
+                {startups.map((s, i) => (
+                  <Section key={`s-${i}`} style={card}>
+                    <Text style={cardTitle}>{s.display_name || 'Startup'}</Text>
+                    {s.funding_goal != null && (
+                      <Text style={cardMeta}>Goal: ${Number(s.funding_goal).toLocaleString()} (USD)</Text>
+                    )}
+                    {s.description && <Text style={cardBody}>{s.description}</Text>}
+                    {(s.website_link || s.dd_room_link) && (
+                      <Text style={cardLinks}>
+                        {s.website_link && (
+                          <Link href={s.website_link} style={linkStyle}>Website</Link>
+                        )}
+                        {s.website_link && s.dd_room_link ? '  •  ' : ''}
+                        {s.dd_room_link && (
+                          <Link href={s.dd_room_link} style={linkStyle}>DD Room</Link>
+                        )}
+                      </Text>
+                    )}
+                  </Section>
+                ))}
+              </>
+            )}
+
+            {facilitators.length > 0 && (
+              <>
+                <Heading as="h3" style={h3}>Hosts</Heading>
+                {facilitators.map((f, i) => (
+                  <Section key={`f-${i}`} style={card}>
+                    <Text style={cardTitle}>{f.display_name || 'Host'}</Text>
+                    {f.bio && <Text style={cardBody}>{f.bio}</Text>}
+                  </Section>
+                ))}
+              </>
+            )}
+          </Section>
+        )}
+
         <Hr style={hr} />
 
         <Text style={footer}>
@@ -149,3 +224,11 @@ const metadataBox = { backgroundColor: '#f9fafb', borderRadius: '8px', padding: 
 const metadataTitle = { fontSize: '14px', fontWeight: 'bold' as const, color: '#1a1a2e', margin: '0 0 8px' }
 const metadataItem = { fontSize: '13px', color: '#333', lineHeight: '1.5', margin: '0 0 4px' }
 const requiredTag = { color: '#b91c1c', fontWeight: 'bold' as const }
+const h2 = { fontSize: '18px', fontWeight: 'bold' as const, color: '#1a1a2e', margin: '0 0 12px' }
+const h3 = { fontSize: '15px', fontWeight: 'bold' as const, color: '#1a1a2e', margin: '18px 0 8px' }
+const detailsBox = { margin: '0 0 16px' }
+const card = { backgroundColor: '#f9fafb', borderRadius: '8px', padding: '12px 16px', margin: '0 0 10px', border: '1px solid #e5e7eb' }
+const cardTitle = { fontSize: '14px', fontWeight: 'bold' as const, color: '#1a1a2e', margin: '0 0 4px' }
+const cardMeta = { fontSize: '12px', color: '#666', margin: '0 0 6px' }
+const cardBody = { fontSize: '13px', color: '#333', lineHeight: '1.5', margin: '0 0 6px' }
+const cardLinks = { fontSize: '13px', color: '#16a34a', margin: '4px 0 0' }

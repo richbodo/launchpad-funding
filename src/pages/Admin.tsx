@@ -963,6 +963,33 @@ export default function Admin() {
     const calEnd = new Date(selectedSession.end_time).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
     const calendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(selectedSession.name)}&dates=${calStart}/${calEnd}&details=${encodeURIComponent('Join: ' + loginUrl)}`;
 
+    // For investor recipients, include the same event details shown on the
+    // public landing page (presenting startups + hosts + session description),
+    // so they have all the context they need without visiting the page.
+    const eventDetails = role === 'investor'
+      ? {
+          description: (selectedSession as any).description || null,
+          startups: participants
+            .filter((p) => p.role === 'startup')
+            .sort((a, b) => (a.presentation_order ?? 999) - (b.presentation_order ?? 999))
+            .map((p) => ({
+              display_name: p.display_name,
+              image_url: p.image_url ?? null,
+              website_link: p.website_link,
+              dd_room_link: p.dd_room_link,
+              funding_goal: p.funding_goal,
+              description: p.description ?? null,
+            })),
+          facilitators: participants
+            .filter((p) => p.role === 'facilitator')
+            .map((p) => ({
+              display_name: p.display_name,
+              image_url: p.image_url ?? null,
+              bio: p.bio ?? null,
+            })),
+        }
+      : undefined;
+
     const { data, error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
         templateName: 'session-invitation',
@@ -978,6 +1005,7 @@ export default function Admin() {
           loginUrl,
           calendarUrl,
           contactEmail: emailContact !== DEFAULT_CONTACT_EMAIL ? emailContact : undefined,
+          eventDetails,
         },
       },
     });
