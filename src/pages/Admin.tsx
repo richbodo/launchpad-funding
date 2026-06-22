@@ -594,7 +594,7 @@ export default function Admin() {
       setDemoMode(enabled);
       fetchSessions();
     } catch (err: any) {
-      toast.error(err.message || 'Failed to toggle demo mode');
+      toast.error('Could not toggle demo mode', { description: err.message, duration: 10000 });
     } finally {
       setSeedingDemo(false);
     }
