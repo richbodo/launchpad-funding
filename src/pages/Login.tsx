@@ -520,11 +520,56 @@ export default function Login() {
                       />
                     </div>
 
-                    {/* Role selection — acts as submit */}
+                    {/* Role selection — acts as submit.
+                        Investor is split into two buttons (Accredited /
+                        Community) so the class choice and the login click
+                        are the same gesture. The previous design had a
+                        single "Investor" button plus a separate class
+                        picker below; users clicking the class buttons
+                        expected to log in but those buttons only set
+                        state and nothing happened. */}
                     <div>
                       <Label className="mb-2 block">Join session as...</Label>
-                      <div className="grid grid-cols-3 gap-2">
-                        {roles.map(r => (
+                      <div className="grid grid-cols-2 gap-2 mb-2">
+                        <button
+                          data-testid="role-btn-investor-accredited"
+                          disabled={loading || !email}
+                          onClick={() => {
+                            setRole('investor');
+                            setInvestorClass('accredited');
+                            handleEmailSubmitWithRole('investor');
+                          }}
+                          className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center disabled:opacity-40 disabled:cursor-not-allowed ${
+                            role === 'investor' && investorClass === 'accredited'
+                              ? 'border-accent bg-accent/5'
+                              : 'border-border hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          <Briefcase className={`w-5 h-5 ${role === 'investor' && investorClass === 'accredited' ? 'text-accent' : 'text-muted-foreground'}`} />
+                          <span className="text-xs font-semibold">Accredited Investor</span>
+                          <span className="text-[10px] text-muted-foreground">Equity + gift pledges</span>
+                        </button>
+                        <button
+                          data-testid="role-btn-investor-community"
+                          disabled={loading || !email}
+                          onClick={() => {
+                            setRole('investor');
+                            setInvestorClass('community');
+                            handleEmailSubmitWithRole('investor');
+                          }}
+                          className={`flex flex-col items-center gap-1.5 p-3 rounded-lg border-2 transition-all text-center disabled:opacity-40 disabled:cursor-not-allowed ${
+                            role === 'investor' && investorClass === 'community'
+                              ? 'border-accent bg-accent/5'
+                              : 'border-border hover:border-muted-foreground/30'
+                          }`}
+                        >
+                          <Briefcase className={`w-5 h-5 ${role === 'investor' && investorClass === 'community' ? 'text-accent' : 'text-muted-foreground'}`} />
+                          <span className="text-xs font-semibold">Community Supporter</span>
+                          <span className="text-[10px] text-muted-foreground">Gift pledges only (max $100)</span>
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        {roles.filter(r => r.value !== 'investor').map(r => (
                           <div key={r.value} className="flex flex-col items-center">
                             <button
                               data-testid={`role-btn-${r.value}`}
@@ -552,43 +597,16 @@ export default function Login() {
                           </div>
                         ))}
                       </div>
-                    </div>
-
-                    {/* Issue #41: investors choose accredited vs community at login.
-                        Rendered after the role grid so the choice is visible the
-                        moment a user thinks about clicking "Investor". */}
-                    <div data-testid="investor-class-picker">
-                      <Label className="mb-2 block text-xs text-muted-foreground">
-                        Investing as <span className="font-normal">(only applies to Investor)</span>
-                      </Label>
-                      <div className="grid grid-cols-2 gap-2">
+                      {isDemoMode && (
                         <button
-                          type="button"
-                          data-testid="investor-class-accredited"
-                          onClick={() => setInvestorClass('accredited')}
-                          className={`p-2 rounded-md border-2 text-left transition-all ${
-                            investorClass === 'accredited'
-                              ? 'border-accent bg-accent/5'
-                              : 'border-border hover:border-muted-foreground/30'
-                          }`}
+                          disabled={loading}
+                          onClick={() => handleRandomize('investor')}
+                          className="mt-2 mx-auto flex items-center gap-1 text-[10px] text-muted-foreground hover:text-accent transition-colors disabled:opacity-40"
                         >
-                          <div className="text-xs font-semibold">Accredited Investor</div>
-                          <div className="text-[10px] text-muted-foreground">Equity + gift pledges</div>
+                          <Shuffle className="w-3 h-3" />
+                          randomize investor
                         </button>
-                        <button
-                          type="button"
-                          data-testid="investor-class-community"
-                          onClick={() => setInvestorClass('community')}
-                          className={`p-2 rounded-md border-2 text-left transition-all ${
-                            investorClass === 'community'
-                              ? 'border-accent bg-accent/5'
-                              : 'border-border hover:border-muted-foreground/30'
-                          }`}
-                        >
-                          <div className="text-xs font-semibold">Community Supporter</div>
-                          <div className="text-[10px] text-muted-foreground">Gift pledges only (max $100)</div>
-                        </button>
-                      </div>
+                      )}
                     </div>
                   </>
                 )}
