@@ -1047,6 +1047,7 @@ export default function SessionPage() {
         >
           {sessionContent}
           <RoomAudioRenderer muted={localMuted} />
+          <ForceLiveKitSubscriptions />
         </LiveKitRoom>
       ) : (
         sessionContent
@@ -1078,6 +1079,29 @@ export default function SessionPage() {
       )}
     </div>
   );
+}
+
+/**
+ * Force-subscribe to expected remote media publications as soon as LiveKit
+ * announces them. The incident symptom was participants successfully joining
+ * and publishing, while other clients stayed on "Joining…" and heard no audio
+ * because the remote publications never became subscribed/renderable.
+ */
+function ForceLiveKitSubscriptions() {
+  const tracks = useTracks(
+    [Track.Source.Camera, Track.Source.ScreenShare, Track.Source.Microphone],
+    { onlySubscribed: false },
+  );
+
+  useEffect(() => {
+    tracks.forEach((trackRef) => {
+      if (trackRef.publication.track) return;
+      const publication = trackRef.publication as typeof trackRef.publication & { setSubscribed?: (subscribed: boolean) => void };
+      publication.setSubscribed?.(true);
+    });
+  }, [tracks]);
+
+  return null;
 }
 
 // ── Mic toggle button (must be rendered inside LiveKitRoom) ──────────

@@ -68,14 +68,28 @@ function LiveVideoPane({
   isActive: boolean;
   participantIdentity: string;
 }) {
-  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare]);
+  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare], { onlySubscribed: false });
+
+  useEffect(() => {
+    const expectedPublications = tracks.filter(
+      (t) => t.participant.identity === participantIdentity && t.publication && !t.publication.track,
+    );
+
+    expectedPublications.forEach((t) => {
+      // TrackPublication is typed as the shared base class, but remote
+      // publications expose setSubscribed(). Local self-preview publications do
+      // not need it, so guard with a capability check.
+      const publication = t.publication as typeof t.publication & { setSubscribed?: (subscribed: boolean) => void };
+      publication.setSubscribed?.(true);
+    });
+  }, [tracks, participantIdentity]);
 
   // Prefer screen share track over camera for the matched participant
   const screenTrack = tracks.find(
-    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.ScreenShare,
+    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.ScreenShare && t.publication.track,
   );
   const cameraTrack = tracks.find(
-    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.Camera,
+    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.Camera && t.publication.track,
   );
   const trackRef = screenTrack || cameraTrack;
   const isScreenShare = !!screenTrack;
