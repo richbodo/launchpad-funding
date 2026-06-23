@@ -447,6 +447,14 @@ export default function SessionPage() {
     stageChannelRef.current?.track(payload);
   }, []);
 
+  // Keep a live ref to the latest facilitator stage state so the presence
+  // `join` handler (registered once at subscribe time) can re-broadcast the
+  // CURRENT values, not a stale closure snapshot.
+  const stageStateRef = useRef({ currentStageIndex, isPaused, remainingSeconds, stageIdentity });
+  useEffect(() => {
+    stageStateRef.current = { currentStageIndex, isPaused, remainingSeconds, stageIdentity };
+  }, [currentStageIndex, isPaused, remainingSeconds, stageIdentity]);
+
   // Subscribe to stage broadcast channel with presence for late joiners
   useEffect(() => {
     if (!id) return;
@@ -462,6 +470,16 @@ export default function SessionPage() {
           syncState(payload.currentStageIndex, payload.isPaused, payload.remainingSeconds);
           setStageIdentity(payload.stageIdentity);
           hasInitialSync.current = true;
+        }
+      })
+      .on('presence', { event: 'join' }, () => {
+        // Whenever ANY new presence joins, the facilitator re-broadcasts
+        // current stage state so the newcomer syncs within milliseconds
+        // (rather than waiting up to 5s for the heartbeat or relying on
+        // presence-tracked state which may be slightly stale).
+        if (isFac) {
+          const s = stageStateRef.current;
+          broadcastStage(s.currentStageIndex, s.isPaused, s.remainingSeconds, s.stageIdentity);
         }
       })
       .on('presence', { event: 'sync' }, () => {
@@ -504,9 +522,10 @@ export default function SessionPage() {
         if (status === 'SUBSCRIBED') {
           // Everyone tracks their presence so investors can be counted.
           // Facilitator additionally tracks stage state for late joiners.
+          const s = stageStateRef.current;
           await channel.track(
             isFac
-              ? { role: user?.role, email: user?.email, currentStageIndex, isPaused, remainingSeconds, stageIdentity }
+              ? { role: user?.role, email: user?.email, ...s }
               : { role: user?.role, email: user?.email }
           );
         }
@@ -516,7 +535,7 @@ export default function SessionPage() {
       supabase.removeChannel(channel);
       stageChannelRef.current = null;
     };
-  }, [id, user?.role, syncState]);
+  }, [id, user?.role, syncState, broadcastStage]);
 
   // Facilitator: broadcast stage state on discrete changes
   const prevStageRef = useRef({ currentStageIndex, isPaused, stageIdentity });
