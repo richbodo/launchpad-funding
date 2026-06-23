@@ -1051,7 +1051,7 @@ export default function Admin() {
     email: string,
     name: string | null,
     role: string,
-    options?: { idempotencyKey?: string },
+    options?: { idempotencyKey?: string; forceFresh?: boolean },
   ) => {
     if (!selectedSession) throw new Error('No session selected');
     const welcomeMsg = role === 'facilitator' ? welcomeFacilitator
@@ -1098,6 +1098,16 @@ export default function Admin() {
 
     const idempotencyKey = options?.idempotencyKey || `session-invite-${selectedSession.id}-${email}-${crypto.randomUUID()}`;
 
+    // freshTag is a short human-readable cache-buster that flows into the
+    // email subject, preview text, and a small in-body banner. Gmail threads
+    // messages by normalized subject; varying the subject makes the resend
+    // appear as a brand-new conversation instead of being collapsed under
+    // the original invite — the fix for "I never got the email" reports
+    // that turn out to be Gmail thread-folding.
+    const freshTag = options?.forceFresh
+      ? new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : undefined;
+
     const { data, error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
         templateName: 'session-invitation',
@@ -1114,6 +1124,7 @@ export default function Admin() {
           calendarUrl,
           contactEmail: emailContact !== DEFAULT_CONTACT_EMAIL ? emailContact : undefined,
           eventDetails,
+          freshTag,
         },
       },
     });
@@ -1167,13 +1178,20 @@ export default function Admin() {
   };
 
   // Send (or resend) the invite to one participant row, updating sent status.
-  const sendInviteToParticipant = async (p: ParticipantRow) => {
+  // forceFresh=true bypasses Gmail subject-threading by adding a timestamp
+  // cache-buster to subject/preview/body — used by the "Force-resend" button
+  // when a recipient reports the prior email never arrived.
+  const sendInviteToParticipant = async (p: ParticipantRow, forceFresh = false) => {
     if (!selectedSession) return;
     setSendingRowId(p.id);
     try {
-      await buildAndSendInvite(p.email, p.display_name, p.role);
+      await buildAndSendInvite(p.email, p.display_name, p.role, { forceFresh });
       await markInviteSent(p.id);
-      toast.success(`Invitation queued for ${p.email}`);
+      toast.success(
+        forceFresh
+          ? `Fresh invitation queued for ${p.email} (new subject, won't thread in Gmail)`
+          : `Invitation queued for ${p.email}`,
+      );
       fetchParticipants(selectedSession.id);
     } catch (err) {
       toast.error(`Email failed for ${p.email}: ${errMessage(err)}`, { duration: 15000 });
@@ -2024,6 +2042,18 @@ export default function Admin() {
                                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                       : <Send className="w-3.5 h-3.5" />}
                                   </Button>
+                                  {p.invite_sent_at && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => sendInviteToParticipant(p, true)}
+                                      disabled={sendingBulk || sendingRowId === p.id}
+                                      title="Force-resend with fresh subject (escapes Gmail threading if the original never appeared)"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                    </Button>
+                                  )}
                                   {(p.role === 'startup' || p.role === 'facilitator') && (
                                     <Button
                                       type="button"

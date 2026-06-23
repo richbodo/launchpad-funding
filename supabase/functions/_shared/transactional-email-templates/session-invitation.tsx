@@ -36,6 +36,13 @@ interface SessionInvitationProps {
   calendarUrl?: string
   contactEmail?: string
   eventDetails?: EventDetails
+  /**
+   * Optional cache-buster tag. When set (e.g. "Jun 23, 1:42 PM"), the subject
+   * line, preview text, and a small in-body banner all change so Gmail won't
+   * thread this resend under the prior invitation. Used by the admin's
+   * "Force-resend" action when a user reports the original never arrived.
+   */
+  freshTag?: string
 }
 
 /**
@@ -69,6 +76,7 @@ const SessionInvitationEmail = ({
   calendarUrl = '',
   contactEmail = '',
   eventDetails,
+  freshTag,
 }: SessionInvitationProps) => {
   const metadataItems = METADATA_BY_ROLE[roleName] || []
   const isInvestor = roleName === 'investor'
@@ -80,9 +88,20 @@ const SessionInvitationEmail = ({
   return (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>You're invited to {sessionName} — {SITE_NAME}</Preview>
+    <Preview>
+      {freshTag
+        ? `Resend (${freshTag}) — your invitation to ${sessionName}`
+        : `You're invited to ${sessionName} — ${SITE_NAME}`}
+    </Preview>
     <Body style={main}>
       <Container style={container}>
+        {freshTag && (
+          <Section style={resendBanner}>
+            <Text style={resendBannerText}>
+              🔁 Resent {freshTag} — if you received the original, you can ignore this copy.
+            </Text>
+          </Section>
+        )}
         <Heading style={h1}>
           {recipientName ? `Hello, ${recipientName}!` : 'Hello!'}
         </Heading>
@@ -193,7 +212,12 @@ const SessionInvitationEmail = ({
 
 export const template = {
   component: SessionInvitationEmail,
-  subject: (data: Record<string, any>) => `You're invited to ${data.sessionName || 'a session'} — ${SITE_NAME}`,
+  subject: (data: Record<string, any>) => {
+    const base = `You're invited to ${data.sessionName || 'a session'} — ${SITE_NAME}`
+    // freshTag breaks Gmail's subject-based threading so a resend lands as a
+    // brand-new conversation rather than being collapsed under the original.
+    return data.freshTag ? `${base} · resend (${data.freshTag})` : base
+  },
   displayName: 'Session Invitation',
   previewData: {
     recipientName: 'Jane Doe',
@@ -232,3 +256,5 @@ const cardTitle = { fontSize: '14px', fontWeight: 'bold' as const, color: '#1a1a
 const cardMeta = { fontSize: '12px', color: '#666', margin: '0 0 6px' }
 const cardBody = { fontSize: '13px', color: '#333', lineHeight: '1.5', margin: '0 0 6px' }
 const cardLinks = { fontSize: '13px', color: '#16a34a', margin: '4px 0 0' }
+const resendBanner = { backgroundColor: '#fef3c7', borderRadius: '6px', padding: '10px 14px', margin: '0 0 18px', border: '1px solid #fcd34d' }
+const resendBannerText = { fontSize: '13px', color: '#92400e', margin: 0, lineHeight: '1.5' }
