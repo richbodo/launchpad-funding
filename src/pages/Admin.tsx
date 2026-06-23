@@ -1178,13 +1178,20 @@ export default function Admin() {
   };
 
   // Send (or resend) the invite to one participant row, updating sent status.
-  const sendInviteToParticipant = async (p: ParticipantRow) => {
+  // forceFresh=true bypasses Gmail subject-threading by adding a timestamp
+  // cache-buster to subject/preview/body — used by the "Force-resend" button
+  // when a recipient reports the prior email never arrived.
+  const sendInviteToParticipant = async (p: ParticipantRow, forceFresh = false) => {
     if (!selectedSession) return;
     setSendingRowId(p.id);
     try {
-      await buildAndSendInvite(p.email, p.display_name, p.role);
+      await buildAndSendInvite(p.email, p.display_name, p.role, { forceFresh });
       await markInviteSent(p.id);
-      toast.success(`Invitation queued for ${p.email}`);
+      toast.success(
+        forceFresh
+          ? `Fresh invitation queued for ${p.email} (new subject, won't thread in Gmail)`
+          : `Invitation queued for ${p.email}`,
+      );
       fetchParticipants(selectedSession.id);
     } catch (err) {
       toast.error(`Email failed for ${p.email}: ${errMessage(err)}`, { duration: 15000 });
