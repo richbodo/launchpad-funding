@@ -187,7 +187,7 @@ export default function EventLanding() {
           )}
 
           {/* Signup form pinned right under the hero per issue #44 */}
-          <Card className="mt-8 p-5 md:p-6 max-w-xl bg-card/95 backdrop-blur">
+          <Card className="mt-8 p-5 md:p-6 max-w-xl bg-black/35 backdrop-blur-md border-white/15 text-white shadow-xl">
             {submitted ? (
               <div className="flex items-start gap-3">
                 <CheckCircle2 className="w-5 h-5 text-emerald-500 mt-0.5 shrink-0" />
