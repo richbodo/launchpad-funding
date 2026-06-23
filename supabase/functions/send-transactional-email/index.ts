@@ -329,13 +329,19 @@ Deno.serve(async (req) => {
       toAddresses.push(extra)
     }
   }
-  const toLine = toAddresses.join(', ')
+  // For the email log, keep a human-readable comma-joined record of all
+  // recipients. For the Lovable Email API payload, pass an array when there
+  // are multiple recipients (a comma-joined string is rejected as an
+  // "invalid 'to' email address").
+  const toLogValue = toAddresses.join(', ')
+  const toPayload: string | string[] =
+    toAddresses.length === 1 ? toAddresses[0] : toAddresses
 
   // Log pending BEFORE enqueue so we have a record even if enqueue crashes
   await supabase.from('email_send_log').insert({
     message_id: messageId,
     template_name: templateName,
-    recipient_email: toLine,
+    recipient_email: toLogValue,
     status: 'pending',
   })
 
@@ -343,7 +349,7 @@ Deno.serve(async (req) => {
     queue_name: 'transactional_emails',
     payload: {
       message_id: messageId,
-      to: toLine,
+      to: toPayload,
       from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
       sender_domain: SENDER_DOMAIN,
       subject: resolvedSubject,
