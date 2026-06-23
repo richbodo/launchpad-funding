@@ -740,6 +740,29 @@ export default function Admin() {
     }
   }, [sessionUser, isAuthenticated]);
 
+  // First-run detection: if the database has zero facilitator rows we
+  // render <FirstRunSetup> instead of the login form so a freshly remixed
+  // app can be claimed by its owner without database surgery.
+  useEffect(() => {
+    if (isAuthenticated || needsBootstrap !== null) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.functions.invoke('bootstrap-first-facilitator', {
+        body: { action: 'check' },
+      });
+      if (cancelled) return;
+      if (error || !data) {
+        setNeedsBootstrap(false);
+        return;
+      }
+      setNeedsBootstrap(Boolean(data.needs_bootstrap));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, needsBootstrap]);
+
+
   // In demo mode, auto-login as the first available facilitator using the
   // well-known demo password. We perform a REAL participant-login handshake
   // (no demo-mode auth bypass) so subsequent admin-action calls have a
