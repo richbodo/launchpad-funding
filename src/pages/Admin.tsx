@@ -18,10 +18,13 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { motion } from 'framer-motion';
 import DemoModeBanner from '@/components/DemoModeBanner';
+import LiveKitMissingBanner from '@/components/LiveKitMissingBanner';
+import FirstRunSetup from '@/components/FirstRunSetup';
 import TimePicker from '@/components/TimePicker';
 import TimezonePicker from '@/components/TimezonePicker';
 import EventLandingAdminCard from '@/components/EventLandingAdminCard';
 import ImageUploadField from '@/components/ImageUploadField';
+
 
 import { reportError } from '@/lib/logError';
 import { externalLinkHandler } from '@/lib/openExternal';
@@ -260,9 +263,11 @@ export default function Admin() {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [needsBootstrap, setNeedsBootstrap] = useState<boolean | null>(null);
   const [chatArchives, setChatArchives] = useState<{ name: string; url: string }[]>([]);
   const [archiving, setArchiving] = useState(false);
   const [activeTab, setActiveTab] = useState('sessions');
+
 
 
 
@@ -734,6 +739,29 @@ export default function Admin() {
       fetchSessions();
     }
   }, [sessionUser, isAuthenticated]);
+
+  // First-run detection: if the database has zero facilitator rows we
+  // render <FirstRunSetup> instead of the login form so a freshly remixed
+  // app can be claimed by its owner without database surgery.
+  useEffect(() => {
+    if (isAuthenticated || needsBootstrap !== null) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.functions.invoke('bootstrap-first-facilitator', {
+        body: { action: 'check' },
+      });
+      if (cancelled) return;
+      if (error || !data) {
+        setNeedsBootstrap(false);
+        return;
+      }
+      setNeedsBootstrap(Boolean(data.needs_bootstrap));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, needsBootstrap]);
+
 
   // In demo mode, auto-login as the first available facilitator using the
   // well-known demo password. We perform a REAL participant-login handshake
@@ -1584,11 +1612,26 @@ export default function Admin() {
     );
   };
 
+  if (!isAuthenticated && needsBootstrap === true) {
+    return (
+      <FirstRunSetup
+        onComplete={(email) => {
+          setAdminEmail(email);
+          setNeedsBootstrap(false);
+          setIsAuthenticated(true);
+          fetchSessions();
+        }}
+      />
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <DemoModeBanner />
+        <LiveKitMissingBanner />
         <div className="flex-1 flex items-center justify-center p-4">
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold">Facilitator Login</h1>
@@ -1633,6 +1676,8 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-background">
       <DemoModeBanner />
+      <LiveKitMissingBanner />
+
       <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
