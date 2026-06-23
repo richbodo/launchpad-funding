@@ -76,6 +76,7 @@ const SessionInvitationEmail = ({
   calendarUrl = '',
   contactEmail = '',
   eventDetails,
+  freshTag,
 }: SessionInvitationProps) => {
   const metadataItems = METADATA_BY_ROLE[roleName] || []
   const isInvestor = roleName === 'investor'
@@ -87,9 +88,20 @@ const SessionInvitationEmail = ({
   return (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>You're invited to {sessionName} — {SITE_NAME}</Preview>
+    <Preview>
+      {freshTag
+        ? `Resend (${freshTag}) — your invitation to ${sessionName}`
+        : `You're invited to ${sessionName} — ${SITE_NAME}`}
+    </Preview>
     <Body style={main}>
       <Container style={container}>
+        {freshTag && (
+          <Section style={resendBanner}>
+            <Text style={resendBannerText}>
+              🔁 Resent {freshTag} — if you received the original, you can ignore this copy.
+            </Text>
+          </Section>
+        )}
         <Heading style={h1}>
           {recipientName ? `Hello, ${recipientName}!` : 'Hello!'}
         </Heading>
