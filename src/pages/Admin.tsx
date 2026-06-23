@@ -2095,9 +2095,22 @@ export default function Admin() {
                     one commitment email is still waiting on the facilitator. */}
                 <Card className="mt-6">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <DollarSign className="w-5 h-5" /> Investment Commitments
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="w-5 h-5" /> Investment Commitments
+                      </CardTitle>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={refreshInvestments}
+                        disabled={refreshingInvestments}
+                        title="Refresh commitments"
+                      >
+                        {refreshingInvestments
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <RefreshCw className="w-4 h-4" />}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {(() => {
