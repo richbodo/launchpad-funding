@@ -52,7 +52,7 @@ export default function InvestDialog({
     setSubmitting(true);
 
 
-    await supabase.from('investments').insert({
+    const { error: insertError } = await supabase.from('investments').insert({
       session_id: sessionId,
       investor_email: user.email,
       investor_name: user.displayName,
@@ -61,6 +61,14 @@ export default function InvestDialog({
       amount: amt,
       pledge_type: pledgeType,
     });
+    if (insertError) {
+      setSubmitting(false);
+      // Surface server-side cap rejection (or other DB error) to the user.
+      alert(isGift
+        ? `Pledge rejected: community gift pledges are capped at $${GIFT_MAX_USD}.`
+        : `Pledge could not be recorded: ${insertError.message}`);
+      return;
+    }
 
     // Surface commitment as a highlighted message in the live chat for social
     // proof / momentum (issue #40). The sentinel prefix is detected by
