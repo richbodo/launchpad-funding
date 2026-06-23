@@ -18,7 +18,7 @@ Things like landing pages for the events, email templates for every email that g
 
 ## How it works
 
-A facilitator manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time.  Startups and investors get emails when investments are soft-committed, and they complete their transaction with no middle-man.
+A facilitator adds the startups, investors, and other faciltators to a session, then manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time.  Startups and investors get emails when investments are soft-committed, and they complete their transaction with no middle-man.
 
 ## Developer Demo
 
