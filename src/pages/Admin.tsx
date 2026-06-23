@@ -260,9 +260,11 @@ export default function Admin() {
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [showAdminPassword, setShowAdminPassword] = useState(false);
+  const [needsBootstrap, setNeedsBootstrap] = useState<boolean | null>(null);
   const [chatArchives, setChatArchives] = useState<{ name: string; url: string }[]>([]);
   const [archiving, setArchiving] = useState(false);
   const [activeTab, setActiveTab] = useState('sessions');
+
 
 
 
