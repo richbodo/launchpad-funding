@@ -48,7 +48,9 @@ export default function InvestDialog({
 
   const handleInvest = async () => {
     if (!amountValid || !user) return;
+    if (isGift && amt > GIFT_MAX_USD) return;
     setSubmitting(true);
+
 
     await supabase.from('investments').insert({
       session_id: sessionId,
