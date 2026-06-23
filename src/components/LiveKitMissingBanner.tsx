@@ -30,16 +30,9 @@ export default function LiveKitMissingBanner() {
         <AlertTriangle className="w-4 h-4 flex-shrink-0" />
         <span className="truncate">
           <strong>LiveKit is not configured.</strong> Video calls will not work until you add your
-          LiveKit credentials.{' '}
-          <a
-            href="https://github.com/richbodo/fundflow/blob/main/docs/livekit-setup.md"
-            target="_blank"
-            rel="noreferrer"
-            className="underline underline-offset-2 hover:opacity-90"
-          >
-            Setup guide →
-          </a>
+          LiveKit credentials. See <code className="px-1 rounded bg-yellow-500/20">docs/livekit-setup.md</code> in your repo.
         </span>
+
       </div>
       <button
         onClick={() => setDismissed(true)}
