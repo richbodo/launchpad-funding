@@ -95,10 +95,13 @@ function LiveVideoPane({
   const isScreenShare = !!screenTrack;
 
   // Issue #33: some participants saw "Joining…" for minutes because the remote
-  // track never arrived. Once we've waited >12s with no track for an expected
-  // identity, surface a manual reload escape hatch — leave/rejoin (a reload)
-  // was the only workaround users found in the trial.
+  // track never arrived. After a 12s watchdog, surface a Refresh button that
+  // performs a *soft* re-subscribe (toggle setSubscribed off→on) rather than a
+  // full window.location.reload — a page reload would drop the in-memory
+  // SessionProvider auth state and log the user out, and tear down every other
+  // pane's WebRTC connection unnecessarily.
   const [stale, setStale] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   useEffect(() => {
     if (trackRef) {
       setStale(false);
@@ -106,7 +109,26 @@ function LiveVideoPane({
     }
     const t = setTimeout(() => setStale(true), 12_000);
     return () => clearTimeout(t);
-  }, [trackRef]);
+  }, [trackRef, retryNonce]);
+
+  const softRetry = () => {
+    // Toggle subscription off then back on for this participant's publications.
+    // Prompts LiveKit to re-negotiate the track without dropping the room
+    // connection or affecting any other participant's pane.
+    const pubs = tracks.filter((t) => t.participant.identity === participantIdentity);
+    pubs.forEach((t) => {
+      const publication = t.publication as typeof t.publication & { setSubscribed?: (subscribed: boolean) => void };
+      try { publication.setSubscribed?.(false); } catch { /* noop */ }
+    });
+    setTimeout(() => {
+      pubs.forEach((t) => {
+        const publication = t.publication as typeof t.publication & { setSubscribed?: (subscribed: boolean) => void };
+        try { publication.setSubscribed?.(true); } catch { /* noop */ }
+      });
+    }, 250);
+    setStale(false);
+    setRetryNonce((n) => n + 1);
+  };
 
   if (!trackRef) {
     return (
@@ -117,6 +139,7 @@ function LiveVideoPane({
         callState="connecting"
         isSelf={false}
         stale={stale}
+        onRetry={softRetry}
       />
     );
   }
