@@ -11,8 +11,10 @@ export interface TemplateEntry {
 
 import { template as sessionInvitation } from './session-invitation.tsx'
 import { template as investmentCommitment } from './investment-commitment.tsx'
+import { template as commitmentGiftPledge } from './commitment-gift-pledge.tsx'
 
 export const TEMPLATES: Record<string, TemplateEntry> = {
   'session-invitation': sessionInvitation,
   'investment-commitment': investmentCommitment,
+  'commitment-gift-pledge': commitmentGiftPledge,
 }

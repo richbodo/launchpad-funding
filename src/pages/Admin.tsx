@@ -217,6 +217,7 @@ interface InvestmentRow {
   startup_email: string;
   startup_name: string | null;
   amount: number;
+  pledge_type: 'equity' | 'gift' | null;
   email_status: 'draft' | 'queued' | 'sent' | 'cancelled';
   email_queued_at: string | null;
   email_sent_at: string | null;
