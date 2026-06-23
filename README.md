@@ -6,9 +6,11 @@ This is a real-time, browser-based funding platform designed for demo-day-style 
 
 This style of fundraising platform has been around, and has been very successful at times, but I couldn't find an OSS version I liked, so here's one. :)
 
-The reason this type of thing is so effective is that the "discovery" phase where great organizations find great supporters is mostly taken care of by the facilitators of the session - they find great folks.
+The reason this type of thing is so effective is that the "discovery" phase where great organizations find great supporters is mostly taken care of by the facilitators of the session - they find great folks that should know about each other and bring them into the event.
 
-The absolute best way to make a Real Time Fundraising session work is to first find great organizations that need funding and will crush it with their mission when they get it - and second, get them and the facilitators to invite their communities.
+The absolute best way to make a Real Time Fundraising session work is to first find great organizations that need funding and will crush it with their mission when they get it - and second, get them and the facilitators to invite their communities.  This is the event description we had for the first event:
+
+"We are bringing together the communities of three NZ tech startups innovating in AI services (Superlyne), Aerospace/drone/evtol (Practical Aircraft ltd), and Online Marketplaces (Sendd).  Each startup will present for 5 minutes, then have 5 minutes for Q&A.  Any attendee can commit to invest as either a community member (max 100USD commitment) or an accredited investor.  With a few jokes in the intro and outro, the entire event take less than an hour, all-in.  Come join for any part of the session.  We are using a new, NZ-grown, free and open-source fundraising tool.  After the event, community members of the startups and facilitators can join a moderated zoom meeting where we can meet and learn from each other, and break out into small zoom rooms based on common interests."
 
 There are features for accredited investors, non-accredited investors who cannot pledge more than 100USD, and get a no-obligation gift from the startup.
 
