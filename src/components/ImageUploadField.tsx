@@ -17,6 +17,12 @@ interface Props {
   /** session.id for hero, participant.id for participant uploads. */
   refId: string;
   helpText?: string;
+  /**
+   * When set, authenticates as the participant (startup self-upload) instead
+   * of as an admin/facilitator. Server enforces that participant_id matches
+   * ref_id and that the participant has role='startup'.
+   */
+  participantId?: string;
 }
 
 /**
