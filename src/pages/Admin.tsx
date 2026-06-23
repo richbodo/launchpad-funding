@@ -2086,8 +2086,10 @@ export default function Admin() {
                             <TableHead>When</TableHead>
                             <TableHead>Investor</TableHead>
                             <TableHead>Startup</TableHead>
+                            <TableHead>Type</TableHead>
                             <TableHead className="text-right">Amount</TableHead>
                             <TableHead>Email</TableHead>
+                            <TableHead className="text-right">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2105,6 +2107,12 @@ export default function Admin() {
                               status === 'draft' ? 'Pending approval' :
                               status === 'cancelled' ? 'Cancelled' :
                               status;
+                            const isGift = inv.pledge_type === 'gift';
+                            const sendingThis = sendingRowId === inv.id;
+                            const buttonLabel =
+                              status === 'sent' ? 'Resend' :
+                              status === 'cancelled' ? 'Resend' :
+                              'Send';
 
                             return (
                               <TableRow key={inv.id}>
@@ -2119,6 +2127,17 @@ export default function Admin() {
                                   <div>{inv.startup_name || participantDisplay(inv.startup_email)}</div>
                                   <div className="text-xs text-muted-foreground">{inv.startup_email}</div>
                                 </TableCell>
+                                <TableCell>
+                                  <span
+                                    className={`text-xs px-2 py-0.5 rounded font-medium ${
+                                      isGift
+                                        ? 'bg-amber-500/10 text-amber-600'
+                                        : 'bg-emerald-500/10 text-emerald-600'
+                                    }`}
+                                  >
+                                    {isGift ? 'Gift' : 'Equity'}
+                                  </span>
+                                </TableCell>
                                 <TableCell className="text-right font-mono text-sm">
                                   ${Math.round(Number(inv.amount)).toLocaleString()}
                                 </TableCell>
@@ -2126,6 +2145,21 @@ export default function Admin() {
                                   <span className={`text-xs px-2 py-0.5 rounded font-medium ${statusClass}`}>
                                     {statusLabel}
                                   </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    disabled={sendingThis || sendingQueuedEmails || cancellingQueuedEmails}
+                                    onClick={() => sendRowCommitmentEmail(inv)}
+                                    data-testid={`send-commitment-${inv.id}`}
+                                    title={`${buttonLabel} ${isGift ? 'gift-pledge' : 'equity-commitment'} email to ${inv.investor_email} and ${inv.startup_email}`}
+                                  >
+                                    {sendingThis
+                                      ? <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                      : <Mail className="w-4 h-4 mr-1" />}
+                                    {sendingThis ? 'Sending…' : buttonLabel}
+                                  </Button>
                                 </TableCell>
                               </TableRow>
                             );
