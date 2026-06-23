@@ -1344,7 +1344,7 @@ interface StartupEditDialogProps {
   onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null; description?: string | null; image_url?: string | null }) => void;
 }
 
-function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
+export function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
   const [fundingGoal, setFundingGoal] = useState('');
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
