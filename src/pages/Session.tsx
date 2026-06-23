@@ -1407,6 +1407,17 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
               data-testid="edit-website-link"
             />
           </div>
+          {participantId && (
+            <ImageUploadField
+              label="Logo / Image"
+              value={imageUrl}
+              onChange={setImageUrl}
+              kind="participant"
+              refId={participantId}
+              participantId={participantId}
+              helpText="Shown to investors when you join. PNG/JPG/WebP/GIF, max 5MB."
+            />
+          )}
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
