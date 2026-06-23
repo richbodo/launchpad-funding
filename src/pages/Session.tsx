@@ -5,7 +5,7 @@ import { useSessionUser } from '@/lib/sessionContext';
 import { useSessionStages } from '@/hooks/useSessionStages';
 import { useLiveKitToken } from '@/hooks/useLiveKitToken';
 import { LiveKitRoom, RoomAudioRenderer, StartAudio, useLocalParticipant, useTracks } from '@livekit/components-react';
-import { Track, ScreenSharePresets } from 'livekit-client';
+import { Track, ScreenSharePresets, DisconnectReason } from 'livekit-client';
 import '@livekit/components-styles';
 import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
@@ -107,6 +107,13 @@ export default function SessionPage() {
   const editAutoOpened = useRef(false);
   const [session, setSession] = useState<any>(null);
   const [callState, setCallState] = useState<CallState>('idle');
+  // When LiveKit disconnects for a non-transient reason (duplicate identity
+  // from a second tab, server-side removal, room deleted), we MUST stop the
+  // auto-join effect from immediately reconnecting — otherwise two tabs of the
+  // same investor kick each other in a tight loop, which visually presents as
+  // "the whole page is flashing / chat keeps reloading."
+  const autoJoinBlockedRef = useRef(false);
+  const [autoJoinBlockedMsg, setAutoJoinBlockedMsg] = useState<string | null>(null);
   const [stageIdentity, setStageIdentity] = useState<string | null>(null);
   const [localMuted, setLocalMuted] = useState(false);
   const [investorCount, setInvestorCount] = useState(0);
@@ -325,7 +332,8 @@ export default function SessionPage() {
       user?.role &&
       user.role !== 'facilitator' &&
       session?.status === 'live' &&
-      callState === 'idle'
+      callState === 'idle' &&
+      !autoJoinBlockedRef.current
     ) {
       setCallState('connecting');
       fetchToken();
@@ -539,6 +547,23 @@ export default function SessionPage() {
 
   const sessionContent = (
     <>
+      {autoJoinBlockedMsg && (
+        <div className="px-4 py-2 bg-destructive/10 border-b border-destructive/30 text-sm text-destructive flex items-center justify-between gap-3">
+          <span>{autoJoinBlockedMsg}</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              autoJoinBlockedRef.current = false;
+              setAutoJoinBlockedMsg(null);
+              setCallState('connecting');
+              fetchToken();
+            }}
+          >
+            Reconnect
+          </Button>
+        </div>
+      )}
       {/* Main content: 3-pane layout */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left pane: Facilitator video(s) + startup previews */}
@@ -1038,11 +1063,38 @@ export default function SessionPage() {
           // adaptiveStream/dynacast keep bandwidth sane when many tiles render.
           connectOptions={{ autoSubscribe: true }}
           options={{ adaptiveStream: true, dynacast: true }}
-          onConnected={() => console.info('[LiveKit] connected')}
-          onDisconnected={() => {
-            console.info('[LiveKit] disconnected');
+          onConnected={() => {
+            console.info('[LiveKit] connected');
+            // Successful (re)connect clears any prior block — e.g. user
+            // closed the duplicate tab and clicked Reconnect.
+            autoJoinBlockedRef.current = false;
+            setAutoJoinBlockedMsg(null);
+          }}
+          onDisconnected={(reason?: DisconnectReason) => {
+            console.info('[LiveKit] disconnected, reason=', reason);
             reset();
             setCallState('idle');
+            // Non-transient disconnects: stop the auto-rejoin loop and tell
+            // the user what happened. DUPLICATE_IDENTITY is the canonical
+            // "two tabs of the same user" loop that flashes the whole page.
+            const isFatal =
+              reason === DisconnectReason.DUPLICATE_IDENTITY ||
+              reason === DisconnectReason.PARTICIPANT_REMOVED ||
+              reason === DisconnectReason.ROOM_DELETED ||
+              reason === DisconnectReason.CLIENT_INITIATED;
+            if (isFatal) {
+              autoJoinBlockedRef.current = true;
+              const msg =
+                reason === DisconnectReason.DUPLICATE_IDENTITY
+                  ? 'You appear to be joined from another tab or device. Close the other one and click Reconnect.'
+                  : reason === DisconnectReason.PARTICIPANT_REMOVED
+                    ? 'You were removed from the session.'
+                    : reason === DisconnectReason.ROOM_DELETED
+                      ? 'The session room was closed.'
+                      : 'Disconnected from the session.';
+              setAutoJoinBlockedMsg(msg);
+              toast.error(msg, { duration: 12000 });
+            }
           }}
           onError={(err) => console.error('[LiveKit] error:', err)}
         >
