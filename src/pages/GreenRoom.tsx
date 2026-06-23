@@ -130,7 +130,7 @@ export default function GreenRoom() {
     }
     setGoingLive(true);
     const { data, error } = await supabase.functions.invoke('admin-action', {
-      body: { admin_token: getAdminToken(), action: 'update_session', session_id: id, status: 'live' },
+      body: { admin_token: getAdminToken(), action: 'update_session', id, status: 'live' },
     });
     setGoingLive(false);
     if (error || (data as any)?.error) {
