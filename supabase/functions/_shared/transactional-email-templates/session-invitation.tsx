@@ -212,7 +212,12 @@ const SessionInvitationEmail = ({
 
 export const template = {
   component: SessionInvitationEmail,
-  subject: (data: Record<string, any>) => `You're invited to ${data.sessionName || 'a session'} — ${SITE_NAME}`,
+  subject: (data: Record<string, any>) => {
+    const base = `You're invited to ${data.sessionName || 'a session'} — ${SITE_NAME}`
+    // freshTag breaks Gmail's subject-based threading so a resend lands as a
+    // brand-new conversation rather than being collapsed under the original.
+    return data.freshTag ? `${base} · resend (${data.freshTag})` : base
+  },
   displayName: 'Session Invitation',
   previewData: {
     recipientName: 'Jane Doe',
