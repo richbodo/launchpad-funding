@@ -224,7 +224,7 @@ function Placeholder({
                 size="sm"
                 variant="outline"
                 className="h-7 text-xs"
-                onClick={() => window.location.reload()}
+                onClick={() => (onRetry ? onRetry() : window.location.reload())}
               >
                 <RefreshCw className="w-3 h-3 mr-1" />
                 Refresh
