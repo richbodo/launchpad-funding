@@ -1,62 +1,22 @@
 # FundFlow — Real-Time Funding Platform
 
-> **Remixing this on Lovable?** Jump to **[Remix Quickstart](#remix-quickstart)** — you only need ~5 minutes plus a free LiveKit account to have your own copy running.
-
-## Remix Quickstart
-
-This app is built on [Lovable](https://lovable.dev) with **Lovable Cloud** (Supabase under the hood) for the database, auth, edge functions, and storage, and **LiveKit** for live video. When you click **Remix** on Lovable, you get a fresh copy of the codebase wired to your own brand-new Lovable Cloud project — every migration auto-applies and every edge function auto-deploys.
-
-What's left to do as the new owner:
-
-### 1. Bootstrap your facilitator account
-
-Open `/admin` in your remixed app. The first time it loads — with zero facilitator accounts in the database — you'll see a **first-run setup screen** that asks for an email, password, and display name. Submit it; you become the first facilitator and are logged in immediately. A placeholder "My First Session" is created so you can start adding participants right away (rename, reschedule, or delete it from the admin panel).
-
-The bootstrap screen self-disables the moment a facilitator exists, so this can only be used by the first person to claim the app — not by random visitors later.
-
-### 2. Configure LiveKit (required for video)
-
-LiveKit is the only external service you need. Without it, chat / scheduling / investments still work, but the video panes stay dark. Follow **[docs/livekit-setup.md](docs/livekit-setup.md)** — it walks you through:
-
-- Signing up for [LiveKit Cloud](https://cloud.livekit.io) (free tier is enough for evaluation)
-- Copying your API key, API secret, and WebSocket URL
-- Pasting them into Lovable as project secrets (`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `LIVEKIT_WS_URL`) and as a frontend env var (`VITE_LIVEKIT_WS_URL`)
-
-A yellow banner on `/admin` reminds you to do this until `VITE_LIVEKIT_WS_URL` is set.
-
-### 3. Configure email (optional, but recommended)
-
-By default, Lovable sends invitation / commitment emails from a generic Lovable sender. For a polished demo day you'll probably want emails to come from your own domain. See **[docs/email-setup.md](docs/email-setup.md)** for the ~5-minute setup, which includes adding a couple of **NS records at your DNS provider** so Lovable can manage SPF / DKIM / DMARC for your sender subdomain automatically.
-
-You can skip this for evaluation and turn it on later — nothing in the app depends on a custom email domain to function.
-
-### 4. (Optional) Try Demo Mode first
-
-Want to see what the app looks like fully populated before you build a real session? In **Admin → Settings**, toggle **Demo Mode**. This seeds three `[DEMO]`-prefixed sessions and a roster of demo participants you can log in as from `/demo-logins`. Toggling demo mode off cleans the demo data back up.
-
-### 5. (Optional) Make it yours
-
-- License is GPL — see [LICENSE.md](LICENSE.md). Forks and modifications are welcome; the same terms apply.
-- Hide the "Edit with Lovable" badge from **Publish settings** when you're ready to share publicly (Lovable Pro plan or higher).
-- Rebrand colors / typography in `src/index.css` and `tailwind.config.ts` — the rest of the UI uses semantic tokens.
-
-### Running locally (optional)
-
-You don't need a local dev setup to run or modify this app — Lovable's in-browser preview is enough. If you'd rather work locally (use your own editor, run the test suite, etc.), see **[docs/dev_setup.md](docs/dev_setup.md)**. It covers Colima / Docker, the Supabase CLI, LiveKit, and the test infrastructure scripts.
-
----
-
 ## Summary
 
-
-
 This is a real-time, browser-based funding platform designed for demo-day-style events where startups or charitable projects present to investors or donors and financing rounds can complete in minutes instead of what often takes years.  
+
+This style of fundraising platform has been around, and has been very successful at times, but I couldn't find an OSS version I liked, so here's one. :)
+
+The reason this type of thing is so effective is that the "discovery" phase where great organizations find great supporters is mostly taken care of by the facilitators of the session - they find great folks.
+
+The absolute best way to make a Real Time Fundraising session work is to first find great organizations that need funding and will crush it with their mission when they get it - and second, get them and the facilitators to invite their communities.
+
+There are features for accredited investors, non-accredited investors who cannot pledge more than 100USD, and get a no-obligation gift from the startup.
+
+Things like landing pages for the events, email templates for every email that goes out - diagnostics every step of the way - all implemented.
 
 ## How it works
 
 A facilitator manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time.  Startups and investors get emails when investments are soft-committed, and they complete their transaction with no middle-man.
-
-This style of fundraising platform has been around, and has been very successful at times, but I couldn't find an OSS version I liked, so here's one. :)
 
 ## Developer Demo
 
