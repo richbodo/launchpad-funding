@@ -107,6 +107,13 @@ export default function SessionPage() {
   const editAutoOpened = useRef(false);
   const [session, setSession] = useState<any>(null);
   const [callState, setCallState] = useState<CallState>('idle');
+  // When LiveKit disconnects for a non-transient reason (duplicate identity
+  // from a second tab, server-side removal, room deleted), we MUST stop the
+  // auto-join effect from immediately reconnecting — otherwise two tabs of the
+  // same investor kick each other in a tight loop, which visually presents as
+  // "the whole page is flashing / chat keeps reloading."
+  const autoJoinBlockedRef = useRef(false);
+  const [autoJoinBlockedMsg, setAutoJoinBlockedMsg] = useState<string | null>(null);
   const [stageIdentity, setStageIdentity] = useState<string | null>(null);
   const [localMuted, setLocalMuted] = useState(false);
   const [investorCount, setInvestorCount] = useState(0);
