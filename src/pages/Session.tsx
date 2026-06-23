@@ -1114,6 +1114,20 @@ export default function SessionPage() {
         sessionContent
       )}
 
+      {/* Startup pre-session waiting screen — replaces the confusing "your
+          camera is off" view when the facilitator hasn't started the session
+          yet. Disappears the instant session.status flips to 'live'. */}
+      {user.role === 'startup' && session && (session.status === 'scheduled' || session.status === 'draft') && (
+        <StartupWaitingOverlay
+          participantId={user.participantId}
+          sessionName={session.name}
+          startTime={session.start_time}
+          endTime={session.end_time}
+          timezone={session.timezone}
+        />
+      )}
+
+
 
       {/* Startup metadata editing dialog */}
       {user.role === 'startup' && (
