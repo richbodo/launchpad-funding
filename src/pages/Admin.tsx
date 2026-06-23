@@ -1098,6 +1098,16 @@ export default function Admin() {
 
     const idempotencyKey = options?.idempotencyKey || `session-invite-${selectedSession.id}-${email}-${crypto.randomUUID()}`;
 
+    // freshTag is a short human-readable cache-buster that flows into the
+    // email subject, preview text, and a small in-body banner. Gmail threads
+    // messages by normalized subject; varying the subject makes the resend
+    // appear as a brand-new conversation instead of being collapsed under
+    // the original invite — the fix for "I never got the email" reports
+    // that turn out to be Gmail thread-folding.
+    const freshTag = options?.forceFresh
+      ? new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : undefined;
+
     const { data, error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
         templateName: 'session-invitation',
@@ -1114,6 +1124,7 @@ export default function Admin() {
           calendarUrl,
           contactEmail: emailContact !== DEFAULT_CONTACT_EMAIL ? emailContact : undefined,
           eventDetails,
+          freshTag,
         },
       },
     });
