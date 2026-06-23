@@ -562,7 +562,7 @@ export default function SessionPage() {
     if (user?.role !== 'facilitator' || isPaused) return;
     const interval = setInterval(() => {
       broadcastStage(currentStageIndex, isPaused, remainingSeconds, stageIdentity);
-    }, 5000);
+    }, 1500);
     return () => clearInterval(interval);
   }, [user?.role, isPaused, currentStageIndex, remainingSeconds, stageIdentity, broadcastStage]);
 
