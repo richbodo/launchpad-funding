@@ -1046,11 +1046,38 @@ export default function SessionPage() {
           // adaptiveStream/dynacast keep bandwidth sane when many tiles render.
           connectOptions={{ autoSubscribe: true }}
           options={{ adaptiveStream: true, dynacast: true }}
-          onConnected={() => console.info('[LiveKit] connected')}
-          onDisconnected={() => {
-            console.info('[LiveKit] disconnected');
+          onConnected={() => {
+            console.info('[LiveKit] connected');
+            // Successful (re)connect clears any prior block — e.g. user
+            // closed the duplicate tab and clicked Reconnect.
+            autoJoinBlockedRef.current = false;
+            setAutoJoinBlockedMsg(null);
+          }}
+          onDisconnected={(reason?: DisconnectReason) => {
+            console.info('[LiveKit] disconnected, reason=', reason);
             reset();
             setCallState('idle');
+            // Non-transient disconnects: stop the auto-rejoin loop and tell
+            // the user what happened. DUPLICATE_IDENTITY is the canonical
+            // "two tabs of the same user" loop that flashes the whole page.
+            const isFatal =
+              reason === DisconnectReason.DUPLICATE_IDENTITY ||
+              reason === DisconnectReason.PARTICIPANT_REMOVED ||
+              reason === DisconnectReason.ROOM_DELETED ||
+              reason === DisconnectReason.CLIENT_INITIATED;
+            if (isFatal) {
+              autoJoinBlockedRef.current = true;
+              const msg =
+                reason === DisconnectReason.DUPLICATE_IDENTITY
+                  ? 'You appear to be joined from another tab or device. Close the other one and click Reconnect.'
+                  : reason === DisconnectReason.PARTICIPANT_REMOVED
+                    ? 'You were removed from the session.'
+                    : reason === DisconnectReason.ROOM_DELETED
+                      ? 'The session room was closed.'
+                      : 'Disconnected from the session.';
+              setAutoJoinBlockedMsg(msg);
+              toast.error(msg, { duration: 12000 });
+            }
           }}
           onError={(err) => console.error('[LiveKit] error:', err)}
         >
