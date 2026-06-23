@@ -1388,11 +1388,23 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
       toast.error('Please add a short description (about two sentences).');
       return;
     }
+
+    // Normalize user-entered URLs: if they typed "example.com" without a
+    // scheme, prepend https:// so zod's .url() validator on the edge
+    // function doesn't reject the whole payload (which would otherwise
+    // silently drop description + image_url along with it).
+    const normalizeUrl = (raw: string): string | null => {
+      const v = raw.trim();
+      if (!v) return null;
+      if (/^https?:\/\//i.test(v)) return v;
+      return `https://${v}`;
+    };
+
     setSaving(true);
     const updates: any = {
       funding_goal: fundingGoal ? parseFloat(fundingGoal) : null,
-      dd_room_link: ddRoomLink || null,
-      website_link: websiteLink || null,
+      dd_room_link: normalizeUrl(ddRoomLink),
+      website_link: normalizeUrl(websiteLink),
       description: description.trim(),
       image_url: imageUrl || null,
     };
@@ -1401,8 +1413,10 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
     });
 
     setSaving(false);
-    if (error || data?.error) {
-      toast.error('Failed to save startup info');
+    const errMsg = error?.message || (typeof data?.error === 'string' ? data.error : null) ||
+      (data?.error && typeof data.error === 'object' ? JSON.stringify(data.error) : null);
+    if (errMsg) {
+      toast.error(`Failed to save: ${errMsg}`);
     } else {
       toast.success('Startup info saved');
       onSaved(updates);

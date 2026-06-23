@@ -14,11 +14,24 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
 
+// URL fields are lenient: trim, treat empty as null, prepend https:// if the
+// user forgot a scheme (e.g. "example.com"). This prevents a single typo from
+// rejecting the entire save payload (which would silently drop description +
+// image_url along with the invalid URL).
+const lenientUrl = z.preprocess((val) => {
+  if (val === null || val === undefined) return null;
+  if (typeof val !== "string") return val;
+  const trimmed = val.trim();
+  if (!trimmed) return null;
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}, z.string().url().max(500).nullable().optional());
+
 const BodySchema = z.object({
   participant_id: z.string().uuid(),
   funding_goal: z.number().nonnegative().nullable().optional(),
-  dd_room_link: z.string().url().max(500).nullable().optional(),
-  website_link: z.string().url().max(500).nullable().optional(),
+  dd_room_link: lenientUrl,
+  website_link: lenientUrl,
   // Short pitch summary (~2 sentences). Required before going live, but the
   // edge function accepts null so the dialog can be cleared/edited freely.
   description: z.string().max(1000).nullable().optional(),
