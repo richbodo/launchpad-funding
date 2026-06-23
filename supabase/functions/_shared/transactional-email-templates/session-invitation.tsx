@@ -36,6 +36,13 @@ interface SessionInvitationProps {
   calendarUrl?: string
   contactEmail?: string
   eventDetails?: EventDetails
+  /**
+   * Optional cache-buster tag. When set (e.g. "Jun 23, 1:42 PM"), the subject
+   * line, preview text, and a small in-body banner all change so Gmail won't
+   * thread this resend under the prior invitation. Used by the admin's
+   * "Force-resend" action when a user reports the original never arrived.
+   */
+  freshTag?: string
 }
 
 /**
