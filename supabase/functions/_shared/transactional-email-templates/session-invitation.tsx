@@ -256,3 +256,5 @@ const cardTitle = { fontSize: '14px', fontWeight: 'bold' as const, color: '#1a1a
 const cardMeta = { fontSize: '12px', color: '#666', margin: '0 0 6px' }
 const cardBody = { fontSize: '13px', color: '#333', lineHeight: '1.5', margin: '0 0 6px' }
 const cardLinks = { fontSize: '13px', color: '#16a34a', margin: '4px 0 0' }
+const resendBanner = { backgroundColor: '#fef3c7', borderRadius: '6px', padding: '10px 14px', margin: '0 0 18px', border: '1px solid #fcd34d' }
+const resendBannerText = { fontSize: '13px', color: '#92400e', margin: 0, lineHeight: '1.5' }
