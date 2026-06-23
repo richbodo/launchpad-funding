@@ -1048,6 +1048,13 @@ export default function SessionPage() {
         >
           {sessionContent}
           <RoomAudioRenderer muted={localMuted} />
+          {/* Browsers block audio autoplay until a user gesture. StartAudio
+              renders a button only when the audio element can't auto-play;
+              clicking it unlocks remote audio so participants can hear others. */}
+          <StartAudio
+            label="🔊 Click to enable audio"
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-primary text-primary-foreground shadow-lg hover:opacity-90"
+          />
           <ForceLiveKitSubscriptions />
         </LiveKitRoom>
       ) : (
