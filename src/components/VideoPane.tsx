@@ -76,10 +76,11 @@ function LiveVideoPane({
     );
 
     expectedPublications.forEach((t) => {
-      t.publication.setSubscribed(true).catch(() => {
-        // LiveKit may reject duplicate or transitional subscribe requests; the
-        // room event stream will retry through the next useTracks update.
-      });
+      // TrackPublication is typed as the shared base class, but remote
+      // publications expose setSubscribed(). Local self-preview publications do
+      // not need it, so guard with a capability check.
+      const publication = t.publication as typeof t.publication & { setSubscribed?: (subscribed: boolean) => void };
+      publication.setSubscribed?.(true);
     });
   }, [tracks, participantIdentity]);
 
