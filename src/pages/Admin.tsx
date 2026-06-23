@@ -2312,6 +2312,12 @@ export default function Admin() {
 
                   <hr className="border-border" />
 
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">Session Invitation Email</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Per-role welcome text injected into the invitation sent when adding a participant.
+                    </p>
+                  </div>
                   <EditableWelcome
                     label="Facilitator Welcome Message"
                     settingKey="email_welcome_facilitator"
@@ -2329,6 +2335,36 @@ export default function Admin() {
                     settingKey="email_welcome_investor"
                     value={welcomeInvestor}
                     setValue={setWelcomeInvestor}
+                  />
+
+                  <hr className="border-border" />
+
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">Investment Commitment Email</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Intro message in the confirmation email sent to the investor + startup pair after a commitment is recorded.
+                    </p>
+                  </div>
+                  <EditableWelcome
+                    label="Equity Commitment Intro (Accredited Investor)"
+                    settingKey="email_welcome_commitment_equity"
+                    value={welcomeCommitmentEquity}
+                    setValue={setWelcomeCommitmentEquity}
+                  />
+
+                  <hr className="border-border" />
+
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">Community Gift Pledge Email</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Intro message in the confirmation email sent for non-binding gift pledges by community supporters.
+                    </p>
+                  </div>
+                  <EditableWelcome
+                    label="Gift Pledge Intro (Community Supporter)"
+                    settingKey="email_welcome_commitment_gift"
+                    value={welcomeCommitmentGift}
+                    setValue={setWelcomeCommitmentGift}
                   />
                 </CardContent>
               </Card>
