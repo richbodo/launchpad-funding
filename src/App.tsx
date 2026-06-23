@@ -12,6 +12,7 @@ import DemoLogins from "./pages/DemoLogins";
 import Unsubscribe from "./pages/Unsubscribe";
 import NotFound from "./pages/NotFound";
 import EventLanding from "./pages/EventLanding";
+import GreenRoom from "./pages/GreenRoom";
 
 import HelpButton from "./components/HelpButton";
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/" element={<Index />} />
             <Route path="/login" element={<Login />} />
             <Route path="/session/:id" element={<Session />} />
+            <Route path="/session/:id/ready" element={<GreenRoom />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/demo-logins" element={<DemoLogins />} />
             <Route path="/event/:slug" element={<EventLanding />} />

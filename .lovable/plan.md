@@ -1,52 +1,75 @@
-# Investigation: where the unknown sessions came from
+# Green Room — Pre-session profile & readiness page
 
-The `[SIM]` and `[SMOKE]` sessions in production are **not** outside attackers — they were created by our own test harnesses:
+A new role-aware landing page where startups and facilitators complete their profile (logo/photo, bio/description, links, funding goal) before — and during — a session. Investors skip it.
 
-- `[SIM] …` rows come from `tests/simulation/harness.ts` (the full-session simulation we built over the last two days). It seeds rows directly via `psql`.
-- `[SMOKE] …` rows come from `scripts/smoke-edge-functions-seeded.sh`, which seeds via the Supabase REST API using the service-role key.
+## Routing
 
-Both of these were run against the **production database** at some point — either manually with prod `PG*`/service-role env vars, or by a CI job that has those secrets. They never go through the Admin UI, so no login was required.
+- New route: `/session/:id/ready` → `<GreenRoom />`
+- **Login redirect logic** (`Login.tsx` post-auth):
+  - role = `investor` → `/session/:id` (unchanged)
+  - role = `startup` or `facilitator` → `/session/:id/ready`
+- **Session page guard**: if a startup/facilitator hits `/session/:id` and the session status is `draft` or `scheduled`, redirect to `/ready`. Once `live`, no forced redirect — Green Room becomes opt-in via sidebar link.
+- **Green Room → Session**: "Enter session" button (always present) navigates to `/session/:id`. For facilitators, a separate "Go Live" button flips status `scheduled → live` (no blocking on startup readiness — just a confirmation if any startup is incomplete).
 
-# But there is a real, separate vulnerability
+## Green Room UI (`src/pages/GreenRoom.tsx`)
 
-While investigating I found a more serious gap: the RLS on `public.sessions`, `public.session_participants`, and `public.app_settings` is wide open:
+Single-column page, dark fintech aesthetic to match the rest of the app. Header shows session name, scheduled time, status pill, and an "Enter session" CTA.
 
-```
-sessions               INSERT/UPDATE/DELETE  → anon, authenticated   (no check)
-session_participants   INSERT/UPDATE/DELETE  → anon, authenticated   (no check)
-app_settings           INSERT/UPDATE          → anon, authenticated  (no check)
-```
+**Startup view:**
+- Readiness checklist card at top: Logo ✓ / Description ✓ / Funding goal ✓ / DD room link ○ / Website ○ (DD + website are optional, shown as informational).
+- Inline profile form (extracted from `StartupEditDialog` body into a reusable `<StartupProfileForm>`): `ImageUploadField` for logo, description textarea, funding goal, DD room link, website link. Auto-saves on blur or via explicit Save button (keep current Save-button UX for now).
 
-The publishable anon key ships in the JS bundle, so **anyone in the world** can hit the Supabase REST API and:
+**Facilitator view:**
+- Readiness checklist: Photo ✓ / Bio ✓.
+- Inline `<FacilitatorProfileForm>`: `ImageUploadField` (new — facilitator photo), bio textarea (≤500 chars).
+- Roster card listing every startup with their readiness state (logo/description/goal checks) — view-only, helps facilitators nudge stragglers.
+- "Go Live" button (only when status = `scheduled`). If any startup is incomplete, show a confirm dialog ("3 startups haven't finished their profile. Go live anyway?").
 
-- create / update / delete sessions
-- add / promote / delete participants (including facilitators)
-- flip `mode=demo`, which then bypasses the admin-token check in `authorizeFacilitator`
+**Sidebar link**: Add a "Green Room" / "Edit profile" link in the existing Session top bar (next to existing role-scoped actions) so users can return to edit while live.
 
-The Admin UI itself already routes every mutation through the `admin-action` / `admin-settings` edge functions (which require an admin token issued by `participant-login`). So locking down the tables won't break the legitimate flow — it will only block the back door.
+## Backend changes
 
-# Plan
+- **`facilitator-update-self` edge function**: add `image_url` field (mirror what `startup-update-self` already does — lenient URL handling, ≤1000 chars). One small edit, no migration needed (`session_participants.image_url` column already exists and is used for startups).
+- **`upload-event-image` edge function**: extend the participant self-upload branch to also accept `role = 'facilitator'` (currently only `'startup'`). Two-line change.
+- No schema migrations required.
 
-## 1. Migration: tighten RLS to service-role-only writes
+## Component extraction
 
-Replace the permissive write policies on `sessions`, `session_participants`, `app_settings` with policies that allow `INSERT/UPDATE/DELETE` only to `service_role`. Keep `SELECT` public (the landing page, login picker, and session screen all rely on anonymous reads).
+Refactor without behavior change:
+- Extract `StartupEditDialog`'s form body → `src/components/StartupProfileForm.tsx`. Dialog wraps it; Green Room embeds it directly.
+- Extract `FacilitatorEditDialog`'s form body → `src/components/FacilitatorProfileForm.tsx` and add the new `ImageUploadField`.
+- Existing tests (`StartupEditDialog.test.tsx`) keep passing since dialog still mounts the same form.
 
-## 2. Move the two remaining client-side writes to edge functions
+## Slice of C — invitation deep link
 
-After the migration, two legitimate client writes would break — fix them first:
+- `session-invitation` email template (startup + facilitator variants): add a "Set up your profile" button linking to `https://<domain>/session/:id/ready?email=…`.
+- Login page: if `?email=` and `?session=` are present in URL, prefill the email field and pre-select the session. (No new tokenized auth — user still types their password / requests magic link; this is just a convenience deep link. Anything heavier can come later.)
 
-- **`Session.tsx` logout** (`is_logged_in: false`) → switch to the existing `participant-presence` edge function (already does exactly this with the service role).
-- **`StartupEditDialog` self-edit** (funding goal / DD room / website) → add a small `startup-update-self` edge function that only allows updates to those three columns for a `role='startup'` row, keyed by `participant_id`. Same trust model as `participant-presence`.
+## Files touched
 
-## 3. Stop running test scripts against production
+**New:**
+- `src/pages/GreenRoom.tsx`
+- `src/components/StartupProfileForm.tsx`
+- `src/components/FacilitatorProfileForm.tsx`
+- `src/components/ReadinessChecklist.tsx`
 
-Add a guard to `tests/simulation/harness.ts` and `scripts/smoke-edge-functions-seeded.sh` that refuses to run if `VITE_SUPABASE_URL` / `SUPABASE_URL` points at the production project ref (`bjtnmtdmgjkdnztgbaau`). This prevents accidental seeding into prod even with valid credentials.
+**Edited:**
+- `src/App.tsx` — register `/session/:id/ready` route
+- `src/pages/Login.tsx` — post-auth redirect by role + status; honor `?email` / `?session` query
+- `src/pages/Session.tsx` — extract form bodies, add Green Room sidebar link, draft/scheduled redirect for startups/facilitators
+- `supabase/functions/facilitator-update-self/index.ts` — accept `image_url`
+- `supabase/functions/upload-event-image/index.ts` — allow facilitator self-upload
+- `supabase/functions/_shared/transactional-email-templates/session-invitation.tsx` — "Set up your profile" CTA
 
-## 4. Clean up the existing junk rows
+## Out of scope (this pass)
 
-After the lockdown lands, delete the `[SIM] %` and `[SMOKE] %` rows from production via the admin-action `delete_session` path (which now requires a real facilitator login).
+- Tokenized profile-edit magic link (could be added later if the plain email-prefill deep link proves friction-y)
+- Investor profiles
+- Blocking "Go Live" on incomplete startups
+- Auto-save / draft persistence (keep explicit Save button)
 
-## Out of scope (call out, don't change)
+## Testing
 
-- The `authorizeFacilitator` demo-mode bypass remains. With #1 in place, anon can no longer flip `mode=demo`, so the bypass is only reachable when a real facilitator has explicitly enabled demo mode.
-- We do not change the custom (non-Supabase-Auth) login model — facilitator password verification via `participant-login` stays as the single source of truth for issuing admin tokens.
+- Unit: a new `GreenRoom.test.tsx` covering checklist computation and the Go Live confirm dialog
+- Existing `StartupEditDialog.test.tsx` continues to pass after the extraction
+- Manual: log in as startup → land on Green Room → upload logo → enter session → see logo render

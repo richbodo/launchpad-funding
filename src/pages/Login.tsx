@@ -155,7 +155,12 @@ export default function Login() {
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
-    navigate(`/session/${selectedSession}${editParam}`);
+    // Startups and facilitators land in the Green Room first so they can
+    // finish their profile (image, bio/description, links) before entering
+    // the live session. Investors and the explicit ?edit=true admin flow
+    // skip the Green Room and go straight to the session UI.
+    const needsGreenRoom = (loginRole === 'startup' || loginRole === 'facilitator') && !editParam;
+    navigate(needsGreenRoom ? `/session/${selectedSession}/ready` : `/session/${selectedSession}${editParam}`);
 
     // Background side effects — failures are logged but don't block entry.
     supabase.functions.invoke('participant-presence', {
@@ -452,7 +457,9 @@ export default function Login() {
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
-    navigate(`/session/${selectedSession}${editParam}`);
+    // See completeLoginWith for the Green Room redirect rationale.
+    const needsGreenRoom = (resolvedRole === 'startup' || resolvedRole === 'facilitator') && !editParam;
+    navigate(needsGreenRoom ? `/session/${selectedSession}/ready` : `/session/${selectedSession}${editParam}`);
 
     supabase.functions.invoke('participant-presence', {
       body: { participant_id: participant.id, logged_in: true },

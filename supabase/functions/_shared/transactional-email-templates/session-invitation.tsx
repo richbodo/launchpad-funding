@@ -140,6 +140,18 @@ const SessionInvitationEmail = ({
           </Section>
         )}
 
+        {/* For startups & facilitators, surface a dedicated "set up your
+            profile" link. The /ready route lives behind login, so this still
+            requires the recipient to authenticate first — it just routes
+            them to the Green Room afterward instead of the live session UI. */}
+        {loginUrl && (roleName === 'startup' || roleName === 'facilitator') && (
+          <Section style={{ textAlign: 'center' as const, marginBottom: '20px' }}>
+            <Link href={loginUrl} style={secondaryLink}>
+              ✏️ Set up your profile before the event
+            </Link>
+          </Section>
+        )}
+
         {calendarUrl && (
           <Section style={{ textAlign: 'center' as const, marginBottom: '25px' }}>
             <Link href={calendarUrl} style={calendarLink}>
@@ -258,3 +270,4 @@ const cardBody = { fontSize: '13px', color: '#333', lineHeight: '1.5', margin: '
 const cardLinks = { fontSize: '13px', color: '#16a34a', margin: '4px 0 0' }
 const resendBanner = { backgroundColor: '#fef3c7', borderRadius: '6px', padding: '10px 14px', margin: '0 0 18px', border: '1px solid #fcd34d' }
 const resendBannerText = { fontSize: '13px', color: '#92400e', margin: 0, lineHeight: '1.5' }
+const secondaryLink = { fontSize: '13px', color: '#16a34a', textDecoration: 'underline' }

@@ -1117,6 +1117,17 @@ export default function SessionPage() {
               Edit Your Bio
             </Button>
           )}
+          {(user.role === 'startup' || user.role === 'facilitator') && (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => navigate(`/session/${id}/ready`)}
+              data-testid="green-room-link"
+              title="Open the Green Room to edit your full profile"
+            >
+              Green Room
+            </Button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <span

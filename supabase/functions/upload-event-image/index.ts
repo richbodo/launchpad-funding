@@ -71,7 +71,11 @@ Deno.serve(async (req) => {
         .select('id, role')
         .eq('id', body.participant_id)
         .maybeSingle();
-      if (prow && prow.role === 'startup') authorized = true;
+      // Startups and facilitators can both self-upload their profile image
+      // to their own participant row. Investors have no profile image.
+      if (prow && (prow.role === 'startup' || prow.role === 'facilitator')) {
+        authorized = true;
+      }
     }
   }
   if (!authorized) return jsonResponse({ error: "Unauthorized" }, 401);

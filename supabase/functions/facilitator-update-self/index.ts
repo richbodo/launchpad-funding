@@ -1,13 +1,15 @@
 /**
  * facilitator-update-self
  * -----------------------
- * Lets a facilitator participant update their own short bio without granting
- * the anon role direct UPDATE on `session_participants`.
+ * Lets a facilitator participant update their own bio and profile image
+ * (image_url) without granting the anon role direct UPDATE on
+ * `session_participants`.
  *
  * Trust model matches `startup-update-self`/`participant-presence`: this app
  * has no Supabase Auth, so we accept a participant_id from the client and
  * verify server-side that the row is actually a facilitator before writing.
- * The only mutable column is `bio` (≤500 chars; nullable to allow clearing).
+ * Mutable columns: `bio` (≤500 chars; nullable), `image_url` (uploaded via
+ * upload-event-image, nullable).
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
@@ -16,6 +18,8 @@ import { z } from "npm:zod@3";
 const BodySchema = z.object({
   participant_id: z.string().uuid(),
   bio: z.string().max(500).nullable().optional(),
+  // Public URL of an uploaded profile photo (from upload-event-image).
+  image_url: z.string().url().max(1000).nullable().optional(),
 });
 
 Deno.serve(async (req) => {
@@ -54,7 +58,7 @@ Deno.serve(async (req) => {
       });
     }
     if (row.role !== "facilitator") {
-      return new Response(JSON.stringify({ error: "Only facilitators can self-update bio" }), {
+      return new Response(JSON.stringify({ error: "Only facilitators can self-update" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -62,6 +66,7 @@ Deno.serve(async (req) => {
 
     const updates: Record<string, unknown> = {};
     if ("bio" in fields) updates.bio = fields.bio ?? null;
+    if ("image_url" in fields) updates.image_url = fields.image_url ?? null;
 
     if (Object.keys(updates).length === 0) {
       return new Response(JSON.stringify({ ok: true, updated: false }), {
