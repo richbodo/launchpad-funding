@@ -4,7 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useSessionStages } from '@/hooks/useSessionStages';
 import { useLiveKitToken } from '@/hooks/useLiveKitToken';
-import { LiveKitRoom, RoomAudioRenderer, useLocalParticipant, useTracks } from '@livekit/components-react';
+import { LiveKitRoom, RoomAudioRenderer, StartAudio, useLocalParticipant, useTracks } from '@livekit/components-react';
 import { Track, ScreenSharePresets } from 'livekit-client';
 import '@livekit/components-styles';
 import FundingMeter from '@/components/FundingMeter';
@@ -14,6 +14,7 @@ import type { CallState } from '@/components/VideoPane';
 import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
+import ImageUploadField from '@/components/ImageUploadField';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
@@ -1047,6 +1048,13 @@ export default function SessionPage() {
         >
           {sessionContent}
           <RoomAudioRenderer muted={localMuted} />
+          {/* Browsers block audio autoplay until a user gesture. StartAudio
+              renders a button only when the audio element can't auto-play;
+              clicking it unlocks remote audio so participants can hear others. */}
+          <StartAudio
+            label="🔊 Click to enable audio"
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-primary text-primary-foreground shadow-lg hover:opacity-90"
+          />
           <ForceLiveKitSubscriptions />
         </LiveKitRoom>
       ) : (
@@ -1281,7 +1289,7 @@ interface StartupEditDialogProps {
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   email: string;
-  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null; description?: string | null }) => void;
+  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null; description?: string | null; image_url?: string | null }) => void;
 }
 
 function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
@@ -1289,6 +1297,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
   const [description, setDescription] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const loaded = useRef(false);
 
@@ -1301,7 +1310,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
 
     supabase
       .from('session_participants')
-      .select('id, funding_goal, dd_room_link, website_link, description')
+      .select('id, funding_goal, dd_room_link, website_link, description, image_url')
       .eq('session_id', sessionId)
       .eq('email', email)
       .single()
@@ -1312,6 +1321,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
           setDdRoomLink(data.dd_room_link || '');
           setWebsiteLink(data.website_link || '');
           setDescription((data as any).description || '');
+          setImageUrl((data as any).image_url || '');
         }
       });
   }, [open, sessionId, email]);
@@ -1332,6 +1342,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
       dd_room_link: ddRoomLink || null,
       website_link: websiteLink || null,
       description: description.trim(),
+      image_url: imageUrl || null,
     };
     const { data, error } = await supabase.functions.invoke('startup-update-self', {
       body: { participant_id: participantId, ...updates },
@@ -1404,6 +1415,17 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
               data-testid="edit-website-link"
             />
           </div>
+          {participantId && (
+            <ImageUploadField
+              label="Logo / Image"
+              value={imageUrl}
+              onChange={setImageUrl}
+              kind="participant"
+              refId={participantId}
+              participantId={participantId}
+              helpText="Shown to investors when you join. PNG/JPG/WebP/GIF, max 5MB."
+            />
+          )}
         </div>
         <div className="flex justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

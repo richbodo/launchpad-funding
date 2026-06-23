@@ -22,6 +22,8 @@ const BodySchema = z.object({
   // Short pitch summary (~2 sentences). Required before going live, but the
   // edge function accepts null so the dialog can be cleared/edited freely.
   description: z.string().max(1000).nullable().optional(),
+  // Public URL of an uploaded logo/image (from upload-event-image).
+  image_url: z.string().url().max(1000).nullable().optional(),
 });
 
 Deno.serve(async (req) => {
@@ -71,6 +73,7 @@ Deno.serve(async (req) => {
     if ("dd_room_link" in fields) updates.dd_room_link = fields.dd_room_link ?? null;
     if ("website_link" in fields) updates.website_link = fields.website_link ?? null;
     if ("description" in fields) updates.description = fields.description ?? null;
+    if ("image_url" in fields) updates.image_url = fields.image_url ?? null;
 
     if (Object.keys(updates).length === 0) {
       return new Response(JSON.stringify({ ok: true, updated: false }), {

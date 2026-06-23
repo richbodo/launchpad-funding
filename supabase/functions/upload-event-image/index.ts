@@ -57,8 +57,24 @@ Deno.serve(async (req) => {
   let body: any;
   try { body = await req.json(); } catch { return jsonResponse({ error: "Invalid JSON" }, 400); }
 
-  const auth = await authorizeFacilitator(body?.admin_token, supabase, serviceKey);
-  if (!auth) return jsonResponse({ error: "Unauthorized" }, 401);
+  // Authorize: either facilitator admin_token, OR participant self-upload
+  // (startup uploading their own logo to their own participant row).
+  let authorized = false;
+  if (body?.admin_token) {
+    const auth = await authorizeFacilitator(body.admin_token, supabase, serviceKey);
+    if (auth) authorized = true;
+  }
+  if (!authorized && body?.participant_id) {
+    if (body.kind === 'participant' && body.participant_id === body.ref_id) {
+      const { data: prow } = await supabase
+        .from('session_participants')
+        .select('id, role')
+        .eq('id', body.participant_id)
+        .maybeSingle();
+      if (prow && prow.role === 'startup') authorized = true;
+    }
+  }
+  if (!authorized) return jsonResponse({ error: "Unauthorized" }, 401);
 
   const { file_base64, content_type, kind, ref_id, filename } = body || {};
   if (!file_base64 || !content_type || !kind || !ref_id) {

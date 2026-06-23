@@ -17,6 +17,12 @@ interface Props {
   /** session.id for hero, participant.id for participant uploads. */
   refId: string;
   helpText?: string;
+  /**
+   * When set, authenticates as the participant (startup self-upload) instead
+   * of as an admin/facilitator. Server enforces that participant_id matches
+   * ref_id and that the participant has role='startup'.
+   */
+  participantId?: string;
 }
 
 /**
@@ -29,7 +35,7 @@ interface Props {
  * facilitator (admin_token-authorized) and returns the public URL.
  */
 export default function ImageUploadField({
-  label, value, onChange, kind, refId, helpText,
+  label, value, onChange, kind, refId, helpText, participantId,
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -77,7 +83,8 @@ export default function ImageUploadField({
       });
       const { data, error } = await supabase.functions.invoke('upload-event-image', {
         body: {
-          admin_token: getAdminToken(),
+          // Either admin (facilitator) auth OR participant self-upload auth.
+          ...(participantId ? { participant_id: participantId } : { admin_token: getAdminToken() }),
           file_base64,
           content_type: file.type,
           kind,
