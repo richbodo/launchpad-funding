@@ -1334,6 +1334,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
       dd_room_link: ddRoomLink || null,
       website_link: websiteLink || null,
       description: description.trim(),
+      image_url: imageUrl || null,
     };
     const { data, error } = await supabase.functions.invoke('startup-update-self', {
       body: { participant_id: participantId, ...updates },
