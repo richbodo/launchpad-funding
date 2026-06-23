@@ -14,6 +14,7 @@ import type { CallState } from '@/components/VideoPane';
 import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
+import ImageUploadField from '@/components/ImageUploadField';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
