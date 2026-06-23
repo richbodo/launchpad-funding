@@ -252,6 +252,7 @@ export default function Admin() {
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [investments, setInvestments] = useState<InvestmentRow[]>([]);
+  const [refreshingInvestments, setRefreshingInvestments] = useState(false);
   const [sendingQueuedEmails, setSendingQueuedEmails] = useState(false);
   const [cancellingQueuedEmails, setCancellingQueuedEmails] = useState(false);
   const [sendingRowId, setSendingRowId] = useState<string | null>(null);
@@ -473,6 +474,17 @@ export default function Admin() {
       return;
     }
     if (data) setInvestments(data as InvestmentRow[]);
+  };
+
+  /**
+   * Manually refresh the commitments table. Used when the real-time subscription
+   * misses an update or the facilitator simply wants to force a fresh read.
+   */
+  const refreshInvestments = async () => {
+    if (!selectedSession) return;
+    setRefreshingInvestments(true);
+    await fetchInvestments(selectedSession.id);
+    setRefreshingInvestments(false);
   };
 
   /**
@@ -2083,9 +2095,22 @@ export default function Admin() {
                     one commitment email is still waiting on the facilitator. */}
                 <Card className="mt-6">
                   <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <DollarSign className="w-5 h-5" /> Investment Commitments
-                    </CardTitle>
+                    <div className="flex items-center justify-between gap-4">
+                      <CardTitle className="flex items-center gap-2">
+                        <DollarSign className="w-5 h-5" /> Investment Commitments
+                      </CardTitle>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={refreshInvestments}
+                        disabled={refreshingInvestments}
+                        title="Refresh commitments"
+                      >
+                        {refreshingInvestments
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <RefreshCw className="w-4 h-4" />}
+                      </Button>
+                    </div>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     {(() => {
