@@ -1051,7 +1051,7 @@ export default function Admin() {
     email: string,
     name: string | null,
     role: string,
-    options?: { idempotencyKey?: string },
+    options?: { idempotencyKey?: string; forceFresh?: boolean },
   ) => {
     if (!selectedSession) throw new Error('No session selected');
     const welcomeMsg = role === 'facilitator' ? welcomeFacilitator
