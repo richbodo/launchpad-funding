@@ -203,22 +203,19 @@ export default function SessionPage() {
       })
       .subscribe();
 
-    // Subscribe to participant UPDATEs so that when a startup edits their DD
-    // Room URL, website, or funding goal, every other client in the session
-    // sees the change within a second. We intentionally only react to UPDATE
-    // events (not INSERT/DELETE) and only merge the URL/goal fields so the
-    // high-frequency `is_logged_in` flips during login don't cause needless
-    // re-renders of the startup list.
+    // Subscribe to participant profile updates via Realtime BROADCAST. A
+    // database trigger (broadcast_participant_profile_update_trg) emits one
+    // message per *meaningful* change (display_name / presentation_order /
+    // funding_goal / dd_room_link / website_link / description / image_url).
+    //
+    // This replaces the previous postgres_changes subscription, which woke
+    // every connected client on every is_logged_in flip — a major contributor
+    // to Realtime load during the 0–8s join window of a ~100-user event.
     const participantsChannel = supabase
-      .channel(`session-participants-${id}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'session_participants',
-        filter: `session_id=eq.${id}`,
-      }, (payload) => {
-        const updated = payload.new as any;
-        if (!updated || updated.role !== 'startup') return;
+      .channel(`participants:${id}`)
+      .on('broadcast', { event: 'UPDATE' }, ({ payload }) => {
+        const updated = payload as any;
+        if (!updated?.email) return;
         setStartups(prev => prev.map(s =>
           s.email === updated.email
             ? {
@@ -234,6 +231,7 @@ export default function SessionPage() {
         ));
       })
       .subscribe();
+
 
     const fetchData = async () => {
       const sessionData = await fetchSessionSnapshot(id);
