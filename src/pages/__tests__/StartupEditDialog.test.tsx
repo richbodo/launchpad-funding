@@ -38,7 +38,7 @@ const h = vi.hoisted(() => {
       image_url: null,
     },
   };
-  const h.invokeMock = vi.fn(async (_fn: string, { body }: any) => {
+  const invokeMock = vi.fn(async (_fn: string, { body }: any) => {
     const norm = (v: any) => {
       if (v == null) return null;
       const s = String(v).trim();
@@ -55,7 +55,7 @@ const h = vi.hoisted(() => {
     };
     return { data: { ok: true, updated: true }, error: null };
   });
-  return { state, h.invokeMock };
+  return { state, invokeMock };
 });
 
 vi.mock('@/integrations/supabase/client', () => ({
@@ -69,7 +69,7 @@ vi.mock('@/integrations/supabase/client', () => ({
         }),
       }),
     })),
-    functions: { invoke: h.h.invokeMock },
+    functions: { invoke: h.invokeMock },
   },
 }));
 
