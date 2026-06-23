@@ -2042,6 +2042,18 @@ export default function Admin() {
                                       ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                                       : <Send className="w-3.5 h-3.5" />}
                                   </Button>
+                                  {p.invite_sent_at && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => sendInviteToParticipant(p, true)}
+                                      disabled={sendingBulk || sendingRowId === p.id}
+                                      title="Force-resend with fresh subject (escapes Gmail threading if the original never appeared)"
+                                    >
+                                      <RefreshCw className="w-3.5 h-3.5" />
+                                    </Button>
+                                  )}
                                   {(p.role === 'startup' || p.role === 'facilitator') && (
                                     <Button
                                       type="button"
