@@ -1676,6 +1676,8 @@ export default function Admin() {
   return (
     <div className="min-h-screen bg-background">
       <DemoModeBanner />
+      <LiveKitMissingBanner />
+
       <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={() => navigate('/login')}>
