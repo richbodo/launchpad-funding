@@ -25,33 +25,37 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
-// Mutable "DB" row that the mocked supabase client reads from / writes to.
-let mockRow: any = {
-  id: 'pid-1',
-  funding_goal: null,
-  dd_room_link: null,
-  website_link: null,
-  description: null,
-  image_url: null,
-};
-
-const invokeMock = vi.fn(async (_fn: string, { body }: any) => {
-  // Mirror the edge function's lenient URL preprocessing.
-  const norm = (v: any) => {
-    if (v == null) return null;
-    const s = String(v).trim();
-    if (!s) return null;
-    return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+// Mutable "DB" row shared with the supabase mock via vi.hoisted so it's
+// initialized before the mock factory runs.
+const h = vi.hoisted(() => {
+  const state: { row: any } = {
+    row: {
+      id: 'pid-1',
+      funding_goal: null,
+      dd_room_link: null,
+      website_link: null,
+      description: null,
+      image_url: null,
+    },
   };
-  mockRow = {
-    ...mockRow,
-    description: body.description ?? mockRow.description,
-    dd_room_link: norm(body.dd_room_link),
-    website_link: norm(body.website_link),
-    image_url: body.image_url ?? mockRow.image_url,
-    funding_goal: body.funding_goal ?? mockRow.funding_goal,
-  };
-  return { data: { ok: true, updated: true }, error: null };
+  const invokeMock = vi.fn(async (_fn: string, { body }: any) => {
+    const norm = (v: any) => {
+      if (v == null) return null;
+      const s = String(v).trim();
+      if (!s) return null;
+      return /^https?:\/\//i.test(s) ? s : `https://${s}`;
+    };
+    state.row = {
+      ...state.row,
+      description: body.description ?? state.row.description,
+      dd_room_link: norm(body.dd_room_link),
+      website_link: norm(body.website_link),
+      image_url: body.image_url ?? state.row.image_url,
+      funding_goal: body.funding_goal ?? state.row.funding_goal,
+    };
+    return { data: { ok: true, updated: true }, error: null };
+  });
+  return { state, invokeMock };
 });
 
 vi.mock('@/integrations/supabase/client', () => ({
@@ -60,12 +64,12 @@ vi.mock('@/integrations/supabase/client', () => ({
       select: vi.fn().mockReturnValue({
         eq: vi.fn().mockReturnValue({
           eq: vi.fn().mockReturnValue({
-            single: vi.fn().mockImplementation(async () => ({ data: mockRow, error: null })),
+            single: vi.fn().mockImplementation(async () => ({ data: h.state.row, error: null })),
           }),
         }),
       }),
     })),
-    functions: { invoke: invokeMock },
+    functions: { invoke: h.invokeMock },
   },
 }));
 
