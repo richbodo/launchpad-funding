@@ -8,22 +8,29 @@ name: Simulation Suite
 # of silently skipping.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "tests/simulation/**"
-      - "supabase/migrations/**"
-      - "supabase/functions/**"
-      - "tests/fixtures/seed.sql"
-      - ".github/workflows/simulation.yml"
-  pull_request:
-    paths:
-      - "tests/simulation/**"
-      - "supabase/migrations/**"
-      - "supabase/functions/**"
-      - "tests/fixtures/seed.sql"
-      - ".github/workflows/simulation.yml"
+  # Disabled automatic triggers: this workflow spins up a local Supabase stack
+  # and is intended for local/development use. Run it manually via the GitHub
+  # Actions "Run workflow" button when you need CI validation.
   workflow_dispatch:
+
+# To re-enable automatic runs, replace the `on:` block above with:
+# on:
+#   push:
+#     branches: [main]
+#     paths:
+#       - "tests/simulation/**"
+#       - "supabase/migrations/**"
+#       - "supabase/functions/**"
+#       - "tests/fixtures/seed.sql"
+#       - ".github/workflows/simulation.yml"
+#   pull_request:
+#     paths:
+#       - "tests/simulation/**"
+#       - "supabase/migrations/**"
+#       - "supabase/functions/**"
+#       - "tests/fixtures/seed.sql"
+#       - ".github/workflows/simulation.yml"
+#   workflow_dispatch:
 
 jobs:
   simulation:
