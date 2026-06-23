@@ -16,6 +16,8 @@ const mockChannel = {
   track: mockChannelTrack,
   presenceState: vi.fn().mockReturnValue({}),
 };
+let mockSessionStatus = 'live';
+const mockFetchToken = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
@@ -28,9 +30,10 @@ vi.mock('@/integrations/supabase/client', () => ({
                 data: {
                   id: 'session-1',
                   name: 'Test Session',
-                  status: 'live',
+                  status: mockSessionStatus,
                   start_time: new Date().toISOString(),
                   end_time: new Date(Date.now() + 3600000).toISOString(),
+                  timezone: 'UTC',
                 },
                 error: null,
               }),
@@ -136,7 +139,7 @@ vi.mock('@/hooks/useLiveKitToken', () => ({
     room: null,
     error: null,
     loading: false,
-    fetchToken: vi.fn().mockResolvedValue(undefined),
+    fetchToken: mockFetchToken,
     reset: vi.fn(),
   })),
 }));
@@ -165,6 +168,7 @@ function renderSession() {
 describe('Session — facilitator view', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSessionStatus = 'live';
     mockUser = {
       email: 'facilitator@test.com',
       role: 'facilitator',
@@ -212,6 +216,7 @@ describe('Session — facilitator view', () => {
 describe('Session — Take Stage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSessionStatus = 'live';
     mockUser = {
       email: 'facilitator@test.com',
       role: 'facilitator',
@@ -257,6 +262,7 @@ describe('Session — Take Stage', () => {
 describe('Session — investor view', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSessionStatus = 'live';
     mockUser = {
       email: 'investor-1@test.com',
       role: 'investor',
@@ -285,11 +291,13 @@ describe('Session — investor view', () => {
 describe('Session — startup view', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockSessionStatus = 'live';
     mockUser = {
       email: 'startup-a@test.com',
       role: 'startup',
       displayName: 'AlphaTech',
       sessionId: 'session-1',
+      participantId: 'participant-startup-a',
     };
   });
 
@@ -300,5 +308,21 @@ describe('Session — startup view', () => {
     });
     expect(screen.queryByText('Previous')).not.toBeInTheDocument();
     expect(screen.queryByText('Next')).not.toBeInTheDocument();
+  });
+
+  it('polls the waiting room and auto-joins when facilitator starts the session', async () => {
+    mockSessionStatus = 'scheduled';
+
+    renderSession();
+
+    await waitFor(() => {
+      expect(screen.getByText("The session hasn't started yet")).toBeInTheDocument();
+    });
+
+    mockSessionStatus = 'live';
+    await waitFor(() => {
+      expect(screen.queryByText("The session hasn't started yet")).not.toBeInTheDocument();
+      expect(mockFetchToken).toHaveBeenCalled();
+    }, { timeout: 4500 });
   });
 });
