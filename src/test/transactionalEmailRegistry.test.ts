@@ -27,6 +27,6 @@ describe('transactional email registry', () => {
     expect(giftSrc).toMatch(/non-binding/i);
     expect(giftSrc).toMatch(/gift/i);
     // The gift template must NOT instruct startups to send a SAFE.
-    expect(giftSrc).not.toMatch(/\bSAFE\b.*investment document/);
+    expect(giftSrc).not.toMatch(/send.*SAFE/i);
   });
 });
