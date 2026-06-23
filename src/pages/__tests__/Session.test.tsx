@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import '@/test/mocks/livekit';
 
@@ -311,7 +311,6 @@ describe('Session — startup view', () => {
   });
 
   it('polls the waiting room and auto-joins when facilitator starts the session', async () => {
-    vi.useFakeTimers();
     mockSessionStatus = 'scheduled';
 
     renderSession();
@@ -321,16 +320,9 @@ describe('Session — startup view', () => {
     });
 
     mockSessionStatus = 'live';
-    await act(async () => {
-      vi.advanceTimersByTime(3000);
-      await Promise.resolve();
-    });
-
     await waitFor(() => {
       expect(screen.queryByText("The session hasn't started yet")).not.toBeInTheDocument();
       expect(mockFetchToken).toHaveBeenCalled();
-    });
-
-    vi.useRealTimers();
+    }, { timeout: 4500 });
   });
 });
