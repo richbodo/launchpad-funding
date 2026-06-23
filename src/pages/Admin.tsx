@@ -252,6 +252,7 @@ export default function Admin() {
   const [selectedSession, setSelectedSession] = useState<SessionRow | null>(null);
   const [participants, setParticipants] = useState<ParticipantRow[]>([]);
   const [investments, setInvestments] = useState<InvestmentRow[]>([]);
+  const [refreshingInvestments, setRefreshingInvestments] = useState(false);
   const [sendingQueuedEmails, setSendingQueuedEmails] = useState(false);
   const [cancellingQueuedEmails, setCancellingQueuedEmails] = useState(false);
   const [sendingRowId, setSendingRowId] = useState<string | null>(null);
@@ -473,6 +474,17 @@ export default function Admin() {
       return;
     }
     if (data) setInvestments(data as InvestmentRow[]);
+  };
+
+  /**
+   * Manually refresh the commitments table. Used when the real-time subscription
+   * misses an update or the facilitator simply wants to force a fresh read.
+   */
+  const refreshInvestments = async () => {
+    if (!selectedSession) return;
+    setRefreshingInvestments(true);
+    await fetchInvestments(selectedSession.id);
+    setRefreshingInvestments(false);
   };
 
   /**
