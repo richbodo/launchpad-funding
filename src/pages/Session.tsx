@@ -655,8 +655,10 @@ export default function SessionPage() {
             </div>
           )}
 
-          {/* Startups section — facilitator can put any startup on the center stage */}
-          {isFacilitator && isConnected && startups.length > 0 && (
+          {/* Startups section — facilitators get Take Stage + mute controls;
+              investors get read-only tiles so they can see every presenter in
+              the room (not just whoever happens to be on the center stage). */}
+          {isConnected && startups.length > 0 && (isFacilitator || user.role === 'investor') && (
             <>
               <div className="pt-2 pb-1 border-t border-border mt-1">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide px-1">Startups</p>
@@ -673,29 +675,32 @@ export default function SessionPage() {
                         callState={callState}
                       />
                     </div>
-                    <div className="flex gap-1 mt-1">
-                      <Button
-                        data-testid={`take-stage-btn-${s.email}`}
-                        variant={isOnStage ? 'secondary' : 'outline'}
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => setStageIdentity(s.email)}
-                        disabled={isOnStage}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        {isOnStage ? 'On Stage' : 'Take Stage'}
-                      </Button>
-                      <AdminMuteButton
-                        identity={s.email}
-                        roomName={`session-${id}`}
-                      />
-                    </div>
+                    {isFacilitator && (
+                      <div className="flex gap-1 mt-1">
+                        <Button
+                          data-testid={`take-stage-btn-${s.email}`}
+                          variant={isOnStage ? 'secondary' : 'outline'}
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => setStageIdentity(s.email)}
+                          disabled={isOnStage}
+                        >
+                          <Eye className="w-4 h-4 mr-1" />
+                          {isOnStage ? 'On Stage' : 'Take Stage'}
+                        </Button>
+                        <AdminMuteButton
+                          identity={s.email}
+                          roomName={`session-${id}`}
+                        />
+                      </div>
+                    )}
                   </div>
                 );
               })}
             </>
           )}
         </div>
+
 
         {/* Center pane: Startup presentation */}
         <div className="flex-1 flex flex-col p-3 min-w-0">
