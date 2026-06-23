@@ -340,7 +340,14 @@ export default function Admin() {
 
   // --- Email Settings persistence ---
   const fetchEmailSettings = async () => {
-    const keys = ['email_contact', 'email_welcome_facilitator', 'email_welcome_startup', 'email_welcome_investor'];
+    const keys = [
+      'email_contact',
+      'email_welcome_facilitator',
+      'email_welcome_startup',
+      'email_welcome_investor',
+      'email_welcome_commitment_equity',
+      'email_welcome_commitment_gift',
+    ];
     const { data } = await supabase.from('app_settings').select('key, value').in('key', keys);
     if (data) {
       for (const row of data) {
@@ -348,6 +355,8 @@ export default function Admin() {
         if (row.key === 'email_welcome_facilitator') setWelcomeFacilitator(row.value);
         if (row.key === 'email_welcome_startup') setWelcomeStartup(row.value);
         if (row.key === 'email_welcome_investor') setWelcomeInvestor(row.value);
+        if (row.key === 'email_welcome_commitment_equity') setWelcomeCommitmentEquity(row.value);
+        if (row.key === 'email_welcome_commitment_gift') setWelcomeCommitmentGift(row.value);
       }
     }
   };
