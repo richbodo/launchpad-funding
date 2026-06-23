@@ -95,6 +95,7 @@ export const template = {
     startupEmail: 'founder@alphatech.com',
     amount: 25000,
     sessionName: 'Q1 Demo Day',
+    welcomeMessage: 'Thank you for committing to support this startup.',
   },
 } satisfies TemplateEntry
 
