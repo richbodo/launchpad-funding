@@ -240,6 +240,8 @@ interface EmailLogRow {
 const DEFAULT_WELCOME_FACILITATOR = "Welcome! As a facilitator, you'll be managing the session flow, coordinating presenters, and guiding Q&A.";
 const DEFAULT_WELCOME_STARTUP = "Welcome! You've been selected to pitch at this session. Prepare your presentation and be ready to take questions from investors.";
 const DEFAULT_WELCOME_INVESTOR = "Welcome! You'll be reviewing startup pitches and can pledge funding to teams you believe in.";
+const DEFAULT_WELCOME_COMMITMENT_EQUITY = "Thank you for committing to invest in this startup. Both parties are copied so you can take next steps directly.";
+const DEFAULT_WELCOME_COMMITMENT_GIFT = "Thank you for supporting this startup with a community gift pledge.";
 const DEFAULT_CONTACT_EMAIL = "noreply@pitch.globaldonut.com";
 
 export default function Admin() {
