@@ -18,10 +18,13 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { motion } from 'framer-motion';
 import DemoModeBanner from '@/components/DemoModeBanner';
+import LiveKitMissingBanner from '@/components/LiveKitMissingBanner';
+import FirstRunSetup from '@/components/FirstRunSetup';
 import TimePicker from '@/components/TimePicker';
 import TimezonePicker from '@/components/TimezonePicker';
 import EventLandingAdminCard from '@/components/EventLandingAdminCard';
 import ImageUploadField from '@/components/ImageUploadField';
+
 
 import { reportError } from '@/lib/logError';
 import { externalLinkHandler } from '@/lib/openExternal';
