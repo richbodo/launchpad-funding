@@ -16,7 +16,8 @@
     "test:e2e": "playwright test",
     "test:e2e:login": "playwright test tests/e2e/login.spec.ts",
     "test:smoke": "bash scripts/smoke-edge-functions.sh",
-    "test:smoke:seeded": "bash scripts/smoke-edge-functions-seeded.sh"
+    "test:smoke:seeded": "bash scripts/smoke-edge-functions-seeded.sh",
+    "loadtest:realtime": "tsx scripts/loadtest-realtime.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
