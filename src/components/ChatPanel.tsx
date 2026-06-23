@@ -181,18 +181,22 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
                   data-testid="chat-commitment-message"
                   data-pledge-type={commit.pledgeType}
                 >
+                  {/* Anonymized: hide sender name/email. Show only role-based
+                      label ("An Investor" / "A Community Supporter") so the
+                      chat shows social proof without revealing identities. */}
                   <div className="flex items-baseline gap-2">
                     <span className="text-xs font-semibold text-emerald-300">
-                      {commit.pledgeType === 'gift' ? '🎁' : '💰'} {msg.sender_name || msg.sender_email}
+                      {commit.pledgeType === 'gift' ? '🎁' : '💰'}{' '}
+                      {commit.pledgeType === 'gift' ? 'A Community Supporter' : 'An Investor'}
                     </span>
                     <span className="text-[10px] text-emerald-200/70">
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
                   <p className="text-sm text-white mt-0.5">
-                    {commit.pledgeType === 'gift' ? 'pledged a gift of' : 'pledged'}{' '}
+                    {commit.pledgeType === 'gift' ? 'pledged a gift of' : 'committed'}{' '}
                     <span className="font-bold mono text-emerald-200">
-                      ${commit.amount.toLocaleString()} (USD)
+                      ${commit.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (USD)
                     </span>{' '}
                     to <span className="font-semibold">{commit.startup}</span>
                   </p>
