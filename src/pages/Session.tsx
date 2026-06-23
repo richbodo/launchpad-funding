@@ -547,6 +547,23 @@ export default function SessionPage() {
 
   const sessionContent = (
     <>
+      {autoJoinBlockedMsg && (
+        <div className="px-4 py-2 bg-destructive/10 border-b border-destructive/30 text-sm text-destructive flex items-center justify-between gap-3">
+          <span>{autoJoinBlockedMsg}</span>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              autoJoinBlockedRef.current = false;
+              setAutoJoinBlockedMsg(null);
+              setCallState('connecting');
+              fetchToken();
+            }}
+          >
+            Reconnect
+          </Button>
+        </div>
+      )}
       {/* Main content: 3-pane layout */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left pane: Facilitator video(s) + startup previews */}
