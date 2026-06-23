@@ -103,6 +103,7 @@ export const template = {
     startupEmail: 'founder@alphatech.com',
     amount: 75,
     sessionName: 'Q1 Demo Day',
+    welcomeMessage: 'Thank you for supporting this startup with a community gift pledge.',
   },
 } satisfies TemplateEntry
 
