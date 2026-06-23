@@ -88,6 +88,21 @@ interface Facilitator {
   display_name: string | null;
 }
 
+/**
+ * Read the current session row directly from the database. The waiting-room
+ * transition must not depend only on realtime events because a startup can sit
+ * on the pre-session overlay before the facilitator joins, miss the UPDATE, and
+ * remain locked outside the call even after the session is live.
+ */
+async function fetchSessionSnapshot(sessionId: string): Promise<any | null> {
+  const { data } = await supabase
+    .from('sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .single();
+  return data ?? null;
+}
+
 export default function SessionPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -221,11 +236,7 @@ export default function SessionPage() {
       .subscribe();
 
     const fetchData = async () => {
-      const { data: sessionData } = await supabase
-        .from('sessions')
-        .select('*')
-        .eq('id', id)
-        .single();
+      const sessionData = await fetchSessionSnapshot(id);
       setSession(sessionData);
 
       let { data: startupData } = await supabase
@@ -340,6 +351,28 @@ export default function SessionPage() {
       fetchToken();
     }
   }, [session?.status, user?.role, callState, fetchToken]);
+
+  // Startup waiting room safety net: keep polling while the overlay is shown so
+  // a missed realtime UPDATE cannot strand presenters outside the call. As soon
+  // as the facilitator starts the session, `session.status` becomes `live`, the
+  // overlay unmounts, and the auto-join effect above fetches the LiveKit token.
+  useEffect(() => {
+    if (!id || user?.role !== 'startup') return;
+    if (session?.status !== 'scheduled' && session?.status !== 'draft') return;
+
+    let cancelled = false;
+    const refreshSessionStatus = async () => {
+      const latest = await fetchSessionSnapshot(id);
+      if (!cancelled && latest) setSession(latest);
+    };
+
+    refreshSessionStatus();
+    const interval = window.setInterval(refreshSessionStatus, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [id, user?.role, session?.status]);
 
   // Promote 'connecting' → 'connected' once the LiveKit token actually arrives,
   // and surface fetch errors so silent failures don't strand the UI mid-flow.
