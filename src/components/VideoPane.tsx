@@ -187,6 +187,8 @@ interface PlaceholderProps {
   onJoinCall?: () => void;
   /** True once a remote track has failed to arrive within the watchdog window. */
   stale?: boolean;
+  /** Optional soft-retry handler invoked from the Refresh button. */
+  onRetry?: () => void;
 }
 
 function Placeholder({
@@ -200,6 +202,7 @@ function Placeholder({
   onStartCall,
   onJoinCall,
   stale = false,
+  onRetry,
 }: PlaceholderProps) {
   const isLive = sessionStatus === 'live';
 
