@@ -8,15 +8,34 @@ This style of fundraising platform has been around, and has been very successful
 
 The reason this type of thing is so effective is that the "discovery" phase where great organizations find great supporters is mostly taken care of by the facilitators of the session - they find great folks that should know about each other and bring them into the event.
 
-The absolute best way to make a Real Time Fundraising session work is to first find great organizations that need funding and will crush it with their mission when they get it - and second, get them and the facilitators to invite their communities.  This is the event description we had for the first event:
-
-"We are bringing together the communities of three NZ tech startups innovating in AI services (Superlyne), Aerospace/drone/evtol (Practical Aircraft ltd), and Online Marketplaces (Sendd).  Each startup will present for 5 minutes, then have 5 minutes for Q&A.  Any attendee can commit to invest as either a community member (max 100USD commitment) or an accredited investor.  With a few jokes in the intro and outro, the entire event take less than an hour, all-in.  Come join for any part of the session.  We are using a new, NZ-grown, free and open-source fundraising tool.  After the event, community members of the startups and facilitators can join a moderated zoom meeting where we can meet and learn from each other, and break out into small zoom rooms based on common interests."
+## How do you run a session with this
 
 There are features for both accredited investors, and non-accredited investors who cannot pledge more than 100USD, and who get a no-obligation gift from the startup.
 
-Things like landing pages for the events, email templates for every email that goes out - diagnostics every step of the way - all implemented.
+The flow is pretty intuitive. You build a session, then a landing page for the event is built.  Email templates for every email that goes out - diagnostics every step of the way - all implemented.
 
-## How it works
+The way the legal stuff works is that the platform will only allow investors to make "soft commitments".  
+
+After that, it emails the investor and the investee with the details of the comittment, and gives strong advisement to perform intensive due dilligence and consult legal before they invest in anything or accept an investment.  
+
+Accredited Investors can offer a commitment to invest in exchange for equity.
+Community Supporters can pledge support with up to 100USD gift, but they cannot
+
+Startups can offer a gift in exchange for a pledge, but they can't gaurantee they will deliver on it.  So the gift is a "thank you" that may stay just words or turn into words and an apple pie, whatever you want to offer.  
+
+The platform just enforces the emails and the basic functionality of those features.  The copy of the emails can be edited by the facilitators.
+
+In most cases, the facilitator who picked the startups will be an advocate for the startups.  
+
+The platform consolidates work into finding startups and investors that match, so the facilitator needs to have a way to do that work efficiently, preferrably through their network  But the nice thing about finding all of them entirely through your contact network is that since everyone has been invited by the startups and facilitators communities, it is easy to check references on both sides - everyone has a path to get the v4 on everyone else - it's perfect forward v4.
+
+The absolute best way to make a Real Time Fundraising session work is to first find great organizations that need funding and will crush it with their mission when they get it - and second, get them and the facilitators to invite their communities.  
+
+This is the event description we had for the first event:
+
+"We are bringing together the communities of three NZ tech startups innovating in AI services (Superlyne), Aerospace/drone/evtol (Practical Aircraft ltd), and Online Marketplaces (Sendd).  Each startup will present for 5 minutes, then have 5 minutes for Q&A.  Any attendee can commit to invest as either a community member (max 100USD commitment) or an accredited investor.  With a few jokes in the intro and outro, the entire event take less than an hour, all-in.  Come join for any part of the session.  We are using a new, NZ-grown, free and open-source fundraising tool.  After the event, community members of the startups and facilitators can join a moderated zoom meeting where we can meet and learn from each other, and break out into small zoom rooms based on common interests."
+
+## How it works - we need a users manual
 
 A facilitator adds the startups, investors, and other faciltators to a session, then manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time.  Startups and investors get emails when investments are soft-committed, and they complete their transaction with no middle-man.
 
