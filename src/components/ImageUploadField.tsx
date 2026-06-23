@@ -83,7 +83,8 @@ export default function ImageUploadField({
       });
       const { data, error } = await supabase.functions.invoke('upload-event-image', {
         body: {
-          admin_token: getAdminToken(),
+          // Either admin (facilitator) auth OR participant self-upload auth.
+          ...(participantId ? { participant_id: participantId } : { admin_token: getAdminToken() }),
           file_base64,
           content_type: file.type,
           kind,
