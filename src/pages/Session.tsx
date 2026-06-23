@@ -332,7 +332,8 @@ export default function SessionPage() {
       user?.role &&
       user.role !== 'facilitator' &&
       session?.status === 'live' &&
-      callState === 'idle'
+      callState === 'idle' &&
+      !autoJoinBlockedRef.current
     ) {
       setCallState('connecting');
       fetchToken();
