@@ -169,7 +169,7 @@ export default function EventLanding() {
         style={
           session.hero_image_url
             ? {
-                backgroundImage: `linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.7)), url(${session.hero_image_url})`,
+                backgroundImage: `linear-gradient(rgba(0,0,0,0.15), rgba(0,0,0,0.35)), url(${session.hero_image_url})`,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center',
               }
@@ -177,13 +177,13 @@ export default function EventLanding() {
         }
       >
         <div className="max-w-3xl mx-auto px-4 py-16 md:py-24">
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight">{session.name}</h1>
-          <div className="mt-4 flex items-center gap-2 text-muted-foreground">
+          <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">{session.name}</h1>
+          <div className="mt-4 flex items-center gap-2 text-white/95 [text-shadow:0_1px_6px_rgba(0,0,0,0.9)]">
             <Calendar className="w-4 h-4" />
             <span className="text-sm md:text-base">{dateLabel}</span>
           </div>
           {session.description && (
-            <p className="mt-6 text-base md:text-lg text-foreground/90 max-w-2xl">{session.description}</p>
+            <p className="mt-6 text-base md:text-lg text-white/95 max-w-2xl [text-shadow:0_1px_8px_rgba(0,0,0,0.9)]">{session.description}</p>
           )}
 
           {/* Signup form pinned right under the hero per issue #44 */}
