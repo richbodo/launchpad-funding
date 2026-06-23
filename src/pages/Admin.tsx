@@ -240,6 +240,8 @@ interface EmailLogRow {
 const DEFAULT_WELCOME_FACILITATOR = "Welcome! As a facilitator, you'll be managing the session flow, coordinating presenters, and guiding Q&A.";
 const DEFAULT_WELCOME_STARTUP = "Welcome! You've been selected to pitch at this session. Prepare your presentation and be ready to take questions from investors.";
 const DEFAULT_WELCOME_INVESTOR = "Welcome! You'll be reviewing startup pitches and can pledge funding to teams you believe in.";
+const DEFAULT_WELCOME_COMMITMENT_EQUITY = "Thank you for committing to invest in this startup. Both parties are copied so you can take next steps directly.";
+const DEFAULT_WELCOME_COMMITMENT_GIFT = "Thank you for supporting this startup with a community gift pledge.";
 const DEFAULT_CONTACT_EMAIL = "noreply@pitch.globaldonut.com";
 
 export default function Admin() {
@@ -324,6 +326,8 @@ export default function Admin() {
   const [welcomeFacilitator, setWelcomeFacilitator] = useState(DEFAULT_WELCOME_FACILITATOR);
   const [welcomeStartup, setWelcomeStartup] = useState(DEFAULT_WELCOME_STARTUP);
   const [welcomeInvestor, setWelcomeInvestor] = useState(DEFAULT_WELCOME_INVESTOR);
+  const [welcomeCommitmentEquity, setWelcomeCommitmentEquity] = useState(DEFAULT_WELCOME_COMMITMENT_EQUITY);
+  const [welcomeCommitmentGift, setWelcomeCommitmentGift] = useState(DEFAULT_WELCOME_COMMITMENT_GIFT);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
@@ -336,7 +340,14 @@ export default function Admin() {
 
   // --- Email Settings persistence ---
   const fetchEmailSettings = async () => {
-    const keys = ['email_contact', 'email_welcome_facilitator', 'email_welcome_startup', 'email_welcome_investor'];
+    const keys = [
+      'email_contact',
+      'email_welcome_facilitator',
+      'email_welcome_startup',
+      'email_welcome_investor',
+      'email_welcome_commitment_equity',
+      'email_welcome_commitment_gift',
+    ];
     const { data } = await supabase.from('app_settings').select('key, value').in('key', keys);
     if (data) {
       for (const row of data) {
@@ -344,6 +355,8 @@ export default function Admin() {
         if (row.key === 'email_welcome_facilitator') setWelcomeFacilitator(row.value);
         if (row.key === 'email_welcome_startup') setWelcomeStartup(row.value);
         if (row.key === 'email_welcome_investor') setWelcomeInvestor(row.value);
+        if (row.key === 'email_welcome_commitment_equity') setWelcomeCommitmentEquity(row.value);
+        if (row.key === 'email_welcome_commitment_gift') setWelcomeCommitmentGift(row.value);
       }
     }
   };
@@ -486,6 +499,8 @@ export default function Admin() {
     const startupName = inv.startup_name || participantDisplay(inv.startup_email);
     const templateName =
       inv.pledge_type === 'gift' ? 'commitment-gift-pledge' : 'investment-commitment';
+    const welcomeMessage =
+      inv.pledge_type === 'gift' ? welcomeCommitmentGift : welcomeCommitmentEquity;
     try {
       const { data, error } = await supabase.functions.invoke('send-transactional-email', {
         body: {
@@ -500,6 +515,7 @@ export default function Admin() {
             startupEmail: inv.startup_email,
             amount: Number(inv.amount),
             sessionName: selectedSession.name,
+            welcomeMessage,
           },
         },
       });
@@ -2296,6 +2312,12 @@ export default function Admin() {
 
                   <hr className="border-border" />
 
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">Session Invitation Email</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Per-role welcome text injected into the invitation sent when adding a participant.
+                    </p>
+                  </div>
                   <EditableWelcome
                     label="Facilitator Welcome Message"
                     settingKey="email_welcome_facilitator"
@@ -2313,6 +2335,36 @@ export default function Admin() {
                     settingKey="email_welcome_investor"
                     value={welcomeInvestor}
                     setValue={setWelcomeInvestor}
+                  />
+
+                  <hr className="border-border" />
+
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">Investment Commitment Email</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Intro message in the confirmation email sent to the investor + startup pair after a commitment is recorded.
+                    </p>
+                  </div>
+                  <EditableWelcome
+                    label="Equity Commitment Intro (Accredited Investor)"
+                    settingKey="email_welcome_commitment_equity"
+                    value={welcomeCommitmentEquity}
+                    setValue={setWelcomeCommitmentEquity}
+                  />
+
+                  <hr className="border-border" />
+
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-semibold">Community Gift Pledge Email</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Intro message in the confirmation email sent for non-binding gift pledges by community supporters.
+                    </p>
+                  </div>
+                  <EditableWelcome
+                    label="Gift Pledge Intro (Community Supporter)"
+                    settingKey="email_welcome_commitment_gift"
+                    value={welcomeCommitmentGift}
+                    setValue={setWelcomeCommitmentGift}
                   />
                 </CardContent>
               </Card>

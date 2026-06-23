@@ -14,6 +14,7 @@ interface InvestmentCommitmentProps {
   startupEmail?: string
   amount?: number
   sessionName?: string
+  welcomeMessage?: string
 }
 
 const formatAmount = (n?: number) => {
@@ -28,6 +29,7 @@ const InvestmentCommitmentEmail = ({
   startupEmail = '',
   amount = 0,
   sessionName = '',
+  welcomeMessage = '',
 }: InvestmentCommitmentProps) => {
   const investorDisplay = investorName || investorEmail || 'An investor'
   const startupDisplay = startupName || startupEmail || 'the startup'
@@ -38,6 +40,9 @@ const InvestmentCommitmentEmail = ({
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>Commitment Recorded</Heading>
+          {welcomeMessage && (
+            <Text style={text}>{welcomeMessage}</Text>
+          )}
           <Text style={text}>
             <strong>{investorDisplay}</strong> has pledged a soft commitment of{' '}
             <strong>{formatAmount(amount)}</strong> to invest in{' '}
@@ -90,6 +95,7 @@ export const template = {
     startupEmail: 'founder@alphatech.com',
     amount: 25000,
     sessionName: 'Q1 Demo Day',
+    welcomeMessage: 'Thank you for committing to support this startup.',
   },
 } satisfies TemplateEntry
 

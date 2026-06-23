@@ -14,6 +14,7 @@ interface GiftPledgeProps {
   startupEmail?: string
   amount?: number
   sessionName?: string
+  welcomeMessage?: string
 }
 
 const formatAmount = (n?: number) => {
@@ -36,6 +37,7 @@ const CommitmentGiftPledgeEmail = ({
   startupEmail = '',
   amount = 0,
   sessionName = '',
+  welcomeMessage = '',
 }: GiftPledgeProps) => {
   const supporterDisplay = investorName || investorEmail || 'A community supporter'
   const startupDisplay = startupName || startupEmail || 'the startup'
@@ -46,6 +48,9 @@ const CommitmentGiftPledgeEmail = ({
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>Gift Pledge Recorded</Heading>
+          {welcomeMessage && (
+            <Text style={text}>{welcomeMessage}</Text>
+          )}
           <Text style={text}>
             <strong>{supporterDisplay}</strong> has pledged a best-effort community gift of{' '}
             <strong>{formatAmount(amount)}</strong> in support of{' '}
@@ -98,6 +103,7 @@ export const template = {
     startupEmail: 'founder@alphatech.com',
     amount: 75,
     sessionName: 'Q1 Demo Day',
+    welcomeMessage: 'Thank you for supporting this startup with a community gift pledge.',
   },
 } satisfies TemplateEntry
 
