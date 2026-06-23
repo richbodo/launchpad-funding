@@ -425,10 +425,15 @@ export default function SessionPage() {
     }
   }, [session?.status, callState, reset]);
 
-  // Clear stage override when stage advances (let auto-select take over)
+  // Clear stage override when stage advances (let auto-select take over).
+  // Only the facilitator owns stage state — non-facilitators receive
+  // `stageIdentity` via the realtime broadcast and must not wipe it locally,
+  // or the investor view loses whoever the facilitator just put on stage the
+  // moment the stage index ticks.
   useEffect(() => {
+    if (user?.role !== 'facilitator') return;
     setStageIdentity(null);
-  }, [currentStageIndex]);
+  }, [currentStageIndex, user?.role]);
 
   // ── Stage sync via Supabase Realtime Broadcast + Presence ───────────
   const stageChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
