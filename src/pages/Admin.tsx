@@ -499,6 +499,8 @@ export default function Admin() {
     const startupName = inv.startup_name || participantDisplay(inv.startup_email);
     const templateName =
       inv.pledge_type === 'gift' ? 'commitment-gift-pledge' : 'investment-commitment';
+    const welcomeMessage =
+      inv.pledge_type === 'gift' ? welcomeCommitmentGift : welcomeCommitmentEquity;
     try {
       const { data, error } = await supabase.functions.invoke('send-transactional-email', {
         body: {
@@ -513,6 +515,7 @@ export default function Admin() {
             startupEmail: inv.startup_email,
             amount: Number(inv.amount),
             sessionName: selectedSession.name,
+            welcomeMessage,
           },
         },
       });
