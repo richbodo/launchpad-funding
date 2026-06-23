@@ -35,7 +35,7 @@ interface Props {
  * facilitator (admin_token-authorized) and returns the public URL.
  */
 export default function ImageUploadField({
-  label, value, onChange, kind, refId, helpText,
+  label, value, onChange, kind, refId, helpText, participantId,
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
