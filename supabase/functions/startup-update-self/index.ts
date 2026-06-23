@@ -73,6 +73,7 @@ Deno.serve(async (req) => {
     if ("dd_room_link" in fields) updates.dd_room_link = fields.dd_room_link ?? null;
     if ("website_link" in fields) updates.website_link = fields.website_link ?? null;
     if ("description" in fields) updates.description = fields.description ?? null;
+    if ("image_url" in fields) updates.image_url = fields.image_url ?? null;
 
     if (Object.keys(updates).length === 0) {
       return new Response(JSON.stringify({ ok: true, updated: false }), {
