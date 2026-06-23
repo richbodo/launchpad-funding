@@ -476,16 +476,27 @@ export default function SessionPage() {
         }
         setInvestorCount(investors);
 
-        // Late joiner: read facilitator's tracked state on first sync
+        // Late joiner: read facilitator's tracked state on first sync.
+        // Iterate EVERY presence (not just `[0]` of each group) so a non-
+        // facilitator presence at index 0 of its group doesn't shadow the
+        // facilitator's stage state. Without this, users who join after the
+        // facilitator put someone on stage land on a blank/auto-selected
+        // center pane until the next broadcast.
         if (!isFac && !hasInitialSync.current) {
+          let found: any = null;
           for (const presences of Object.values(state)) {
-            const p = (presences as any[])?.[0];
-            if (p?.currentStageIndex !== undefined) {
-              syncState(p.currentStageIndex, p.isPaused, p.remainingSeconds);
-              setStageIdentity(p.stageIdentity);
-              hasInitialSync.current = true;
-              break;
+            for (const p of presences as any[]) {
+              if (p?.currentStageIndex !== undefined) {
+                found = p;
+                break;
+              }
             }
+            if (found) break;
+          }
+          if (found) {
+            syncState(found.currentStageIndex, found.isPaused, found.remainingSeconds);
+            setStageIdentity(found.stageIdentity ?? null);
+            hasInitialSync.current = true;
           }
         }
       })
