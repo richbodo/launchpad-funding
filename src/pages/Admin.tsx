@@ -1040,6 +1040,12 @@ export default function Admin() {
    * Build and queue a single session-invitation email. Throws on failure so
    * callers can count successes/failures. Does NOT touch UI state or sent
    * status — that is the caller's responsibility.
+   *
+   * Each explicit invite action must use a fresh idempotency key. Reusing a
+   * stable session/email key makes the email provider de-duplicate resends:
+   * the API returns success for the original workflow, but no new email is
+   * delivered. Queue retries still stay idempotent because the generated key
+   * is stored on the queued payload and reused by the worker.
    */
   const buildAndSendInvite = async (
     email: string,
@@ -1090,7 +1096,7 @@ export default function Admin() {
         }
       : undefined;
 
-    const idempotencyKey = options?.idempotencyKey || `session-invite-${selectedSession.id}-${email}`;
+    const idempotencyKey = options?.idempotencyKey || `session-invite-${selectedSession.id}-${email}-${crypto.randomUUID()}`;
 
     const { data, error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
@@ -1163,6 +1169,7 @@ export default function Admin() {
   // Send (or resend) the invite to one participant row, updating sent status.
   const sendInviteToParticipant = async (p: ParticipantRow) => {
     if (!selectedSession) return;
+    setSendingRowId(p.id);
     try {
       await buildAndSendInvite(p.email, p.display_name, p.role);
       await markInviteSent(p.id);
@@ -1170,6 +1177,8 @@ export default function Admin() {
       fetchParticipants(selectedSession.id);
     } catch (err) {
       toast.error(`Email failed for ${p.email}: ${errMessage(err)}`, { duration: 15000 });
+    } finally {
+      setSendingRowId(null);
     }
   };
 
@@ -1993,9 +2002,9 @@ export default function Admin() {
                                 {p.invite_sent_at ? (
                                   <span
                                     className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600"
-                                    title={`Sent ${new Date(p.invite_sent_at).toLocaleString()}`}
+                                    title={`Queued ${new Date(p.invite_sent_at).toLocaleString()}`}
                                   >
-                                    <CheckCircle2 className="w-3.5 h-3.5" /> Sent
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Queued
                                   </span>
                                 ) : (
                                   <span className="text-xs text-muted-foreground">Not sent</span>
@@ -2008,10 +2017,12 @@ export default function Admin() {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => sendInviteToParticipant(p)}
-                                    disabled={sendingBulk}
+                                    disabled={sendingBulk || sendingRowId === p.id}
                                     title={p.invite_sent_at ? 'Resend invitation' : 'Send invitation'}
                                   >
-                                    <Send className="w-3.5 h-3.5" />
+                                    {sendingRowId === p.id
+                                      ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                      : <Send className="w-3.5 h-3.5" />}
                                   </Button>
                                   {(p.role === 'startup' || p.role === 'facilitator') && (
                                     <Button
