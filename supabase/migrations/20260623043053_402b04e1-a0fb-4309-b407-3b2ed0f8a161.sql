@@ -1,0 +1,1 @@
+REVOKE EXECUTE ON FUNCTION public.broadcast_participant_profile_update() FROM PUBLIC, anon, authenticated;
