@@ -22,6 +22,8 @@ const BodySchema = z.object({
   // Short pitch summary (~2 sentences). Required before going live, but the
   // edge function accepts null so the dialog can be cleared/edited freely.
   description: z.string().max(1000).nullable().optional(),
+  // Public URL of an uploaded logo/image (from upload-event-image).
+  image_url: z.string().url().max(1000).nullable().optional(),
 });
 
 Deno.serve(async (req) => {
