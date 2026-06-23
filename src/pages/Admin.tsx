@@ -326,6 +326,8 @@ export default function Admin() {
   const [welcomeFacilitator, setWelcomeFacilitator] = useState(DEFAULT_WELCOME_FACILITATOR);
   const [welcomeStartup, setWelcomeStartup] = useState(DEFAULT_WELCOME_STARTUP);
   const [welcomeInvestor, setWelcomeInvestor] = useState(DEFAULT_WELCOME_INVESTOR);
+  const [welcomeCommitmentEquity, setWelcomeCommitmentEquity] = useState(DEFAULT_WELCOME_COMMITMENT_EQUITY);
+  const [welcomeCommitmentGift, setWelcomeCommitmentGift] = useState(DEFAULT_WELCOME_COMMITMENT_GIFT);
   const [editingField, setEditingField] = useState<string | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
 
