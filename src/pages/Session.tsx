@@ -1157,6 +1157,122 @@ export default function SessionPage() {
 }
 
 /**
+ * Full-screen overlay shown to startups before the facilitator marks the
+ * session 'live'. The previous behavior dumped them straight into the empty
+ * video grid with "your camera is off", which caused confusion (Issue: pre-
+ * session startup landing was indistinguishable from a broken room).
+ *
+ * Hides itself as soon as `session.status === 'live'` (handled by the parent's
+ * conditional render), so no further action is required from the startup.
+ */
+function StartupWaitingOverlay({
+  participantId,
+  sessionName,
+  startTime,
+  endTime,
+  timezone,
+}: {
+  participantId: string;
+  sessionName: string;
+  startTime: string | null;
+  endTime: string | null;
+  timezone: string | null;
+}) {
+  const [notifying, setNotifying] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  // Tick once a second so the cooldown countdown UI re-renders.
+  useEffect(() => {
+    if (!cooldownUntil) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [cooldownUntil]);
+
+  const cooldownLeft = cooldownUntil ? Math.max(0, Math.ceil((cooldownUntil - now) / 1000)) : 0;
+  const disabled = notifying || cooldownLeft > 0;
+
+  const tz = timezone || 'UTC';
+  const dateStr = startTime ? formatDateInTimeZone(startTime, tz) : null;
+  const startStr = startTime ? formatTimeInTimeZone(startTime, tz, true) : null;
+  const endStr = endTime ? formatTimeInTimeZone(endTime, tz, true) : null;
+
+  const handleNotify = async () => {
+    setNotifying(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('notify-facilitators-waiting', {
+        body: { participant_id: participantId },
+      });
+      if (error || data?.error) {
+        toast.error(data?.error || error?.message || 'Could not notify facilitators.');
+      } else {
+        toast.success(
+          data?.sent
+            ? `Notified ${data.sent} facilitator${data.sent === 1 ? '' : 's'}. They'll start the session shortly.`
+            : 'Notification sent.',
+        );
+        setCooldownUntil(Date.now() + 60_000);
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not notify facilitators.');
+    } finally {
+      setNotifying(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-background/95 backdrop-blur-sm p-6">
+      <div className="max-w-md w-full bg-card border border-border rounded-2xl shadow-xl p-8 text-center">
+        <div className="mx-auto mb-5 w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
+          <Loader2 className="w-7 h-7 text-emerald-600 animate-spin" />
+        </div>
+        <h1 className="text-xl font-semibold text-foreground mb-2">
+          The session hasn't started yet
+        </h1>
+        <p className="text-sm text-muted-foreground mb-5">
+          Waiting for the facilitators to start <strong>{sessionName}</strong>.
+          You'll be brought in automatically the moment they go live.
+        </p>
+
+        {dateStr && (
+          <div className="bg-muted/50 border border-border rounded-lg px-4 py-3 mb-6 text-left">
+            <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+              Scheduled
+            </p>
+            <p className="text-sm font-medium text-foreground">{dateStr}</p>
+            {startStr && (
+              <p className="text-sm text-muted-foreground">
+                {startStr}{endStr ? ` – ${endStr}` : ''}
+              </p>
+            )}
+          </div>
+        )}
+
+        <Button
+          size="lg"
+          className="w-full"
+          onClick={handleNotify}
+          disabled={disabled}
+        >
+          {notifying ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Sending…
+            </>
+          ) : cooldownLeft > 0 ? (
+            `Notified · wait ${cooldownLeft}s`
+          ) : (
+            'Notify Facilitators I\u2019m Waiting'
+          )}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+
+
+/**
  * Force-subscribe to expected remote media publications as soon as LiveKit
  * announces them. The incident symptom was participants successfully joining
  * and publishing, while other clients stayed on "Joining…" and heard no audio
