@@ -252,6 +252,7 @@ export default function Admin() {
   const [investments, setInvestments] = useState<InvestmentRow[]>([]);
   const [sendingQueuedEmails, setSendingQueuedEmails] = useState(false);
   const [cancellingQueuedEmails, setCancellingQueuedEmails] = useState(false);
+  const [sendingRowId, setSendingRowId] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -471,17 +472,74 @@ export default function Admin() {
   };
 
   /**
-   * Walk every `queued` investment for the selected session and dispatch a
-   * single commitment-confirmation email per row (with both startup and
-   * investor on the To: line). Rows that successfully enqueue flip to
-   * `sent`; the rest stay `queued` so the facilitator can retry. The
-   * underlying investment row is never deleted.
+   * Send the commitment-confirmation email for a single investment row.
+   * Routes by `pledge_type`: equity → `investment-commitment` (SAFE-flavored),
+   * gift → `commitment-gift-pledge` (non-binding gift, no SAFE). Both
+   * recipients (investor + startup) receive the same message via the
+   * additionalRecipients fan-out. On success the row's `email_status` flips
+   * to `sent`; on failure the status is left untouched so the row can be
+   * retried.
+   */
+  const sendOneCommitmentEmail = async (inv: InvestmentRow): Promise<boolean> => {
+    if (!selectedSession) return false;
+    const investorName = inv.investor_name || participantDisplay(inv.investor_email);
+    const startupName = inv.startup_name || participantDisplay(inv.startup_email);
+    const templateName =
+      inv.pledge_type === 'gift' ? 'commitment-gift-pledge' : 'investment-commitment';
+    try {
+      const { data, error } = await supabase.functions.invoke('send-transactional-email', {
+        body: {
+          templateName,
+          recipientEmail: inv.investor_email,
+          additionalRecipients: [inv.startup_email],
+          idempotencyKey: `commitment-${inv.id}`,
+          templateData: {
+            investorName,
+            investorEmail: inv.investor_email,
+            startupName,
+            startupEmail: inv.startup_email,
+            amount: Number(inv.amount),
+            sessionName: selectedSession.name,
+          },
+        },
+      });
+      if (error || data?.error) throw new Error(error?.message || data?.error || 'send failed');
+      await invokeAdmin('update_investment_email_status', { ids: [inv.id], status: 'sent' });
+      return true;
+    } catch (err) {
+      console.error('Failed to send commitment email', inv.id, err);
+      return false;
+    }
+  };
+
+  /**
+   * Send a single commitment email triggered by the per-row Send/Resend
+   * button. Wraps `sendOneCommitmentEmail` with row-scoped spinner state
+   * and a toast on the outcome. Allowed for any status so cancelled rows
+   * can be revived and sent rows can be resent.
+   */
+  const sendRowCommitmentEmail = async (inv: InvestmentRow) => {
+    if (sendingRowId) return;
+    setSendingRowId(inv.id);
+    const ok = await sendOneCommitmentEmail(inv);
+    setSendingRowId(null);
+    if (selectedSession) await fetchInvestments(selectedSession.id);
+    if (ok) {
+      toast.success(
+        `Commitment email sent to ${inv.investor_email} and ${inv.startup_email}.`,
+      );
+    } else {
+      toast.error('Failed to send commitment email. See console for details.');
+    }
+  };
+
+  /**
+   * Walk every `queued`/`draft` investment for the selected session and
+   * dispatch the appropriate template per pledge type. Rows that succeed
+   * flip to `sent`; failures stay queued so the facilitator can retry.
    */
   const sendAllQueuedCommitmentEmails = async () => {
     if (!selectedSession) return;
-    // Treat both 'draft' (never-flipped) and 'queued' as pending so this
-    // button always works even when the end-of-call queue transition was
-    // skipped or blocked.
     const pending = investments.filter(
       i => i.email_status === 'queued' || i.email_status === 'draft',
     );
@@ -492,41 +550,9 @@ export default function Admin() {
     setSendingQueuedEmails(true);
     let sent = 0;
     let failed = 0;
-    const sentIds: string[] = [];
     for (const inv of pending) {
-      try {
-        const investorName = inv.investor_name || participantDisplay(inv.investor_email);
-        const startupName = inv.startup_name || participantDisplay(inv.startup_email);
-        const { data, error } = await supabase.functions.invoke('send-transactional-email', {
-          body: {
-            templateName: 'investment-commitment',
-            recipientEmail: inv.investor_email,
-            additionalRecipients: [inv.startup_email],
-            idempotencyKey: `commitment-${inv.id}`,
-            templateData: {
-              investorName,
-              investorEmail: inv.investor_email,
-              startupName,
-              startupEmail: inv.startup_email,
-              amount: Number(inv.amount),
-              sessionName: selectedSession.name,
-            },
-          },
-        });
-        if (error || data?.error) throw new Error(error?.message || data?.error || 'send failed');
-        sentIds.push(inv.id);
-        sent++;
-      } catch (err) {
-        console.error('Failed to send commitment email', inv.id, err);
-        failed++;
-      }
-    }
-    if (sentIds.length > 0) {
-      const { error: updErr } = await invokeAdmin('update_investment_email_status', {
-        ids: sentIds,
-        status: 'sent',
-      });
-      if (updErr) console.error('Failed to flag commitments as sent', updErr);
+      const ok = await sendOneCommitmentEmail(inv);
+      if (ok) sent++; else failed++;
     }
     setSendingQueuedEmails(false);
     await fetchInvestments(selectedSession.id);
