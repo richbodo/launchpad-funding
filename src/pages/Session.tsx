@@ -1281,7 +1281,7 @@ interface StartupEditDialogProps {
   onOpenChange: (open: boolean) => void;
   sessionId: string;
   email: string;
-  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null; description?: string | null }) => void;
+  onSaved: (updates: { funding_goal?: number | null; dd_room_link?: string | null; website_link?: string | null; description?: string | null; image_url?: string | null }) => void;
 }
 
 function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
@@ -1289,6 +1289,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
   const [description, setDescription] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const loaded = useRef(false);
 
@@ -1301,7 +1302,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
 
     supabase
       .from('session_participants')
-      .select('id, funding_goal, dd_room_link, website_link, description')
+      .select('id, funding_goal, dd_room_link, website_link, description, image_url')
       .eq('session_id', sessionId)
       .eq('email', email)
       .single()
@@ -1312,6 +1313,7 @@ function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: St
           setDdRoomLink(data.dd_room_link || '');
           setWebsiteLink(data.website_link || '');
           setDescription((data as any).description || '');
+          setImageUrl((data as any).image_url || '');
         }
       });
   }, [open, sessionId, email]);
