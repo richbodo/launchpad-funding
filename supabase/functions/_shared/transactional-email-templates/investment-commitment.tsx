@@ -14,6 +14,7 @@ interface InvestmentCommitmentProps {
   startupEmail?: string
   amount?: number
   sessionName?: string
+  welcomeMessage?: string
 }
 
 const formatAmount = (n?: number) => {
