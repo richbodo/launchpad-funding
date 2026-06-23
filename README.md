@@ -20,6 +20,14 @@ Things like landing pages for the events, email templates for every email that g
 
 A facilitator adds the startups, investors, and other faciltators to a session, then manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time.  Startups and investors get emails when investments are soft-committed, and they complete their transaction with no middle-man.
 
+All video/audio is handled by livekit, so you will want a livekit account to make it work. Free accounts work for small groups, but you will want a paid account for larger groups.
+
+## If you are Remixing on Lovable
+
+This app was created 50% with lovable.dev, and 50% on the command line with claude code.  Lovable is really, really easy to remix and launch an instance with.  There are a few things, like full load tests, that only work on the command line, but it's totally optional to use the app anywhere.  We would absolutely accept contributions that port this to other platforms.
+
+Remixing on lovable, you will need to add your LiveKit secrets at startup.  That's mostly automated.
+
 ## Developer Demo
 
 The application features a demo mode that is kind of awesome, in which you can try the app locally with fixture video streams and live streams.  It has seeded data for quick evaluation, role-based login (no traditional auth required for investors/startups), and a clean, responsive UI.
