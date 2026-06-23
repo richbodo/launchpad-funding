@@ -10,11 +10,11 @@ import { resolve } from 'node:path';
  */
 describe('transactional email registry', () => {
   const registrySrc = readFileSync(
-    resolve(__dirname, '../../../supabase/functions/_shared/transactional-email-templates/registry.ts'),
+    resolve(process.cwd(), 'supabase/functions/_shared/transactional-email-templates/registry.ts'),
     'utf8',
   );
   const giftSrc = readFileSync(
-    resolve(__dirname, '../../../supabase/functions/_shared/transactional-email-templates/commitment-gift-pledge.tsx'),
+    resolve(process.cwd(), 'supabase/functions/_shared/transactional-email-templates/commitment-gift-pledge.tsx'),
     'utf8',
   );
 
