@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 import StartupProfileForm from '@/components/StartupProfileForm';
 import FacilitatorProfileForm from '@/components/FacilitatorProfileForm';
 import ReadinessChecklist, { ChecklistItem } from '@/components/ReadinessChecklist';
-import { formatInTimeZone } from '@/lib/timezone';
+import { formatDateInTimeZone, formatTimeInTimeZone } from '@/lib/timezone';
 import { getAdminToken } from '@/lib/adminAuth';
 
 interface SessionRow {
@@ -142,7 +142,7 @@ export default function GreenRoom() {
   };
 
   const scheduledLabel = session?.start_time
-    ? formatInTimeZone(new Date(session.start_time), session.timezone || 'UTC', 'EEE MMM d, h:mm a zzz')
+    ? `${formatDateInTimeZone(session.start_time, session.timezone || 'UTC')} · ${formatTimeInTimeZone(session.start_time, session.timezone || 'UTC')}`
     : '';
 
   return (
