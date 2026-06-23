@@ -68,14 +68,27 @@ function LiveVideoPane({
   isActive: boolean;
   participantIdentity: string;
 }) {
-  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare]);
+  const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare], { onlySubscribed: false });
+
+  useEffect(() => {
+    const expectedPublications = tracks.filter(
+      (t) => t.participant.identity === participantIdentity && t.publication && !t.publication.track,
+    );
+
+    expectedPublications.forEach((t) => {
+      t.publication.setSubscribed(true).catch(() => {
+        // LiveKit may reject duplicate or transitional subscribe requests; the
+        // room event stream will retry through the next useTracks update.
+      });
+    });
+  }, [tracks, participantIdentity]);
 
   // Prefer screen share track over camera for the matched participant
   const screenTrack = tracks.find(
-    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.ScreenShare,
+    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.ScreenShare && t.publication.track,
   );
   const cameraTrack = tracks.find(
-    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.Camera,
+    (t) => t.participant.identity === participantIdentity && t.source === Track.Source.Camera && t.publication.track,
   );
   const trackRef = screenTrack || cameraTrack;
   const isScreenShare = !!screenTrack;
