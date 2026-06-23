@@ -1612,11 +1612,26 @@ export default function Admin() {
     );
   };
 
+  if (!isAuthenticated && needsBootstrap === true) {
+    return (
+      <FirstRunSetup
+        onComplete={(email) => {
+          setAdminEmail(email);
+          setNeedsBootstrap(false);
+          setIsAuthenticated(true);
+          fetchSessions();
+        }}
+      />
+    );
+  }
+
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen flex flex-col bg-background">
         <DemoModeBanner />
+        <LiveKitMissingBanner />
         <div className="flex-1 flex items-center justify-center p-4">
+
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-sm">
           <div className="text-center mb-6">
             <h1 className="text-2xl font-bold">Facilitator Login</h1>
