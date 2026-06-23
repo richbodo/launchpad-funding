@@ -38,7 +38,7 @@ const h = vi.hoisted(() => {
       image_url: null,
     },
   };
-  const invokeMock = vi.fn(async (_fn: string, { body }: any) => {
+  const h.invokeMock = vi.fn(async (_fn: string, { body }: any) => {
     const norm = (v: any) => {
       if (v == null) return null;
       const s = String(v).trim();
@@ -55,7 +55,7 @@ const h = vi.hoisted(() => {
     };
     return { data: { ok: true, updated: true }, error: null };
   });
-  return { state, invokeMock };
+  return { state, h.invokeMock };
 });
 
 vi.mock('@/integrations/supabase/client', () => ({
@@ -69,7 +69,7 @@ vi.mock('@/integrations/supabase/client', () => ({
         }),
       }),
     })),
-    functions: { invoke: h.invokeMock },
+    functions: { invoke: h.h.invokeMock },
   },
 }));
 
@@ -87,8 +87,8 @@ function renderDialog(open = true) {
 
 describe('StartupEditDialog persistence', () => {
   beforeEach(() => {
-    invokeMock.mockClear();
-    mockRow = {
+    h.invokeMock.mockClear();
+    h.state.row = {
       id: 'pid-1',
       funding_goal: null,
       dd_room_link: null,
@@ -115,20 +115,20 @@ describe('StartupEditDialog persistence', () => {
 
     // Simulate an uploaded logo by writing directly to the mock row that the
     // dialog's reopen-read pulls from; the image upload itself is stubbed.
-    mockRow.image_url = 'https://cdn.example.com/logo.png';
+    h.state.row.image_url = 'https://cdn.example.com/logo.png';
 
     fireEvent.click(screen.getByRole('button', { name: /save/i }));
 
-    await waitFor(() => expect(invokeMock).toHaveBeenCalledTimes(1));
-    const sentBody = invokeMock.mock.calls[0][1].body;
+    await waitFor(() => expect(h.invokeMock).toHaveBeenCalledTimes(1));
+    const sentBody = h.invokeMock.mock.calls[0][1].body;
     expect(sentBody.description).toBe('We build widgets that thrive in zero gravity.');
     // Client normalizes URLs — confirms the no-scheme typo doesn't kill the save.
     expect(sentBody.dd_room_link).toBe('https://drive.example.com/dd-room');
 
     // Confirm the "DB" now holds what we expect.
-    expect(mockRow.description).toBe('We build widgets that thrive in zero gravity.');
-    expect(mockRow.dd_room_link).toBe('https://drive.example.com/dd-room');
-    expect(mockRow.image_url).toBe('https://cdn.example.com/logo.png');
+    expect(h.state.row.description).toBe('We build widgets that thrive in zero gravity.');
+    expect(h.state.row.dd_room_link).toBe('https://drive.example.com/dd-room');
+    expect(h.state.row.image_url).toBe('https://cdn.example.com/logo.png');
 
     unmount();
 
