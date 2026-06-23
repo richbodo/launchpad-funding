@@ -12,7 +12,7 @@ The absolute best way to make a Real Time Fundraising session work is to first f
 
 "We are bringing together the communities of three NZ tech startups innovating in AI services (Superlyne), Aerospace/drone/evtol (Practical Aircraft ltd), and Online Marketplaces (Sendd).  Each startup will present for 5 minutes, then have 5 minutes for Q&A.  Any attendee can commit to invest as either a community member (max 100USD commitment) or an accredited investor.  With a few jokes in the intro and outro, the entire event take less than an hour, all-in.  Come join for any part of the session.  We are using a new, NZ-grown, free and open-source fundraising tool.  After the event, community members of the startups and facilitators can join a moderated zoom meeting where we can meet and learn from each other, and break out into small zoom rooms based on common interests."
 
-There are features for accredited investors, non-accredited investors who cannot pledge more than 100USD, and get a no-obligation gift from the startup.
+There are features for both accredited investors, and non-accredited investors who cannot pledge more than 100USD, and who get a no-obligation gift from the startup.
 
 Things like landing pages for the events, email templates for every email that goes out - diagnostics every step of the way - all implemented.
 
