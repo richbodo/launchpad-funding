@@ -18,10 +18,12 @@ The way the legal stuff works is that the platform will only allow investors to 
 
 After that, it emails the investor and the investee with the details of the comittment, and gives strong advisement to perform intensive due dilligence and consult legal before they invest in anything or accept an investment.  
 
-Accredited Investors can offer a commitment to invest in exchange for equity.
-Community Supporters can pledge support with up to 100USD gift, but they cannot
+ - Accredited Investors can offer a commitment to invest in exchange for equity.
+ - Community Supporters can pledge support and a gift of up to 100USD.
 
-Startups can offer a gift in exchange for a pledge, but they can't gaurantee they will deliver on it.  So the gift is a "thank you" that may stay just words or turn into words and an apple pie, whatever you want to offer.  
+Startups can offer a gift in exchange for a pledge, but they can't gaurantee they will deliver on it.  So the gift is a "thank you" that may stay just words or turn into words and an apple pie, or whatever thank you gift the startup wanted to offer.
+
+The facilitators run the show:
 
 The platform just enforces the emails and the basic functionality of those features.  The copy of the emails can be edited by the facilitators.
 
@@ -29,7 +31,7 @@ In most cases, the facilitator who picked the startups will be an advocate for t
 
 The platform consolidates work into finding startups and investors that match, so the facilitator needs to have a way to do that work efficiently, preferrably through their network  But the nice thing about finding all of them entirely through your contact network is that since everyone has been invited by the startups and facilitators communities, it is easy to check references on both sides - everyone has a path to get the v4 on everyone else - it's perfect forward v4.
 
-The absolute best way to make a Real Time Fundraising session work is to first find great organizations that need funding and will crush it with their mission when they get it - and second, get them and the facilitators to invite their communities.  
+I'm convinced that the absolute best way to make a Real Time Fundraising session work is to first find great organizations that need funding and will crush their mission when they get it - and second, get those organizations and the facilitators to invite their communities to meet and get an update.  
 
 This is the event description we had for the first event:
 
