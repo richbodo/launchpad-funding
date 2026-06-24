@@ -78,6 +78,9 @@ const Index = () => {
           <p className="mt-2 text-muted-foreground">
             Live pitch sessions you can join. Pick one to learn more and request a seat.
           </p>
+          <div className="mt-4 flex justify-center md:justify-start">
+            <RssFeedButton />
+          </div>
         </div>
 
         {loading ? (
