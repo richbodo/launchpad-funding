@@ -1173,11 +1173,15 @@ export default function SessionPage() {
             // Non-transient disconnects: stop the auto-rejoin loop and tell
             // the user what happened. DUPLICATE_IDENTITY is the canonical
             // "two tabs of the same user" loop that flashes the whole page.
+            // CLIENT_INITIATED is excluded — it fires on every intentional
+            // disconnect (facilitator ending the call, session row flipping
+            // to completed and unmounting <LiveKitRoom>), so treating it as
+            // fatal would show a scary "Disconnected — Reconnect" banner at
+            // the natural end of every session.
             const isFatal =
               reason === DisconnectReason.DUPLICATE_IDENTITY ||
               reason === DisconnectReason.PARTICIPANT_REMOVED ||
-              reason === DisconnectReason.ROOM_DELETED ||
-              reason === DisconnectReason.CLIENT_INITIATED;
+              reason === DisconnectReason.ROOM_DELETED;
             if (isFatal) {
               autoJoinBlockedRef.current = true;
               const msg =
@@ -1185,12 +1189,11 @@ export default function SessionPage() {
                   ? 'You appear to be joined from another tab or device. Close the other one and click Reconnect.'
                   : reason === DisconnectReason.PARTICIPANT_REMOVED
                     ? 'You were removed from the session.'
-                    : reason === DisconnectReason.ROOM_DELETED
-                      ? 'The session room was closed.'
-                      : 'Disconnected from the session.';
+                    : 'The session room was closed.';
               setAutoJoinBlockedMsg(msg);
               toast.error(msg, { duration: 12000 });
             }
+
           }}
           onError={(err) => console.error('[LiveKit] error:', err)}
         >
