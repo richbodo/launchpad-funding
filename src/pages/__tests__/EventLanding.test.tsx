@@ -41,7 +41,7 @@ const landingPayload = {
     },
   ],
   facilitators: [{ display_name: 'Jane Host', image_url: null }],
-  approved_attendee_count: 3,
+  approved_attendee_count: 42,
   accepting_signups: true,
 };
 
@@ -73,7 +73,7 @@ describe('EventLanding page', () => {
     expect(screen.getByText(/Eight startups pitch live/)).toBeInTheDocument();
     expect(screen.getByText('Acme AI')).toBeInTheDocument();
     expect(screen.getByText('Jane Host')).toBeInTheDocument();
-    expect(screen.getByText(/3 of 100 seats taken/)).toBeInTheDocument();
+    expect(screen.getByText(/42 of 100 seats taken/)).toBeInTheDocument();
     expect(screen.getByTestId('event-signup-form')).toBeInTheDocument();
   });
 
