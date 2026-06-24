@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Loader2, Calendar, ExternalLink, Users, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import MarkdownView from '@/components/MarkdownView';
+import RssFeedButton from '@/components/RssFeedButton';
 
 /**
  * Public event landing page (issue #44).
@@ -204,7 +205,10 @@ export default function EventLanding() {
         }
       >
         <div className="max-w-3xl mx-auto px-4 py-16 md:py-24">
-          <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">{session.name}</h1>
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">{session.name}</h1>
+            <RssFeedButton className="shrink-0 mt-1 bg-white/10 hover:bg-white/20 text-white border-white/25" />
+          </div>
           <div className="mt-4 flex items-start gap-2 text-white/95 [text-shadow:0_1px_6px_rgba(0,0,0,0.9)]">
             <Calendar className="w-4 h-4 mt-1 shrink-0" />
             <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm md:text-base">
