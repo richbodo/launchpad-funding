@@ -157,10 +157,36 @@ export default function EventLanding() {
 
   const { session, startups, facilitators, accepting_signups } = data;
   const startDate = new Date(session.start_time);
-  const dateLabel = startDate.toLocaleString(undefined, {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-    hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
-  });
+
+  // Compact multi-zone time strip. PT and ET use US state flags (California /
+  // New York) per design preference; others use the country flag of the
+  // largest population center in the zone.
+  const tzRows: { label: string; tz: string; flag: string; flagAlt?: string }[] = [
+    { label: 'NZT', tz: 'Pacific/Auckland', flag: '🇳🇿' },
+    {
+      label: 'PT',
+      tz: 'America/Los_Angeles',
+      flag: 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/Flag_of_California.svg/40px-Flag_of_California.svg.png',
+      flagAlt: 'California',
+    },
+    {
+      label: 'ET',
+      tz: 'America/New_York',
+      flag: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/Flag_of_New_York.svg/40px-Flag_of_New_York.svg.png',
+      flagAlt: 'New York',
+    },
+    { label: 'GMT', tz: 'Etc/GMT', flag: '🇬🇧' },
+    { label: 'CST', tz: 'Asia/Shanghai', flag: '🇨🇳' },
+  ];
+  const fmtZone = (tz: string) =>
+    startDate.toLocaleString(undefined, {
+      timeZone: tz,
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -179,9 +205,26 @@ export default function EventLanding() {
       >
         <div className="max-w-3xl mx-auto px-4 py-16 md:py-24">
           <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-white [text-shadow:0_2px_12px_rgba(0,0,0,0.85)]">{session.name}</h1>
-          <div className="mt-4 flex items-center gap-2 text-white/95 [text-shadow:0_1px_6px_rgba(0,0,0,0.9)]">
-            <Calendar className="w-4 h-4" />
-            <span className="text-sm md:text-base">{dateLabel}</span>
+          <div className="mt-4 flex items-start gap-2 text-white/95 [text-shadow:0_1px_6px_rgba(0,0,0,0.9)]">
+            <Calendar className="w-4 h-4 mt-1 shrink-0" />
+            <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm md:text-base">
+              {tzRows.map((r) => (
+                <li key={r.label} className="flex items-center gap-1.5">
+                  {r.flag.startsWith('http') ? (
+                    <img
+                      src={r.flag}
+                      alt={r.flagAlt || r.label}
+                      className="h-3.5 w-auto rounded-sm shadow"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <span aria-hidden className="text-base leading-none">{r.flag}</span>
+                  )}
+                  <span className="font-semibold">{r.label}</span>
+                  <span className="tabular-nums">{fmtZone(r.tz)}</span>
+                </li>
+              ))}
+            </ul>
           </div>
           {session.description && (
             <div className="mt-6 max-w-2xl text-base md:text-lg text-white/95 [text-shadow:0_1px_8px_rgba(0,0,0,0.9)]">
@@ -350,10 +393,14 @@ export default function EventLanding() {
           </section>
         )}
 
-        <footer className="pt-8 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
-          <Users className="w-3 h-3" />
-          {data.approved_attendee_count} of {session.max_attendees} seats taken
-        </footer>
+        {/* Only show seat count once it's meaningful — avoid signaling "empty
+            room" on freshly published events. */}
+        {data.approved_attendee_count > 10 && (
+          <footer className="pt-8 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
+            <Users className="w-3 h-3" />
+            {data.approved_attendee_count} of {session.max_attendees} seats taken
+          </footer>
+        )}
       </main>
     </div>
   );
