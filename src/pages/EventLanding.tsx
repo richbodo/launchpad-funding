@@ -393,10 +393,14 @@ export default function EventLanding() {
           </section>
         )}
 
-        <footer className="pt-8 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
-          <Users className="w-3 h-3" />
-          {data.approved_attendee_count} of {session.max_attendees} seats taken
-        </footer>
+        {/* Only show seat count once it's meaningful — avoid signaling "empty
+            room" on freshly published events. */}
+        {data.approved_attendee_count > 10 && (
+          <footer className="pt-8 border-t border-border text-xs text-muted-foreground flex items-center gap-2">
+            <Users className="w-3 h-3" />
+            {data.approved_attendee_count} of {session.max_attendees} seats taken
+          </footer>
+        )}
       </main>
     </div>
   );
