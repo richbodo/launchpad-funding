@@ -1,75 +1,60 @@
-# Green Room — Pre-session profile & readiness page
 
-A new role-aware landing page where startups and facilitators complete their profile (logo/photo, bio/description, links, funding goal) before — and during — a session. Investors skip it.
+## Goal
 
-## Routing
+When a non-logged-in visitor lands on `pitch.globaldonut.com/`, show a list of upcoming public events (each linking to its `/event/:slug` landing page) instead of immediately bouncing to `/login`. Magic-link, `/login?...`, `/event/:slug`, `/session/:id`, `/admin`, and all other entry points are untouched.
 
-- New route: `/session/:id/ready` → `<GreenRoom />`
-- **Login redirect logic** (`Login.tsx` post-auth):
-  - role = `investor` → `/session/:id` (unchanged)
-  - role = `startup` or `facilitator` → `/session/:id/ready`
-- **Session page guard**: if a startup/facilitator hits `/session/:id` and the session status is `draft` or `scheduled`, redirect to `/ready`. Once `live`, no forced redirect — Green Room becomes opt-in via sidebar link.
-- **Green Room → Session**: "Enter session" button (always present) navigates to `/session/:id`. For facilitators, a separate "Go Live" button flips status `scheduled → live` (no blocking on startup readiness — just a confirmation if any startup is incomplete).
+## Scope
 
-## Green Room UI (`src/pages/GreenRoom.tsx`)
+- Only the root route (`/`) behavior changes.
+- No DB schema changes. No auth changes.
+- Logged-in users (anyone with an active `SessionProvider` user) keep the current behavior — straight to login/session resume.
 
-Single-column page, dark fintech aesthetic to match the rest of the app. Header shows session name, scheduled time, status pill, and an "Enter session" CTA.
+## Changes
 
-**Startup view:**
-- Readiness checklist card at top: Logo ✓ / Description ✓ / Funding goal ✓ / DD room link ○ / Website ○ (DD + website are optional, shown as informational).
-- Inline profile form (extracted from `StartupEditDialog` body into a reusable `<StartupProfileForm>`): `ImageUploadField` for logo, description textarea, funding goal, DD room link, website link. Auto-saves on blur or via explicit Save button (keep current Save-button UX for now).
+### 1. New edge function: `public-upcoming-events`
 
-**Facilitator view:**
-- Readiness checklist: Photo ✓ / Bio ✓.
-- Inline `<FacilitatorProfileForm>`: `ImageUploadField` (new — facilitator photo), bio textarea (≤500 chars).
-- Roster card listing every startup with their readiness state (logo/description/goal checks) — view-only, helps facilitators nudge stragglers.
-- "Go Live" button (only when status = `scheduled`). If any startup is incomplete, show a confirm dialog ("3 startups haven't finished their profile. Go live anyway?").
+`supabase/functions/public-upcoming-events/index.ts` — public GET, no JWT.
 
-**Sidebar link**: Add a "Green Room" / "Edit profile" link in the existing Session top bar (next to existing role-scoped actions) so users can return to edit while live.
+- Service-role read of `sessions` where:
+  - `slug IS NOT NULL` (only events that have a public landing page)
+  - `status IN ('scheduled','live')`
+  - `end_time >= now()` (hide finished sessions)
+- Order by `start_time ASC`, limit ~20.
+- Returns only safe public fields: `id, name, slug, description, start_time, end_time, timezone, status, hero_image_url`.
+- Standard CORS headers, mirrors the pattern in `event-landing/index.ts`.
 
-## Backend changes
+### 2. Replace `src/pages/Index.tsx`
 
-- **`facilitator-update-self` edge function**: add `image_url` field (mirror what `startup-update-self` already does — lenient URL handling, ≤1000 chars). One small edit, no migration needed (`session_participants.image_url` column already exists and is used for startups).
-- **`upload-event-image` edge function**: extend the participant self-upload branch to also accept `role = 'facilitator'` (currently only `'startup'`). Two-line change.
-- No schema migrations required.
+Currently it just `navigate('/login')`. New behavior:
 
-## Component extraction
+- Read `useSessionUser()`. If `user` is set → `navigate('/login')` (preserves the current "resume into session" flow used by magic-link returnees who already have state, and is a safe no-op for fresh tabs).
+- Otherwise fetch `public-upcoming-events` and render:
+  - Page header with event branding (reuse the dark fintech aesthetic + glassmorphism already used on `EventLanding.tsx`).
+  - "Upcoming events" heading.
+  - A card grid: each card shows hero image (or placeholder), name, formatted local date/time (use `src/lib/timezone.ts`), short description, and a primary button `View event →` linking to `/event/${slug}`.
+  - Empty state ("No upcoming events right now") when the list is empty, with a secondary link to `/login` for participants who already have an invitation.
+  - Loading skeleton while fetching.
+- Always render a small "Already invited? Sign in" link to `/login` so existing participants can still get in directly.
 
-Refactor without behavior change:
-- Extract `StartupEditDialog`'s form body → `src/components/StartupProfileForm.tsx`. Dialog wraps it; Green Room embeds it directly.
-- Extract `FacilitatorEditDialog`'s form body → `src/components/FacilitatorProfileForm.tsx` and add the new `ImageUploadField`.
-- Existing tests (`StartupEditDialog.test.tsx`) keep passing since dialog still mounts the same form.
+### 3. Routing
 
-## Slice of C — invitation deep link
+No router changes needed — `/` already maps to `Index`. Magic links go to `/login?...` or `/event/:slug` and are unaffected. `/session/:id`, `/admin`, `/event/:slug`, `/unsubscribe` are unaffected.
 
-- `session-invitation` email template (startup + facilitator variants): add a "Set up your profile" button linking to `https://<domain>/session/:id/ready?email=…`.
-- Login page: if `?email=` and `?session=` are present in URL, prefill the email field and pre-select the session. (No new tokenized auth — user still types their password / requests magic link; this is just a convenience deep link. Anything heavier can come later.)
+### 4. Tests
 
-## Files touched
+- `src/pages/__tests__/Index.test.tsx` (new): mocks `fetch` for `public-upcoming-events` and asserts:
+  - Renders event cards with name + link to `/event/<slug>`.
+  - Renders empty state when API returns `[]`.
+  - Redirects to `/login` when `SessionProvider` already has a user.
 
-**New:**
-- `src/pages/GreenRoom.tsx`
-- `src/components/StartupProfileForm.tsx`
-- `src/components/FacilitatorProfileForm.tsx`
-- `src/components/ReadinessChecklist.tsx`
+## Technical notes
 
-**Edited:**
-- `src/App.tsx` — register `/session/:id/ready` route
-- `src/pages/Login.tsx` — post-auth redirect by role + status; honor `?email` / `?session` query
-- `src/pages/Session.tsx` — extract form bodies, add Green Room sidebar link, draft/scheduled redirect for startups/facilitators
-- `supabase/functions/facilitator-update-self/index.ts` — accept `image_url`
-- `supabase/functions/upload-event-image/index.ts` — allow facilitator self-upload
-- `supabase/functions/_shared/transactional-email-templates/session-invitation.tsx` — "Set up your profile" CTA
+- "First time" is interpreted as "anonymous visitor with no in-memory session user." We don't set a cookie — every fresh tab gets the events page, which matches the request ("hits the home page for the first time"). This avoids touching storage and keeps magic-link / `/event/:slug` / `/login` flows fully unchanged.
+- The events list intentionally uses a new edge function rather than the existing `event-landing` (which is slug-scoped) so we don't widen its contract.
+- No changes to `Login.tsx`, `EventLanding.tsx`, `event-landing`, or `event-signup`.
 
-## Out of scope (this pass)
+## Out of scope
 
-- Tokenized profile-edit magic link (could be added later if the plain email-prefill deep link proves friction-y)
-- Investor profiles
-- Blocking "Go Live" on incomplete startups
-- Auto-save / draft persistence (keep explicit Save button)
-
-## Testing
-
-- Unit: a new `GreenRoom.test.tsx` covering checklist computation and the Go Live confirm dialog
-- Existing `StartupEditDialog.test.tsx` continues to pass after the extraction
-- Manual: log in as startup → land on Green Room → upload logo → enter session → see logo render
+- Persisting "have I seen this before?" via cookies/localStorage.
+- Filtering events by tenant/domain (single-tenant app today).
+- Showing past events or an archive.
