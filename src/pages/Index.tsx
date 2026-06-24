@@ -134,7 +134,10 @@ const Index = () => {
                       </div>
                       {ev.description && (
                         <p className="mt-3 text-sm text-muted-foreground line-clamp-3">
-                          {ev.description}
+                          {ev.description
+                            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+                            .replace(/\*\*([^*]+)\*\*/g, '$1')
+                            .replace(/^\s*[-*]\s+/gm, '• ')}
                         </p>
                       )}
                       <div className="mt-5 pt-4 border-t border-border flex items-center justify-between">
