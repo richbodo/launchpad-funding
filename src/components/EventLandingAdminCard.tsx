@@ -4,12 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
 import { Globe, Copy, Check, X, UserCheck, RefreshCw, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import { getAdminToken } from '@/lib/adminAuth';
 import ImageUploadField from '@/components/ImageUploadField';
+import MarkdownEditor from '@/components/MarkdownEditor';
 
 interface SessionLike {
   id: string;
@@ -182,14 +182,18 @@ export default function EventLandingAdminCard({
 
         <div>
           <Label htmlFor="landing-desc" className="text-xs">Event description (optional)</Label>
-          <Textarea
-            id="landing-desc"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            rows={3}
-            className="mt-1"
-            placeholder="One short paragraph describing the event…"
-          />
+          <div className="mt-1">
+            <MarkdownEditor
+              id="landing-desc"
+              value={description}
+              onChange={setDescription}
+              rows={8}
+              placeholder={"Describe the event. Supports **bold**, bullet lists, and [links](https://example.com)."}
+            />
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Use the toolbar to add bullets, bold, or links. Blank lines create paragraph breaks.
+          </p>
         </div>
 
         <div className="flex items-center justify-between rounded-md border border-border p-3">
