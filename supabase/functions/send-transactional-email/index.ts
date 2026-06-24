@@ -135,164 +135,33 @@ Deno.serve(async (req) => {
   // Create Supabase client with service role (bypasses RLS)
   const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-  // 2. Check suppression list (fail-closed: if we can't verify, don't send)
-  const { data: suppressed, error: suppressionError } = await supabase
-    .from('suppressed_emails')
-    .select('id')
-    .eq('email', effectiveRecipient.toLowerCase())
-    .maybeSingle()
+  // Build the deduplicated list of recipients to send to. The Lovable Email
+  // API expects a single string in `to` and rejects both comma-joined strings
+  // and arrays as "Invalid 'to' email address". To support `additionalRecipients`
+  // we enqueue ONE message per recipient — each with its own message_id,
+  // suppression check, and unsubscribe token. This also short-circuits invalid
+  // addresses up front so the queue worker never burns 5 retries on them.
+  const allRecipientsRaw = [effectiveRecipient, ...additionalRecipients]
+  const seen = new Set<string>()
+  const recipients: string[] = []
+  for (const r of allRecipientsRaw) {
+    if (typeof r !== 'string') continue
+    const trimmed = r.trim()
+    if (!trimmed || !trimmed.includes('@') || trimmed.length < 3) continue
+    const lower = trimmed.toLowerCase()
+    if (seen.has(lower)) continue
+    seen.add(lower)
+    recipients.push(trimmed)
+  }
 
-  if (suppressionError) {
-    console.error('Suppression check failed — refusing to send', {
-      error: suppressionError,
-      effectiveRecipient,
-    })
+  if (recipients.length === 0) {
     return new Response(
-      JSON.stringify({ error: 'Failed to verify suppression status' }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: 'No valid recipient email addresses provided' }),
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 
-  if (suppressed) {
-    // Log the suppressed attempt
-    await supabase.from('email_send_log').insert({
-      message_id: messageId,
-      template_name: templateName,
-      recipient_email: effectiveRecipient,
-      status: 'suppressed',
-    })
-
-    console.log('Email suppressed', { effectiveRecipient, templateName })
-    return new Response(
-      JSON.stringify({ success: false, reason: 'email_suppressed' }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    )
-  }
-
-  // 3. Get or create unsubscribe token (one token per email address)
-  const normalizedEmail = effectiveRecipient.toLowerCase()
-  let unsubscribeToken: string
-
-  // Check for existing token for this email
-  const { data: existingToken, error: tokenLookupError } = await supabase
-    .from('email_unsubscribe_tokens')
-    .select('token, used_at')
-    .eq('email', normalizedEmail)
-    .maybeSingle()
-
-  if (tokenLookupError) {
-    console.error('Token lookup failed', {
-      error: tokenLookupError,
-      email: normalizedEmail,
-    })
-    await supabase.from('email_send_log').insert({
-      message_id: messageId,
-      template_name: templateName,
-      recipient_email: effectiveRecipient,
-      status: 'failed',
-      error_message: 'Failed to look up unsubscribe token',
-    })
-    return new Response(
-      JSON.stringify({ error: 'Failed to prepare email' }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    )
-  }
-
-  if (existingToken && !existingToken.used_at) {
-    // Reuse existing unused token
-    unsubscribeToken = existingToken.token
-  } else if (!existingToken) {
-    // Create new token — upsert handles concurrent inserts gracefully
-    unsubscribeToken = generateToken()
-    const { error: tokenError } = await supabase
-      .from('email_unsubscribe_tokens')
-      .upsert(
-        { token: unsubscribeToken, email: normalizedEmail },
-        { onConflict: 'email', ignoreDuplicates: true }
-      )
-
-    if (tokenError) {
-      console.error('Failed to create unsubscribe token', {
-        error: tokenError,
-      })
-      await supabase.from('email_send_log').insert({
-        message_id: messageId,
-        template_name: templateName,
-        recipient_email: effectiveRecipient,
-        status: 'failed',
-        error_message: 'Failed to create unsubscribe token',
-      })
-      return new Response(
-        JSON.stringify({ error: 'Failed to prepare email' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
-
-    // If another request raced us, our upsert was silently ignored.
-    // Re-read to get the actual stored token.
-    const { data: storedToken, error: reReadError } = await supabase
-      .from('email_unsubscribe_tokens')
-      .select('token')
-      .eq('email', normalizedEmail)
-      .maybeSingle()
-
-    if (reReadError || !storedToken) {
-      console.error('Failed to read back unsubscribe token after upsert', {
-        error: reReadError,
-        email: normalizedEmail,
-      })
-      await supabase.from('email_send_log').insert({
-        message_id: messageId,
-        template_name: templateName,
-        recipient_email: effectiveRecipient,
-        status: 'failed',
-        error_message: 'Failed to confirm unsubscribe token storage',
-      })
-      return new Response(
-        JSON.stringify({ error: 'Failed to prepare email' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      )
-    }
-    unsubscribeToken = storedToken.token
-  } else {
-    // Token exists but is already used — email should have been caught by suppression check above.
-    // This is a safety fallback; log and skip sending.
-    console.warn('Unsubscribe token already used but email not suppressed', {
-      email: normalizedEmail,
-    })
-    await supabase.from('email_send_log').insert({
-      message_id: messageId,
-      template_name: templateName,
-      recipient_email: effectiveRecipient,
-      status: 'suppressed',
-      error_message:
-        'Unsubscribe token used but email missing from suppressed list',
-    })
-    return new Response(
-      JSON.stringify({ success: false, reason: 'email_suppressed' }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
-    )
-  }
-
-  // 4. Render React Email template to HTML and plain text
+  // Render template once — the same HTML/text goes to every recipient.
   const html = await renderAsync(
     React.createElement(template.component, templateData)
   )
@@ -300,97 +169,186 @@ Deno.serve(async (req) => {
     React.createElement(template.component, templateData),
     { plainText: true }
   )
-
-  // Resolve subject — supports static string or dynamic function
   const resolvedSubject =
     typeof template.subject === 'function'
       ? template.subject(templateData)
       : template.subject
 
-  // 5. Resolve the To: line. Start with the primary recipient, then append any
-  // additional recipients that aren't suppressed and aren't duplicates. The
-  // primary recipient's suppression was already enforced above.
-  const toAddresses: string[] = [effectiveRecipient]
-  if (additionalRecipients.length > 0) {
-    const seen = new Set([effectiveRecipient.toLowerCase()])
-    for (const extra of additionalRecipients) {
-      const lower = extra.toLowerCase()
-      if (seen.has(lower)) continue
-      const { data: extraSup } = await supabase
-        .from('suppressed_emails')
-        .select('id')
-        .eq('email', lower)
-        .maybeSingle()
-      if (extraSup) {
-        console.log('Skipping suppressed additional recipient', { extra })
+  type Outcome = { recipient: string; status: 'queued' | 'suppressed' | 'failed'; reason?: string }
+  const outcomes: Outcome[] = []
+
+  for (const recipient of recipients) {
+    const normalizedEmail = recipient.toLowerCase()
+    // Each recipient gets its own message_id so logs and idempotency stay
+    // 1:1 with actual sends. Derive a per-recipient idempotency key when more
+    // than one recipient, so retries are still deduped per (caller, recipient).
+    const perMessageId = crypto.randomUUID()
+    const perIdempotencyKey =
+      recipients.length === 1 ? idempotencyKey : `${idempotencyKey}:${normalizedEmail}`
+
+    // 1. Suppression check (fail-closed: skip on error)
+    const { data: suppressed, error: suppressionError } = await supabase
+      .from('suppressed_emails')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (suppressionError) {
+      console.error('Suppression check failed — skipping recipient', {
+        error: suppressionError, recipient,
+      })
+      outcomes.push({ recipient, status: 'failed', reason: 'suppression_check_failed' })
+      continue
+    }
+
+    if (suppressed) {
+      await supabase.from('email_send_log').insert({
+        message_id: perMessageId,
+        template_name: templateName,
+        recipient_email: recipient,
+        status: 'suppressed',
+      })
+      outcomes.push({ recipient, status: 'suppressed' })
+      continue
+    }
+
+    // 2. Get-or-create unsubscribe token for this recipient
+    let unsubscribeToken: string | null = null
+    const { data: existingToken, error: tokenLookupError } = await supabase
+      .from('email_unsubscribe_tokens')
+      .select('token, used_at')
+      .eq('email', normalizedEmail)
+      .maybeSingle()
+
+    if (tokenLookupError) {
+      console.error('Token lookup failed', { error: tokenLookupError, recipient })
+      await supabase.from('email_send_log').insert({
+        message_id: perMessageId,
+        template_name: templateName,
+        recipient_email: recipient,
+        status: 'failed',
+        error_message: 'Failed to look up unsubscribe token',
+      })
+      outcomes.push({ recipient, status: 'failed', reason: 'token_lookup_failed' })
+      continue
+    }
+
+    if (existingToken && existingToken.used_at) {
+      // Already unsubscribed but not in suppression list — treat as suppressed.
+      await supabase.from('email_send_log').insert({
+        message_id: perMessageId,
+        template_name: templateName,
+        recipient_email: recipient,
+        status: 'suppressed',
+        error_message: 'Unsubscribe token used but email missing from suppressed list',
+      })
+      outcomes.push({ recipient, status: 'suppressed' })
+      continue
+    }
+
+    if (existingToken) {
+      unsubscribeToken = existingToken.token
+    } else {
+      const newToken = generateToken()
+      const { error: tokenError } = await supabase
+        .from('email_unsubscribe_tokens')
+        .upsert(
+          { token: newToken, email: normalizedEmail },
+          { onConflict: 'email', ignoreDuplicates: true }
+        )
+      if (tokenError) {
+        console.error('Failed to create unsubscribe token', { error: tokenError, recipient })
+        await supabase.from('email_send_log').insert({
+          message_id: perMessageId,
+          template_name: templateName,
+          recipient_email: recipient,
+          status: 'failed',
+          error_message: 'Failed to create unsubscribe token',
+        })
+        outcomes.push({ recipient, status: 'failed', reason: 'token_create_failed' })
         continue
       }
-      seen.add(lower)
-      toAddresses.push(extra)
+      const { data: storedToken } = await supabase
+        .from('email_unsubscribe_tokens')
+        .select('token')
+        .eq('email', normalizedEmail)
+        .maybeSingle()
+      if (!storedToken) {
+        await supabase.from('email_send_log').insert({
+          message_id: perMessageId,
+          template_name: templateName,
+          recipient_email: recipient,
+          status: 'failed',
+          error_message: 'Failed to confirm unsubscribe token storage',
+        })
+        outcomes.push({ recipient, status: 'failed', reason: 'token_read_failed' })
+        continue
+      }
+      unsubscribeToken = storedToken.token
     }
-  }
-  // For the email log, keep a human-readable comma-joined record of all
-  // recipients. For the Lovable Email API payload, pass an array when there
-  // are multiple recipients (a comma-joined string is rejected as an
-  // "invalid 'to' email address").
-  const toLogValue = toAddresses.join(', ')
-  const toPayload: string | string[] =
-    toAddresses.length === 1 ? toAddresses[0] : toAddresses
 
-  // Log pending BEFORE enqueue so we have a record even if enqueue crashes
-  await supabase.from('email_send_log').insert({
-    message_id: messageId,
-    template_name: templateName,
-    recipient_email: toLogValue,
-    status: 'pending',
-  })
-
-  const { error: enqueueError } = await supabase.rpc('enqueue_email', {
-    queue_name: 'transactional_emails',
-    payload: {
-      message_id: messageId,
-      to: toPayload,
-      from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
-      sender_domain: SENDER_DOMAIN,
-      subject: resolvedSubject,
-      html,
-      text: plainText,
-      purpose: 'transactional',
-      label: templateName,
-      idempotency_key: idempotencyKey,
-      unsubscribe_token: unsubscribeToken,
-      queued_at: new Date().toISOString(),
-    },
-  })
-
-  if (enqueueError) {
-    console.error('Failed to enqueue email', {
-      error: enqueueError,
-      templateName,
-      effectiveRecipient,
-    })
-
+    // 3. Log pending BEFORE enqueue so we have a record even if enqueue crashes
     await supabase.from('email_send_log').insert({
-      message_id: messageId,
+      message_id: perMessageId,
       template_name: templateName,
-      recipient_email: effectiveRecipient,
-      status: 'failed',
-      error_message: 'Failed to enqueue email',
+      recipient_email: recipient,
+      status: 'pending',
     })
 
-    return new Response(JSON.stringify({ error: 'Failed to enqueue email' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    // 4. Enqueue — `to` is always a single string, never an array.
+    const { error: enqueueError } = await supabase.rpc('enqueue_email', {
+      queue_name: 'transactional_emails',
+      payload: {
+        message_id: perMessageId,
+        to: recipient,
+        from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+        sender_domain: SENDER_DOMAIN,
+        subject: resolvedSubject,
+        html,
+        text: plainText,
+        purpose: 'transactional',
+        label: templateName,
+        idempotency_key: perIdempotencyKey,
+        unsubscribe_token: unsubscribeToken,
+        queued_at: new Date().toISOString(),
+      },
     })
+
+    if (enqueueError) {
+      console.error('Failed to enqueue email', { error: enqueueError, templateName, recipient })
+      await supabase.from('email_send_log').insert({
+        message_id: perMessageId,
+        template_name: templateName,
+        recipient_email: recipient,
+        status: 'failed',
+        error_message: 'Failed to enqueue email',
+      })
+      outcomes.push({ recipient, status: 'failed', reason: 'enqueue_failed' })
+      continue
+    }
+
+    outcomes.push({ recipient, status: 'queued' })
   }
 
-  console.log('Transactional email enqueued', { templateName, effectiveRecipient })
+  const queuedCount = outcomes.filter(o => o.status === 'queued').length
+  console.log('Transactional email batch enqueued', {
+    templateName,
+    total: outcomes.length,
+    queued: queuedCount,
+    suppressed: outcomes.filter(o => o.status === 'suppressed').length,
+    failed: outcomes.filter(o => o.status === 'failed').length,
+  })
 
   return new Response(
-    JSON.stringify({ success: true, queued: true }),
+    JSON.stringify({
+      success: queuedCount > 0,
+      queued: queuedCount > 0,
+      outcomes,
+    }),
     {
-      status: 200,
+      status: queuedCount > 0 ? 200 : 502,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     }
   )
 })
+
