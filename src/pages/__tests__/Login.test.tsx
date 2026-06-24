@@ -116,7 +116,7 @@ function setParticipant(participant: any) {
 
 async function waitForSession() {
   await waitFor(() =>
-    expect(screen.getByTestId('role-btn-facilitator')).not.toBeDisabled(),
+    expect(screen.getByTestId('session-name')).toBeInTheDocument(),
   );
 }
 
