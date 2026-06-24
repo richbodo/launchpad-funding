@@ -64,19 +64,22 @@ To run demo mode locally yourself, follow [Demo mode (offline dev/test)](docs/de
 
 - **Live funding sessions** — Facilitators create, schedule, and run live pitch events with timed stages that Startups present to and Investors invest in.
 - **Timezone-aware scheduling** — Sessions are scheduled in a chosen timezone; start/end times and invitation emails are shown in that zone. A session's name, date, time, and timezone can be edited after it's created.
-- **Participant management** — Add investors, startups, and facilitators one at a time, or **bulk-import from a CSV** (with a downloadable template). Set startup presentation order and per-startup metadata (funding goal, due-diligence room link, website).
+- **Green room** — Startups enter their profile, funding goal, website, and due-diligence room link before the event so the landing page and live session are ready to go.
+- **Participant management** — Add investors, startups, and facilitators one at a time, or **bulk-import from a CSV** (with a downloadable template). Set startup presentation order and per-startup metadata.
 - **Invitations with send tracking** — Branded invitation emails carry session details, a one-click login link, and a Google Calendar link. Bulk-send to everyone not yet emailed (never double-sends), resend to an individual, and see a **Sent / Not sent** status per participant.
 - **Email delivery logs** — A per-message delivery timeline (queued → sent → bounced / complained / etc.) for diagnosing email issues.
 - **Editable email templates** — Customize the facilitator contact address and the per-role welcome messages used in invitations.
-- **Live chat** — All participants can communicate during sessions via a real-time chat panel while the video session is going, getting all questions answered.
-- **Presentation and AV controls** - All the usual controls you expect in a video conferencing app of this kind - present, mute, etc. appropriate for each participant type.
-- **Real-time investment tracking** — Investors pledge funds during presentations; a funding meter updates in real time for all participants.
-- **Role-based access** — Three distinct roles: Facilitator (admin/host), Startup (presenter), and Investor (viewer/pledger)
-- **Session timer & stage control** — Facilitators advance through intro, pitch, Q&A, and outro stages with play/pause/stage-change controls
+- **Live chat** — All participants can communicate during sessions via a real-time chat panel. Investment and gift pledges are posted anonymously as "An Investor committed..." or "A Community Supporter pledged...".
+- **Presentation and AV controls** — All the usual controls you expect in a video conferencing app of this kind — present, mute, etc. — appropriate for each participant type.
+- **Real-time investment tracking** — Investors and community supporters pledge funds during presentations; a **Fund-ometer** shows total **Funds Committed** updating in real time for all participants.
+- **Community supporter gifts** — Non-accredited participants can pledge support as a gift up to $100, kept separate from accredited investor commitments.
+- **Role-based access** — Three distinct roles: Facilitator (admin/host), Startup (presenter), and Investor (viewer/pledger).
+- **Session timer & stage control** — Facilitators advance through intro, pitch, Q&A, and outro stages with play/pause/stage-change controls and a **Stage Selector**.
 - **Demo mode** — Toggle demo mode from the admin **Settings** tab to seed sample `[DEMO]` sessions and participants; demo data is cleaned up automatically when you switch back off. Local demo scripts can launch browsers for fixture participants.
-- **Randomize login** — In demo mode, quickly log in as a random available participant with one click
-- **Chat archiving** — Archive and download chat transcripts (private, facilitator-only access)
-- **Responsive design** — Works on desktop and tablet with a 3-pane session layout (facilitator video, startup presentation, chat)
+- **Randomize login** — In demo mode, quickly log in as a random available participant with one click to test different roles.
+- **Chat archiving** — Archive and download chat transcripts (private, facilitator-only access).
+- **In-app help** — A floating help button links directly to the user manual for context-aware guidance.
+- **Responsive design** — Works on desktop and tablet with a 3-pane session layout (facilitator video, startup presentation, chat).
 
 ## How to Use
 
