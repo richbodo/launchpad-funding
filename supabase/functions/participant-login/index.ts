@@ -47,11 +47,13 @@ Deno.serve(async (req) => {
     const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
 
+    const normalizedEmail = email.toLowerCase().trim();
+
     const { data: participant, error: lookupErr } = await supabase
       .from("session_participants")
-      .select("id, email, display_name, password_hash, role")
+      .select("id, email, display_name, role")
       .eq("session_id", session_id)
-      .eq("email", email.toLowerCase().trim())
+      .eq("email", normalizedEmail)
       .eq("role", "facilitator")
       .maybeSingle();
 
@@ -62,49 +64,44 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Facilitators added to a new session start with no password_hash on that
-    // row. Fall back to any other facilitator row for the same email that does
-    // have a hash — facilitator credentials are shared across sessions.
-    let credId = participant.id;
-    let credHash = participant.password_hash;
-    if (!credHash) {
-      const { data: fallback } = await supabase
-        .from("session_participants")
-        .select("id, password_hash")
-        .eq("email", email.toLowerCase().trim())
-        .eq("role", "facilitator")
-        .not("password_hash", "is", null)
-        .limit(1)
-        .maybeSingle();
-      if (!fallback?.password_hash) {
-        return new Response(JSON.stringify({ error: "Invalid credentials" }), {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      credId = fallback.id;
-      credHash = fallback.password_hash;
+    // Find a credentialed facilitator row for this email — credentials are
+    // shared across all sessions a facilitator is invited to. We look up any
+    // participant_credentials row whose participant has the same email and
+    // role, then verify against that participant id.
+    const { data: facilitatorRows } = await supabase
+      .from("session_participants")
+      .select("id")
+      .eq("email", normalizedEmail)
+      .eq("role", "facilitator");
 
-      // Backfill the hash onto this session's row so future logins are
-      // single-query and `verify_participant_password` works against it directly.
-      await supabase
-        .from("session_participants")
-        .update({ password_hash: credHash })
-        .eq("id", participant.id);
-    }
-
-    let passwordValid = false;
-    if (credHash.startsWith("$2")) {
-      const { data: cryptResult } = await supabase.rpc("verify_participant_password", {
-        _participant_id: credId,
-        _password: password,
+    const candidateIds = (facilitatorRows || []).map((r: { id: string }) => r.id);
+    if (candidateIds.length === 0) {
+      return new Response(JSON.stringify({ error: "Invalid credentials" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-      passwordValid = cryptResult === true;
-    } else {
-      passwordValid = credHash === password;
     }
 
-    if (!passwordValid) {
+    const { data: credRows } = await supabase
+      .from("participant_credentials")
+      .select("participant_id")
+      .in("participant_id", candidateIds)
+      .limit(1);
+
+    const credId = credRows?.[0]?.participant_id;
+    if (!credId) {
+      return new Response(JSON.stringify({ error: "Invalid credentials" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: cryptResult } = await supabase.rpc("verify_participant_password", {
+      _participant_id: credId,
+      _password: password,
+    });
+
+    if (cryptResult !== true) {
       return new Response(JSON.stringify({ error: "Invalid credentials" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
