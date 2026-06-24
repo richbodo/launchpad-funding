@@ -44,19 +44,16 @@ export default function Login() {
   const autoLoginAttempted = useRef(false);
 
   /**
-   * Returns true when this facilitator email has no bcrypt password set on
-   * ANY of their session_participants rows — i.e. this is their very first
-   * facilitator invite and they need to create a password before logging in.
+   * Returns true when this facilitator email has no credentials row anywhere —
+   * i.e. this is their very first facilitator invite and they need to create a
+   * password before logging in. Uses a SECURITY DEFINER RPC because the
+   * password_hash column is no longer exposed to the client.
    */
   const facilitatorNeedsPassword = async (facilitatorEmail: string): Promise<boolean> => {
-    const { data } = await supabase
-      .from('session_participants')
-      .select('id')
-      .eq('email', facilitatorEmail.toLowerCase())
-      .eq('role', 'facilitator')
-      .not('password_hash', 'is', null)
-      .limit(1);
-    return !data || data.length === 0;
+    const { data } = await supabase.rpc('facilitator_has_password', {
+      _email: facilitatorEmail.toLowerCase(),
+    });
+    return data !== true;
   };
 
   const handleCreatePassword = async () => {
