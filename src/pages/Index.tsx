@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSessionUser } from '@/lib/sessionContext';
 import { formatDateInTimeZone, formatTimeInTimeZone } from '@/lib/timezone';
+import RssFeedButton from '@/components/RssFeedButton';
 
 /**
  * Public home page for anonymous visitors.
