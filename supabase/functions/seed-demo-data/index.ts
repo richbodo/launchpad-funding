@@ -215,15 +215,26 @@ Deno.serve(async (req) => {
 
     const allParticipants = [...alphaParticipants, ...betaParticipants, ...gammaParticipants];
 
-    const { error: partErr } = await supabase
+    const { data: insertedParticipants, error: partErr } = await supabase
       .from("session_participants")
-      .insert(allParticipants);
+      .insert(allParticipants)
+      .select("id, role");
 
     if (partErr) {
       return new Response(
         JSON.stringify({ error: "Failed to create participants", details: partErr.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // Seed bcrypt credentials for every demo facilitator row via the privileged RPC.
+    for (const row of insertedParticipants || []) {
+      if (row.role === "facilitator") {
+        await supabase.rpc("set_participant_password", {
+          _participant_id: row.id,
+          _password: DEMO_FACILITATOR_PASSWORD,
+        });
+      }
     }
 
     return new Response(
