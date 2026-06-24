@@ -38,7 +38,7 @@ interface SeededParticipant {
   email: string;
   display_name: string;
   role: RoleLiteral;
-  password_hash?: string;
+  // password_hash removed — credentials live in participant_credentials and are seeded via set_participant_password RPC.
   presentation_order?: number;
   website_link?: string;
   dd_room_link?: string;
@@ -170,7 +170,6 @@ Deno.serve(async (req) => {
         email: "facilitator@demo.com",
         display_name: "Facilitator 1",
         role: "facilitator",
-        password_hash: DEMO_FACILITATOR_PASSWORD,
         image_url: avatarImg("facilitator-1"),
       },
       {
@@ -178,7 +177,6 @@ Deno.serve(async (req) => {
         email: "admin@demo.com",
         display_name: "Facilitator 2",
         role: "facilitator",
-        password_hash: DEMO_FACILITATOR_PASSWORD,
         image_url: avatarImg("facilitator-2"),
       },
     ];
@@ -217,15 +215,26 @@ Deno.serve(async (req) => {
 
     const allParticipants = [...alphaParticipants, ...betaParticipants, ...gammaParticipants];
 
-    const { error: partErr } = await supabase
+    const { data: insertedParticipants, error: partErr } = await supabase
       .from("session_participants")
-      .insert(allParticipants);
+      .insert(allParticipants)
+      .select("id, role");
 
     if (partErr) {
       return new Response(
         JSON.stringify({ error: "Failed to create participants", details: partErr.message }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // Seed bcrypt credentials for every demo facilitator row via the privileged RPC.
+    for (const row of insertedParticipants || []) {
+      if (row.role === "facilitator") {
+        await supabase.rpc("set_participant_password", {
+          _participant_id: row.id,
+          _password: DEMO_FACILITATOR_PASSWORD,
+        });
+      }
     }
 
     return new Response(

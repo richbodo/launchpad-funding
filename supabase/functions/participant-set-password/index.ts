@@ -43,7 +43,7 @@ Deno.serve(async (req) => {
     // Find the facilitator row on the invited session.
     const { data: target, error: lookupErr } = await supabase
       .from("session_participants")
-      .select("id, password_hash")
+      .select("id")
       .eq("session_id", session_id)
       .eq("email", normalizedEmail)
       .eq("role", "facilitator")
@@ -53,28 +53,33 @@ Deno.serve(async (req) => {
       return json({ error: "Facilitator invite not found for this session" }, 404);
     }
 
-    // Refuse if this facilitator already has a password anywhere — they should
-    // log in normally and use any reset flow we add later instead.
-    const { data: existing } = await supabase
+    // Refuse if this facilitator already has a credentials row anywhere — they
+    // should log in normally and use any reset flow we add later instead.
+    const { data: peers } = await supabase
       .from("session_participants")
       .select("id")
       .eq("email", normalizedEmail)
-      .eq("role", "facilitator")
-      .not("password_hash", "is", null)
-      .limit(1);
+      .eq("role", "facilitator");
 
-    if (existing && existing.length > 0) {
-      return json({ error: "Password already set. Please log in." }, 409);
+    const peerIds = (peers || []).map((r: { id: string }) => r.id);
+    if (peerIds.length > 0) {
+      const { data: existingCreds } = await supabase
+        .from("participant_credentials")
+        .select("participant_id")
+        .in("participant_id", peerIds)
+        .limit(1);
+      if (existingCreds && existingCreds.length > 0) {
+        return json({ error: "Password already set. Please log in." }, 409);
+      }
     }
 
-    // The hash_participant_password() trigger converts the plain password to
-    // a bcrypt hash on write, so we just store the raw value.
-    const { error: updateErr } = await supabase
-      .from("session_participants")
-      .update({ password_hash: password })
-      .eq("id", target.id);
+    // Store bcrypt'd password via the privileged RPC.
+    const { error: rpcErr } = await supabase.rpc("set_participant_password", {
+      _participant_id: target.id,
+      _password: password,
+    });
 
-    if (updateErr) {
+    if (rpcErr) {
       return json({ error: "Failed to set password" }, 500);
     }
 

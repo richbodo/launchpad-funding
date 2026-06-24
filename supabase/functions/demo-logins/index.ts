@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
     if (ids.length > 0) {
       const { data } = await supabase
         .from("session_participants")
-        .select("id, email, display_name, role, password_hash, session_id, investor_class, image_url")
+        .select("id, email, display_name, role, session_id, investor_class, image_url")
         .in("session_id", ids)
         .order("role", { ascending: true });
       participants = data || [];

@@ -105,16 +105,21 @@ Deno.serve(async (req) => {
           display_name: display_name || null,
           presentation_order: presentation_order ?? null,
         };
-        if (role === "facilitator" && password) insert.password_hash = password;
         const { data, error } = await supabase.from("session_participants").insert(insert).select().single();
         if (error) {
           if (error.code === "23505") return bad(409, "duplicate");
           throw error;
         }
+        if (role === "facilitator" && password) {
+          await supabase.rpc("set_participant_password", {
+            _participant_id: data.id,
+            _password: password,
+          });
+        }
         return ok({ participant: data });
       }
       case "update_participant": {
-        const { id, ...fields } = payload;
+        const { id, password, ...fields } = payload;
         if (!id) return bad(400, "id required");
         const allowed: Record<string, unknown> = {};
         for (const k of [
@@ -124,7 +129,6 @@ Deno.serve(async (req) => {
           "dd_room_link",
           "website_link",
           "funding_goal",
-          "password_hash",
           "invite_sent_at",
           // Issue #44: landing-page signup workflow
           "approved",
@@ -134,7 +138,6 @@ Deno.serve(async (req) => {
           "description", // startups: short pitch summary (required for live sessions)
           "bio",         // facilitators: <=500 char bio
         ]) {
-
           if (k in fields) allowed[k] = fields[k];
         }
         if (typeof allowed.bio === "string" && (allowed.bio as string).length > 500) {
@@ -142,6 +145,13 @@ Deno.serve(async (req) => {
         }
         const { data, error } = await supabase.from("session_participants").update(allowed).eq("id", id).select().single();
         if (error) throw error;
+        // Password updates go through the privileged credentials RPC.
+        if (typeof password === "string" && password.length > 0) {
+          await supabase.rpc("set_participant_password", {
+            _participant_id: id,
+            _password: password,
+          });
+        }
         return ok({ participant: data });
       }
       case "delete_participant": {

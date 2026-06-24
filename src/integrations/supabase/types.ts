@@ -213,6 +213,35 @@ export type Database = {
           },
         ]
       }
+      participant_credentials: {
+        Row: {
+          created_at: string
+          participant_id: string
+          password_hash: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          participant_id: string
+          password_hash: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          participant_id?: string
+          password_hash?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participant_credentials_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: true
+            referencedRelation: "session_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_logs: {
         Row: {
           actor_email: string | null
@@ -264,7 +293,6 @@ export type Database = {
           invite_sent_at: string | null
           is_logged_in: boolean
           logged_in_at: string | null
-          password_hash: string | null
           presentation_order: number | null
           role: Database["public"]["Enums"]["participant_role"]
           session_id: string
@@ -285,7 +313,6 @@ export type Database = {
           invite_sent_at?: string | null
           is_logged_in?: boolean
           logged_in_at?: string | null
-          password_hash?: string | null
           presentation_order?: number | null
           role: Database["public"]["Enums"]["participant_role"]
           session_id: string
@@ -306,7 +333,6 @@ export type Database = {
           invite_sent_at?: string | null
           is_logged_in?: boolean
           logged_in_at?: string | null
-          password_hash?: string | null
           presentation_order?: number | null
           role?: Database["public"]["Enums"]["participant_role"]
           session_id?: string
@@ -410,6 +436,7 @@ export type Database = {
         Args: { payload: Json; queue_name: string }
         Returns: number
       }
+      facilitator_has_password: { Args: { _email: string }; Returns: boolean }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -426,6 +453,10 @@ export type Database = {
           msg_id: number
           read_ct: number
         }[]
+      }
+      set_participant_password: {
+        Args: { _participant_id: string; _password: string }
+        Returns: undefined
       }
       set_participant_presence: {
         Args: { _logged_in: boolean; _participant_id: string }

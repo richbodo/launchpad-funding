@@ -96,18 +96,30 @@ Deno.serve(async (req) => {
     return json({ error: "Failed to create initial session" }, 500);
   }
 
-  // The hash_participant_password() trigger bcrypt-hashes the plain value
-  // on write, so we store it raw here.
-  const { error: insertErr } = await supabase.from("session_participants").insert({
-    session_id: sessionRow.id,
-    email,
-    role: "facilitator",
-    display_name: displayName,
-    password_hash: password,
-  });
+  const { data: participantRow, error: insertErr } = await supabase
+    .from("session_participants")
+    .insert({
+      session_id: sessionRow.id,
+      email,
+      role: "facilitator",
+      display_name: displayName,
+    })
+    .select("id")
+    .single();
 
-  if (insertErr) {
+  if (insertErr || !participantRow) {
     // Roll back the placeholder session so a retry can start clean.
+    await supabase.from("sessions").delete().eq("id", sessionRow.id);
+    return json({ error: "Failed to create facilitator account" }, 500);
+  }
+
+  // Store bcrypt'd password in the private credentials table.
+  const { error: credErr } = await supabase.rpc("set_participant_password", {
+    _participant_id: participantRow.id,
+    _password: password,
+  });
+  if (credErr) {
+    await supabase.from("session_participants").delete().eq("id", participantRow.id);
     await supabase.from("sessions").delete().eq("id", sessionRow.id);
     return json({ error: "Failed to create facilitator account" }, 500);
   }
