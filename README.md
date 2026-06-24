@@ -37,11 +37,13 @@ This is the event description we had for the first event:
 
 "We are bringing together the communities of three NZ tech startups innovating in AI services (Superlyne), Aerospace/drone/evtol (Practical Aircraft ltd), and Online Marketplaces (Sendd).  Each startup will present for 5 minutes, then have 5 minutes for Q&A.  Any attendee can commit to invest as either a community member (max 100USD commitment) or an accredited investor.  With a few jokes in the intro and outro, the entire event take less than an hour, all-in.  Come join for any part of the session.  We are using a new, NZ-grown, free and open-source fundraising tool.  After the event, community members of the startups and facilitators can join a moderated zoom meeting where we can meet and learn from each other, and break out into small zoom rooms based on common interests."
 
-## How it works - we need a users manual
+## How it works 
 
 A facilitator adds the startups, investors, and other faciltators to a session, then manages live sessions, controls the presentation flow for startups, and oversees chat while investors watch startup pitches and pledge funds in real time.  Startups and investors get emails when investments are soft-committed, and they complete their transaction with no middle-man.
 
 All video/audio is handled by livekit, so you will want a livekit account to make it work. Free accounts work for small groups, but you will want a paid account for larger groups.
+
+[There is an AI-generated Users Manual here.](docs/USER_MANUAL.md)
 
 ## If you are Remixing on Lovable
 
