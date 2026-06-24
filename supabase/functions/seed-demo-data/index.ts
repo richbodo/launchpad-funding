@@ -38,7 +38,7 @@ interface SeededParticipant {
   email: string;
   display_name: string;
   role: RoleLiteral;
-  password_hash?: string;
+  // password_hash removed — credentials live in participant_credentials and are seeded via set_participant_password RPC.
   presentation_order?: number;
   website_link?: string;
   dd_room_link?: string;
