@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/card';
 import { Loader2, Calendar, ExternalLink, Users, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import MarkdownView from '@/components/MarkdownView';
+import RssFeedButton from '@/components/RssFeedButton';
 
 /**
  * Public event landing page (issue #44).
