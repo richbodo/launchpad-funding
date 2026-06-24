@@ -105,11 +105,16 @@ Deno.serve(async (req) => {
           display_name: display_name || null,
           presentation_order: presentation_order ?? null,
         };
-        if (role === "facilitator" && password) insert.password_hash = password;
         const { data, error } = await supabase.from("session_participants").insert(insert).select().single();
         if (error) {
           if (error.code === "23505") return bad(409, "duplicate");
           throw error;
+        }
+        if (role === "facilitator" && password) {
+          await supabase.rpc("set_participant_password", {
+            _participant_id: data.id,
+            _password: password,
+          });
         }
         return ok({ participant: data });
       }
