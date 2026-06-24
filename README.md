@@ -55,7 +55,7 @@ Remixing on lovable, you will need to add your LiveKit secrets at startup.  That
 
 The application features a demo mode that is kind of awesome, in which you can try the app locally with fixture video streams and live streams.  It has seeded data for quick evaluation, role-based login (no traditional auth required for investors/startups), and a clean, responsive UI.
 
-[This is a little youtube video that shows the demo mode](https://youtu.be/Pm-bSHjzEvA)
+[This is a little youtube video that shows the demo mode](https://youtu.be/Pm-bSHjzEvA) - this is more of a developer demo with the first working version.
 
 To run demo mode locally yourself, follow [Demo mode (offline dev/test)](docs/dev_setup.md#demo-mode-offline-devtest) in the developer setup guide — it lists `[DEMO]` sessions and lets facilitators log in without a password.
 
