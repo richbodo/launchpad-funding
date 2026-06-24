@@ -8,6 +8,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Card } from '@/components/ui/card';
 import { Loader2, Calendar, ExternalLink, Users, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
+import MarkdownView from '@/components/MarkdownView';
 
 /**
  * Public event landing page (issue #44).
@@ -183,7 +184,9 @@ export default function EventLanding() {
             <span className="text-sm md:text-base">{dateLabel}</span>
           </div>
           {session.description && (
-            <p className="mt-6 text-base md:text-lg text-white/95 max-w-2xl [text-shadow:0_1px_8px_rgba(0,0,0,0.9)]">{session.description}</p>
+            <div className="mt-6 max-w-2xl text-base md:text-lg text-white/95 [text-shadow:0_1px_8px_rgba(0,0,0,0.9)]">
+              <MarkdownView>{session.description}</MarkdownView>
+            </div>
           )}
 
           {/* Signup form pinned right under the hero per issue #44 */}
