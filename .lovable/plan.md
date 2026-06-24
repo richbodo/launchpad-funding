@@ -1,60 +1,76 @@
-
 ## Goal
 
-When a non-logged-in visitor lands on `pitch.globaldonut.com/`, show a list of upcoming public events (each linking to its `/event/:slug` landing page) instead of immediately bouncing to `/login`. Magic-link, `/login?...`, `/event/:slug`, `/session/:id`, `/admin`, and all other entry points are untouched.
+Build a regression net that catches every login and landing-page failure mode we have hit before, then run it and fix anything broken. The recent password-hash refactor, RSS additions, and timezone widget all touched code paths that have historically regressed. We want failures to surface in CI, not from users.
 
-## Scope
+## Coverage matrix
 
-- Only the root route (`/`) behavior changes.
-- No DB schema changes. No auth changes.
-- Logged-in users (anyone with an active `SessionProvider` user) keep the current behavior — straight to login/session resume.
+### Login entry points (`/login`)
 
-## Changes
+For each entry point we assert: (a) the user lands where they should, (b) `useSession()` has the correct role + participant id, (c) UI affordances for that role render, (d) no extra password prompt appears when one shouldn't.
 
-### 1. New edge function: `public-upcoming-events`
+1. Manual login — investor (accredited)
+2. Manual login — investor (community), including the investor-class picker
+3. Manual login — startup
+4. Manual login — facilitator with correct password
+5. Manual login — facilitator with wrong password (stays on password step, error toast)
+6. Manual login — facilitator with no credentials yet (create-password step appears, calls `participant-set-password`, then logs in)
+7. Magic link — investor (`?session=&email=&role=investor`) auto-logs in, skips password
+8. Magic link — investor without `investor_class` set, must pick class before entering session
+9. Magic link — startup auto-logs in, lands in session (or `?edit=true` → green room)
+10. Magic link — facilitator with `?password=` query (legacy demo path) auto-logs in
+11. Magic link — facilitator without password param prompts for password
+12. Demo "Jump in" auto-login button (uses `?autoLogin=true`)
+13. Randomized demo login per role (Shuffle)
+14. Logout clears session and `is_logged_in` flag
 
-`supabase/functions/public-upcoming-events/index.ts` — public GET, no JWT.
+### Landing / home page (`/`)
 
-- Service-role read of `sessions` where:
-  - `slug IS NOT NULL` (only events that have a public landing page)
-  - `status IN ('scheduled','live')`
-  - `end_time >= now()` (hide finished sessions)
-- Order by `start_time ASC`, limit ~20.
-- Returns only safe public fields: `id, name, slug, description, start_time, end_time, timezone, status, hero_image_url`.
-- Standard CORS headers, mirrors the pattern in `event-landing/index.ts`.
+15. Anonymous visitor sees upcoming events, RSS button, no signup count when total < 10
+16. Signup count shows when ≥ 10
+17. RSS button copies feed URL with `apikey` + `site` params
+18. First-run / no-facilitator state surfaces bootstrap CTA
+19. Demo mode banner renders when `app_settings.mode = 'demo'`
 
-### 2. Replace `src/pages/Index.tsx`
+### Event landing (`/event/:slug`)
 
-Currently it just `navigate('/login')`. New behavior:
+20. Public visitor sees title, description, **5-timezone strip** with correct flags
+21. Three NZTech startup bullets render as `<ul><li>` (regression from earlier edit)
+22. RSS button present beside title on desktop and stacked on mobile
+23. Signup form posts to `event-signup` and shows success toast
+24. Signed-in facilitator sees admin shortcut
+25. Past/completed event hides signup, shows replay state
 
-- Read `useSessionUser()`. If `user` is set → `navigate('/login')` (preserves the current "resume into session" flow used by magic-link returnees who already have state, and is a safe no-op for fresh tabs).
-- Otherwise fetch `public-upcoming-events` and render:
-  - Page header with event branding (reuse the dark fintech aesthetic + glassmorphism already used on `EventLanding.tsx`).
-  - "Upcoming events" heading.
-  - A card grid: each card shows hero image (or placeholder), name, formatted local date/time (use `src/lib/timezone.ts`), short description, and a primary button `View event →` linking to `/event/${slug}`.
-  - Empty state ("No upcoming events right now") when the list is empty, with a secondary link to `/login` for participants who already have an invitation.
-  - Loading skeleton while fetching.
-- Always render a small "Already invited? Sign in" link to `/login` so existing participants can still get in directly.
+### Session page (`/session/:id`) per role
 
-### 3. Routing
+26. Facilitator: sees Stage Selector, play/pause, admin controls, can take stage
+27. Startup: sees own video pane, presenter-only controls; cannot see admin
+28. Investor (accredited): sees Invest dialog with $-amounts, Fund-ometer
+29. Investor (community): sees gift pledge dialog capped at $100
+30. Late joiner reads current stage state from Realtime Presence
+31. Chat messages visible to all roles; anonymized labels correct
+32. Magic-link arrival lands directly on session without a second prompt
 
-No router changes needed — `/` already maps to `Index`. Magic links go to `/login?...` or `/event/:slug` and are unaffected. `/session/:id`, `/admin`, `/event/:slug`, `/unsubscribe` are unaffected.
+### Edge-function smoke tests (Deno)
 
-### 4. Tests
+33. `participant-login` — success path, wrong password, unknown email, facilitator with shared credentials across sessions
+34. `participant-set-password` — first-time set, refuses when credentials already exist for that email
+35. `bootstrap-first-facilitator` — creates session + facilitator + credentials row
+36. `facilitator_has_password` RPC returns true/false correctly
+37. `events-rss` returns valid RSS XML for upcoming sessions only
+38. `public-upcoming-events` returns the expected shape
 
-- `src/pages/__tests__/Index.test.tsx` (new): mocks `fetch` for `public-upcoming-events` and asserts:
-  - Renders event cards with name + link to `/event/<slug>`.
-  - Renders empty state when API returns `[]`.
-  - Redirects to `/login` when `SessionProvider` already has a user.
+## Technical approach
 
-## Technical notes
-
-- "First time" is interpreted as "anonymous visitor with no in-memory session user." We don't set a cookie — every fresh tab gets the events page, which matches the request ("hits the home page for the first time"). This avoids touching storage and keeps magic-link / `/event/:slug` / `/login` flows fully unchanged.
-- The events list intentionally uses a new edge function rather than the existing `event-landing` (which is slug-scoped) so we don't widen its contract.
-- No changes to `Login.tsx`, `EventLanding.tsx`, `event-landing`, or `event-signup`.
+- Extend `src/pages/__tests__/Login.test.tsx` with cases 1–14. Mock `supabase.from`, `supabase.rpc('facilitator_has_password')`, `supabase.rpc('verify_participant_password')`, and `supabase.functions.invoke('participant-login' | 'participant-set-password')`. Assert `useSession` state via a probe component.
+- Add `src/pages/__tests__/Index.test.tsx` cases 15–19. Mock the upcoming-events query, RSS button clipboard, and `app_settings`.
+- Extend `EventLanding.test.tsx` with cases 20–25, including viewport-based rendering checks for the RSS button.
+- Add `src/pages/__tests__/Session.test.tsx` role-scoped cases 26–32. Stub `LiveKitRoom` and Realtime channels; render with three different `SessionProvider` seeds.
+- Add Deno tests under `supabase/functions/*/index_test.ts` for cases 33–38. Use `supabase--test_edge_functions` to run.
+- Run the full suite with `npm run test` + the edge-function test tool. For every failure: locate the regression, fix it in product code (not by relaxing the test), re-run until green.
+- Final pass: run `npm run build` and the security scan to confirm no critical findings before reporting back.
 
 ## Out of scope
 
-- Persisting "have I seen this before?" via cookies/localStorage.
-- Filtering events by tenant/domain (single-tenant app today).
-- Showing past events or an archive.
+- Visual regression / screenshot diffs.
+- Performance / load testing of Realtime channels.
+- Email-delivery integration tests (covered separately by the email-debugging guide).
