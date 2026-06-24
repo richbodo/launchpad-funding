@@ -454,6 +454,10 @@ export type Database = {
           read_ct: number
         }[]
       }
+      set_participant_password: {
+        Args: { _participant_id: string; _password: string }
+        Returns: undefined
+      }
       set_participant_presence: {
         Args: { _logged_in: boolean; _participant_id: string }
         Returns: undefined
