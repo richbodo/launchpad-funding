@@ -23,7 +23,6 @@ interface Participant {
   email: string;
   display_name: string | null;
   role: string;
-  password_hash: string | null;
   session_id: string;
   investor_class: 'accredited' | 'community' | null;
   image_url: string | null;
