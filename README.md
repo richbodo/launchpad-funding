@@ -8,6 +8,8 @@ This style of fundraising platform has been around, and has been very successful
 
 The reason this type of thing is so effective is that the "discovery" phase where great organizations find great supporters is mostly taken care of by the facilitators of the session - they find great folks that should know about each other and bring them into the event.
 
+The real vision is yet to be achieved, but it's next on deck: https://github.com/richbodo/launchpad-funding/issues/47
+
 ## How do you run a session with this
 
 There are features for both accredited investors, and non-accredited investors who cannot pledge more than 100USD, and who get a no-obligation gift from the startup.
