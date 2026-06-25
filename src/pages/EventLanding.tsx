@@ -270,6 +270,13 @@ export default function EventLanding() {
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@company.com"
                     autoComplete="email"
+                    // The parent Card sets text-white which would cascade into
+                    // <Input> and make typed text invisible on the input's
+                    // white background. Force the standard foreground color
+                    // both via class (theme-aware) and inline style (belt &
+                    // suspenders — survives any classname purge/merge).
+                    className="text-foreground"
+                    style={{ color: 'hsl(var(--foreground))' }}
                   />
                 </div>
                 <div>
@@ -280,7 +287,10 @@ export default function EventLanding() {
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="Jane Doe"
                     autoComplete="name"
+                    className="text-foreground"
+                    style={{ color: 'hsl(var(--foreground))' }}
                   />
+
                 </div>
                 <div>
                   <Label className="text-xs">I'm signing up as</Label>
