@@ -469,17 +469,20 @@ export default function Admin() {
    * still in the `queued` state.
    */
   const fetchInvestments = async (sessionId: string) => {
-    const { data, error } = await supabase
-      .from('investments')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('created_at', { ascending: false });
+    // Reads go through a SECURITY DEFINER RPC gated on the caller being a
+    // participant of the session. The admin is always a facilitator
+    // participant of their own sessions, so this is transparent for them.
+    const { data, error } = await supabase.rpc('get_session_investments', {
+      _session_id: sessionId,
+      _email: sessionUser?.email ?? '',
+    });
     if (error) {
       console.error('Failed to load investments', error);
       return;
     }
     if (data) setInvestments(data as InvestmentRow[]);
   };
+
 
   /**
    * Manually refresh the commitments table. Used when the real-time subscription
