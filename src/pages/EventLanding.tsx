@@ -432,6 +432,3 @@ export default function EventLanding() {
   );
 }
 
-    </div>
-  );
-}
