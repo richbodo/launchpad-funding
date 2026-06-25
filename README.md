@@ -16,6 +16,8 @@ There are features for both accredited investors, and non-accredited investors w
 
 The flow is pretty intuitive. You build a session, then a landing page for the event is built.  Email templates for every email that goes out - diagnostics every step of the way - all implemented.
 
+Importantly, the commuities want to meet: so offering a zoom afterward with breakout rooms so that people who have time can meet and get to know each other is recommended.
+
 The way the legal stuff works is that the platform will only allow investors to make "soft commitments".  
 
 After that, it emails the investor and the investee with the details of the comittment, and gives strong advisement to perform intensive due dilligence and consult legal before they invest in anything or accept an investment.  
