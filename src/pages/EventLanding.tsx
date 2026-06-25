@@ -33,10 +33,12 @@ interface LandingStartup {
   description: string | null;
 }
 interface LandingFacilitator {
+  email?: string | null;
   display_name: string | null;
   image_url: string | null;
   bio: string | null;
 }
+
 interface LandingPayload {
   session: {
     id: string;
