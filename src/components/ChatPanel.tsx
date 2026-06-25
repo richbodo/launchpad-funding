@@ -88,13 +88,16 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
       .subscribe();
 
     // Then fetch the latest HISTORY_LIMIT messages (newest-first, reversed for display).
+    // Reads go through a SECURITY DEFINER RPC that only returns rows if the
+    // caller proves they are a participant of this session — the raw
+    // chat_messages table is no longer publicly readable.
     (async () => {
-      const { data } = await supabase
-        .from('chat_messages')
-        .select('id, sender_email, sender_name, sender_role, message, created_at')
-        .eq('session_id', sessionId)
-        .order('created_at', { ascending: false })
-        .limit(HISTORY_LIMIT);
+      const { data } = await supabase.rpc('get_session_chat_messages', {
+        _session_id: sessionId,
+        _email: user?.email ?? '',
+        _limit: HISTORY_LIMIT,
+      });
+
       if (cancelled || !data) return;
       const ordered = [...data].reverse() as ChatMessage[];
       // Merge with any broadcast-delivered messages that arrived during the fetch.
@@ -117,7 +120,7 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [sessionId]);
+  }, [sessionId, user?.email]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });

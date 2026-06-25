@@ -268,13 +268,16 @@ export default function SessionPage() {
       if (facilitatorData) setFacilitators(facilitatorData);
 
       // Fetch row-level so we can dedupe by id with the broadcast channel.
-      const { data: investData } = await supabase
-        .from('investments')
-        .select('id, amount, startup_email, pledge_type')
-        .eq('session_id', id);
+      // Goes through a SECURITY DEFINER RPC that gates on caller being a
+      // participant — investments are no longer publicly readable.
+      const { data: investData } = await supabase.rpc('get_session_investments', {
+        _session_id: id,
+        _email: user?.email ?? '',
+      });
       if (investData) {
         for (const inv of investData) applyInvestment(inv as any);
       }
+
     };
     fetchData();
 
