@@ -120,7 +120,7 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [sessionId]);
+  }, [sessionId, user?.email]);
 
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
