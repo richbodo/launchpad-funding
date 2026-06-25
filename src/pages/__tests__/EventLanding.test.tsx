@@ -172,4 +172,34 @@ describe('EventLanding page', () => {
     });
     expect(screen.getByTestId('event-signup-form')).toBeInTheDocument();
   });
+
+  /**
+   * Regression guard for the white-on-white bug: the signup Card has
+   * `text-white` which cascades into <Input>. Without an explicit
+   * `text-foreground` on the inputs, typed characters render white on the
+   * input's white background and the user sees nothing as they type.
+   * If this class is ever removed, the form becomes effectively unusable.
+   */
+  it('keeps signup inputs visually legible (typed text contrasts with input bg)', async () => {
+    mockFetch(async (url) => {
+      if (url.includes('event-landing')) {
+        return new Response(JSON.stringify(landingPayload), { status: 200 });
+      }
+      return new Response('{}', { status: 200 });
+    });
+
+    renderAt('spring-demo');
+    await screen.findByTestId('event-signup-form');
+
+    const emailInput = screen.getByLabelText(/Email/i) as HTMLInputElement;
+    const nameInput = screen.getByLabelText(/Name/i) as HTMLInputElement;
+
+    expect(emailInput.className).toMatch(/\btext-foreground\b/);
+    expect(nameInput.className).toMatch(/\btext-foreground\b/);
+
+    // And verify typing actually populates the input value (sanity).
+    fireEvent.change(emailInput, { target: { value: 'visible@example.com' } });
+    expect(emailInput.value).toBe('visible@example.com');
+  });
 });
+
