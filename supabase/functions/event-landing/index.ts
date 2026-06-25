@@ -64,9 +64,11 @@ Deno.serve(async (req) => {
     }
 
     // Only expose presentable participant fields — no emails of attendees.
+    // Facilitator emails ARE exposed so the landing page can render a
+    // "Report an issue" mailto link to the event organizers.
     const { data: participants } = await supabase
       .from("session_participants")
-      .select("role, display_name, image_url, presentation_order, website_link, dd_room_link, funding_goal, description, bio")
+      .select("role, email, display_name, image_url, presentation_order, website_link, dd_room_link, funding_goal, description, bio")
       .eq("session_id", session.id)
       .in("role", ["startup", "facilitator"])
       .order("presentation_order", { ascending: true, nullsFirst: false });
@@ -84,10 +86,12 @@ Deno.serve(async (req) => {
     const facilitators = (participants || [])
       .filter((p: any) => p.role === "facilitator")
       .map((p: any) => ({
+        email: p.email,
         display_name: p.display_name,
         image_url: p.image_url,
         bio: p.bio,
       }));
+
 
     // Cap check: count approved investor/community attendees.
     const { count: approvedCount } = await supabase

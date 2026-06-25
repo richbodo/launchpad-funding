@@ -33,10 +33,12 @@ interface LandingStartup {
   description: string | null;
 }
 interface LandingFacilitator {
+  email?: string | null;
   display_name: string | null;
   image_url: string | null;
   bio: string | null;
 }
+
 interface LandingPayload {
   session: {
     id: string;
@@ -397,6 +399,26 @@ export default function EventLanding() {
           </section>
         )}
 
+        {/* Report-an-issue mailto link → all facilitator emails */}
+        {(() => {
+          const hostEmails = facilitators.map((f) => f.email).filter((e): e is string => !!e);
+          if (hostEmails.length === 0) return null;
+          const subject = encodeURIComponent(`[FundFlow] Issue with "${session.name}"`);
+          const body = encodeURIComponent(
+            `Hi organizers,\n\nI ran into an issue on the event page for "${session.name}":\n\n(describe what happened)\n\nLink: ${typeof window !== 'undefined' ? window.location.href : ''}\n`,
+          );
+          return (
+            <div className="pt-6 text-center text-sm">
+              <a
+                href={`mailto:${hostEmails.join(',')}?subject=${subject}&body=${body}`}
+                className="text-funding hover:underline font-medium"
+              >
+                Report an issue, we'll get on it!
+              </a>
+            </div>
+          );
+        })()}
+
         {/* Only show seat count once it's meaningful — avoid signaling "empty
             room" on freshly published events. */}
         {data.approved_attendee_count > 10 && (
@@ -409,3 +431,4 @@ export default function EventLanding() {
     </div>
   );
 }
+
