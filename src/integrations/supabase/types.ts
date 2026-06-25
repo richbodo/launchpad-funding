@@ -437,6 +437,41 @@ export type Database = {
         Returns: number
       }
       facilitator_has_password: { Args: { _email: string }; Returns: boolean }
+      get_session_chat_messages: {
+        Args: { _email: string; _limit?: number; _session_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          message: string
+          sender_email: string
+          sender_name: string
+          sender_role: Database["public"]["Enums"]["participant_role"]
+        }[]
+      }
+      get_session_investments: {
+        Args: { _email: string; _session_id: string }
+        Returns: {
+          amount: number
+          created_at: string
+          email_cancelled_at: string | null
+          email_queued_at: string | null
+          email_sent_at: string | null
+          email_status: string
+          id: string
+          investor_email: string
+          investor_name: string | null
+          pledge_type: string
+          session_id: string
+          startup_email: string
+          startup_name: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "investments"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
