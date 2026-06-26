@@ -1394,6 +1394,57 @@ function ForceLiveKitSubscriptions() {
     });
   }, [tracks]);
 
+// ── Room event logger: writes reconnect lifecycle to session_logs ─────
+// Diagnostic instrumentation (Jack's repeated dropouts during Test 4).
+// Single-responsibility: subscribe to RoomEvent lifecycle, persist to
+// session_logs, surface a small non-scary toast on reconnecting.
+
+function RoomEventLogger({ sessionId, actorEmail }: { sessionId: string; actorEmail: string }) {
+  const room = useRoomContext();
+
+  useEffect(() => {
+    if (!room) return;
+
+    const log = async (eventType: string, data: Record<string, unknown>) => {
+      try {
+        await supabase.from('session_logs').insert({
+          session_id: sessionId,
+          event_type: eventType,
+          event_data: { email: actorEmail, ...data },
+          actor_email: actorEmail,
+        });
+      } catch (err) {
+        console.warn('[RoomEventLogger] failed to persist', eventType, err);
+      }
+    };
+
+    const onReconnecting = () => {
+      console.info('[LiveKit] reconnecting');
+      toast.message('Reconnecting…', { duration: 3000 });
+      void log('livekit_reconnecting', { at: new Date().toISOString() });
+    };
+    const onReconnected = () => {
+      console.info('[LiveKit] reconnected');
+      toast.success('Reconnected', { duration: 2000 });
+      void log('livekit_reconnected', { at: new Date().toISOString() });
+    };
+    const onConnStateChanged = (state: unknown) => {
+      console.info('[LiveKit] connection state:', state);
+    };
+
+    room.on(RoomEvent.Reconnecting, onReconnecting);
+    room.on(RoomEvent.Reconnected, onReconnected);
+    room.on(RoomEvent.ConnectionStateChanged, onConnStateChanged);
+    return () => {
+      room.off(RoomEvent.Reconnecting, onReconnecting);
+      room.off(RoomEvent.Reconnected, onReconnected);
+      room.off(RoomEvent.ConnectionStateChanged, onConnStateChanged);
+    };
+  }, [room, sessionId, actorEmail]);
+
+  return null;
+}
+
   return null;
 }
 
