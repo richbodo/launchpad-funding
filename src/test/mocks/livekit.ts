@@ -20,4 +20,7 @@ vi.mock('@livekit/components-react', () => ({
 
 vi.mock('livekit-client', () => ({
   Track: { Source: { Camera: 'camera', Microphone: 'microphone', ScreenShare: 'screen_share' } },
+  ConnectionQuality: { Excellent: 'excellent', Good: 'good', Poor: 'poor', Lost: 'lost', Unknown: 'unknown' },
+  RoomEvent: { Reconnecting: 'reconnecting', Reconnected: 'reconnected', ConnectionStateChanged: 'connectionStateChanged' },
+  DisconnectReason: { CLIENT_INITIATED: 1, DUPLICATE_IDENTITY: 2, PARTICIPANT_REMOVED: 4, ROOM_DELETED: 5 },
 }));
