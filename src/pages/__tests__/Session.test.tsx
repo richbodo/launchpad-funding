@@ -1,6 +1,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import '@/test/mocks/livekit';
 
@@ -187,22 +188,25 @@ describe('Session — facilitator view', () => {
   });
 
   it('center pane shows intro placeholder at stage 0, startup after advancing', async () => {
+    const user = userEvent.setup();
     renderSession();
     // At stage 0 (Introduction), center pane shows the stage label, not a startup
     await waitFor(() => {
       // "Introduction" appears in both SessionTimer and center pane
       expect(screen.getAllByText('Introduction').length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.queryByText('Startup Presentation')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Startup Presentation')).not.toBeInTheDocument();
+    });
 
     // Click Next to advance to the first startup's presentation
     const nextBtn = screen.getByTestId('stage-next-btn');
-    nextBtn.click();
+    await user.click(nextBtn);
 
     await waitFor(() => {
       expect(screen.getAllByText('AlphaTech').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Startup Presentation')).toBeInTheDocument();
     });
-    expect(screen.getByText('Startup Presentation')).toBeInTheDocument();
   });
 
   it('stage controls visible: Previous, Play/Pause, Next', async () => {
@@ -236,18 +240,25 @@ describe('Session — Take Stage', () => {
   });
 
   it('Take Stage button is NOT visible during presentation stage', async () => {
+    const user = userEvent.setup();
     renderSession();
     await waitFor(() => {
       expect(screen.getByTestId('stage-next-btn')).toBeInTheDocument();
     });
+
     // Advance to presentation stage
-    screen.getByTestId('stage-next-btn').click();
+    const nextBtn = screen.getByTestId('stage-next-btn');
+    await user.click(nextBtn);
+
     await waitFor(() => {
       expect(screen.getByText('Startup Presentation')).toBeInTheDocument();
     });
+
     // Even if we were connected, the button won't appear because we're
     // using the default mock (token=null), so isConnected is false.
-    expect(screen.queryByTestId('take-stage-btn-facilitator@test.com')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('take-stage-btn-facilitator@test.com')).not.toBeInTheDocument();
+    });
   });
 
   it('center pane shows placeholder during intro with no one on stage', async () => {
