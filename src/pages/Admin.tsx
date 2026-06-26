@@ -261,6 +261,12 @@ export default function Admin() {
   const [sendingQueuedEmails, setSendingQueuedEmails] = useState(false);
   const [cancellingQueuedEmails, setCancellingQueuedEmails] = useState(false);
   const [sendingRowId, setSendingRowId] = useState<string | null>(null);
+  // Latest delivery state per recipient email, keyed lowercase. Populated by
+  // the email-logs edge function so the Invite column reflects real mail-server
+  // outcomes (sent / pending / failed / bounced / suppressed) instead of just
+  // the local "we enqueued it" stamp held in invite_sent_at.
+  const [inviteDelivery, setInviteDelivery] = useState<Record<string, { status: string; error_message: string | null; created_at: string }>>({});
+  const [refreshingInviteStatus, setRefreshingInviteStatus] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
