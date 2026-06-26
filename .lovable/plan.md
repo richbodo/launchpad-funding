@@ -1,76 +1,73 @@
-## Goal
+## Connection Health & Countermeasures
 
-Build a regression net that catches every login and landing-page failure mode we have hit before, then run it and fix anything broken. The recent password-hash refactor, RSS additions, and timezone widget all touched code paths that have historically regressed. We want failures to surface in CI, not from users.
+Implement facilitator-visible connection health with human-in-the-loop nudges. Designed for a facilitator who is *in* the call and focused — at-a-glance summary, one-click drill-in, templated nudges that put the user's environment first.
 
-## Coverage matrix
+### Slice A — Facilitator-only Connection Health panel
 
-### Login entry points (`/login`)
+A new `ConnectionHealthPanel` component, mounted inside `<LiveKitRoom>` on `Session.tsx`, visible only to facilitators.
 
-For each entry point we assert: (a) the user lands where they should, (b) `useSession()` has the correct role + participant id, (c) UI affordances for that role render, (d) no extra password prompt appears when one shouldn't.
+**Condensed always-on indicator** (top-right of session header, next to existing controls):
+- A single pill: `● 5` (green dot + total count) when everyone is healthy
+- Turns amber/red and shows worst-case label when any participant degrades: `● 1 issue` or `● 2 issues`
+- Click to expand a popover with per-participant rows
 
-1. Manual login — investor (accredited)
-2. Manual login — investor (community), including the investor-class picker
-3. Manual login — startup
-4. Manual login — facilitator with correct password
-5. Manual login — facilitator with wrong password (stays on password step, error toast)
-6. Manual login — facilitator with no credentials yet (create-password step appears, calls `participant-set-password`, then logs in)
-7. Magic link — investor (`?session=&email=&role=investor`) auto-logs in, skips password
-8. Magic link — investor without `investor_class` set, must pick class before entering session
-9. Magic link — startup auto-logs in, lands in session (or `?edit=true` → green room)
-10. Magic link — facilitator with `?password=` query (legacy demo path) auto-logs in
-11. Magic link — facilitator without password param prompts for password
-12. Demo "Jump in" auto-login button (uses `?autoLogin=true`)
-13. Randomized demo login per role (Shuffle)
-14. Logout clears session and `is_logged_in` flag
+**Expanded popover rows** (one per remote participant):
+```
+● Jack (Startup)      Poor · 240ms · 6% loss · 1 reconnect      [Nudge ▾]
+● Emmerich (Investor) Good · 80ms · 0% loss                     —
+```
+- Dot color from derived health state: `healthy` (green), `degraded` (amber), `failing` (red), `stuck` (red, pulsing)
+- Health state derived from `ConnectionQuality` + reconnect events from existing `RoomEventLogger`
+- Reconnect count tracked in-memory per identity (resets on session change)
 
-### Landing / home page (`/`)
+### Slice B — WebRTC stats + Nudge actions
 
-15. Anonymous visitor sees upcoming events, RSS button, no signup count when total < 10
-16. Signup count shows when ≥ 10
-17. RSS button copies feed URL with `apikey` + `site` params
-18. First-run / no-facilitator state surfaces bootstrap CTA
-19. Demo mode banner renders when `app_settings.mode = 'demo'`
+**Stats sampling** (5s interval, in-memory only, no DB writes):
+- Use `RTCPeerConnection.getStats()` from each remote participant's track publication
+- Extract: RTT, packet loss %, jitter, framesDropped, availableOutgoingBitrate
+- Feed into the health state classifier alongside `ConnectionQuality`
 
-### Event landing (`/event/:slug`)
+**Nudge action menu** (per-row dropdown) — ordered by the user's preferred troubleshooting sequence:
+1. **"Plug in AC power"** — DMs a templated chat message: *"Hey {name} — quick check: if you're on a laptop, plug into AC power. Battery mode aggressively throttles Wi-Fi & CPU."*
+2. **"Disable VPN"** — DM: *"Hey {name} — try disabling any VPN or corporate proxy. Double-NAT is a common cause of drops."*
+3. **"Refresh your video tile"** — runs local `softRetry()` (existing in `VideoPane`); no DM
+4. **"Ask them to rejoin"** — DM: *"Hey {name} — could you click Leave Call and then Join Call again? That'll re-establish the connection."*
+5. **"Suggest lower quality"** — DM: *"Hey {name} — your network is struggling. Try closing other tabs / pausing downloads."*
 
-20. Public visitor sees title, description, **5-timezone strip** with correct flags
-21. Three NZTech startup bullets render as `<ul><li>` (regression from earlier edit)
-22. RSS button present beside title on desktop and stacked on mobile
-23. Signup form posts to `event-signup` and shows success toast
-24. Signed-in facilitator sees admin shortcut
-25. Past/completed event hides signup, shows replay state
+All nudges are **suggestions** — they post into the existing `chat_messages` channel with `sender_role: 'facilitator'`. No silent auto-recovery.
 
-### Session page (`/session/:id`) per role
+### Slice C — Post-session Connection Report
 
-26. Facilitator: sees Stage Selector, play/pause, admin controls, can take stage
-27. Startup: sees own video pane, presenter-only controls; cannot see admin
-28. Investor (accredited): sees Invest dialog with $-amounts, Fund-ometer
-29. Investor (community): sees gift pledge dialog capped at $100
-30. Late joiner reads current stage state from Realtime Presence
-31. Chat messages visible to all roles; anonymized labels correct
-32. Magic-link arrival lands directly on session without a second prompt
+A new tab in `Admin.tsx` under each session: **"Connection Report"**.
 
-### Edge-function smoke tests (Deno)
+Reads from existing `session_logs` (already capturing `livekit_reconnecting` / `livekit_reconnected` from Slice from prior work).
 
-33. `participant-login` — success path, wrong password, unknown email, facilitator with shared credentials across sessions
-34. `participant-set-password` — first-time set, refuses when credentials already exist for that email
-35. `bootstrap-first-facilitator` — creates session + facilitator + credentials row
-36. `facilitator_has_password` RPC returns true/false correctly
-37. `events-rss` returns valid RSS XML for upcoming sessions only
-38. `public-upcoming-events` returns the expected shape
+Per-participant summary:
+- Total reconnect events
+- Total time spent reconnecting (sum of reconnecting → reconnected gaps)
+- First/last seen reconnect timestamps
 
-## Technical approach
+Plus a session-wide rollup ("3 of 7 participants had ≥1 reconnect; worst: Jack with 4 events / 142s offline") to inform tier/region decisions.
 
-- Extend `src/pages/__tests__/Login.test.tsx` with cases 1–14. Mock `supabase.from`, `supabase.rpc('facilitator_has_password')`, `supabase.rpc('verify_participant_password')`, and `supabase.functions.invoke('participant-login' | 'participant-set-password')`. Assert `useSession` state via a probe component.
-- Add `src/pages/__tests__/Index.test.tsx` cases 15–19. Mock the upcoming-events query, RSS button clipboard, and `app_settings`.
-- Extend `EventLanding.test.tsx` with cases 20–25, including viewport-based rendering checks for the RSS button.
-- Add `src/pages/__tests__/Session.test.tsx` role-scoped cases 26–32. Stub `LiveKitRoom` and Realtime channels; render with three different `SessionProvider` seeds.
-- Add Deno tests under `supabase/functions/*/index_test.ts` for cases 33–38. Use `supabase--test_edge_functions` to run.
-- Run the full suite with `npm run test` + the edge-function test tool. For every failure: locate the regression, fix it in product code (not by relaxing the test), re-run until green.
-- Final pass: run `npm run build` and the security scan to confirm no critical findings before reporting back.
+### Files to add / change
 
-## Out of scope
+**New:**
+- `src/components/ConnectionHealthPanel.tsx` — pill + popover + rows
+- `src/hooks/useConnectionHealth.ts` — sampling loop, classifier, in-memory state map
+- `src/lib/connectionNudges.ts` — DM templates + sender helper
+- `src/components/__tests__/ConnectionHealthPanel.test.tsx`
+- `src/hooks/__tests__/useConnectionHealth.test.ts`
 
-- Visual regression / screenshot diffs.
-- Performance / load testing of Realtime channels.
-- Email-delivery integration tests (covered separately by the email-debugging guide).
+**Changed:**
+- `src/pages/Session.tsx` — mount `<ConnectionHealthPanel />` for facilitators only, inside `<LiveKitRoom>`
+- `src/pages/Admin.tsx` — add Connection Report tab per session
+- `src/test/mocks/livekit.ts` — add `getStats` mock support
+
+No DB migrations needed — `session_logs` already stores reconnect events.
+
+### Out of scope (deliberately)
+
+- No silent auto-recovery (would mask real problems)
+- No region switching (LiveKit-side, not app-side)
+- No participant-visible self-health UI (facilitator panel only; keeps the room calm)
+- No bandwidth caps applied by the app (we *suggest*, user decides)
