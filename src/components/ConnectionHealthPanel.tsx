@@ -105,6 +105,14 @@ export default function ConnectionHealthPanel({
 
   const handleNudge = async (h: ParticipantHealth, nudgeId: NudgeId) => {
     if (nudgeId === 'refresh_tile') {
+      // Broadcast to any VideoPane matching this identity. Decoupled this
+      // way so the panel doesn't need a ref to every pane (they live in
+      // multiple parts of the layout: facilitator stack, stage, startup grid).
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('lk-soft-retry-tile', { detail: { identity: h.identity } }),
+        );
+      }
       onRefreshTile?.(h.identity);
       toast.success(`Refreshed ${h.name}'s tile`);
       return;
