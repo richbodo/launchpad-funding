@@ -2120,16 +2120,42 @@ export default function Admin() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                {p.invite_sent_at ? (
-                                  <span
-                                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600"
-                                    title={`Queued ${new Date(p.invite_sent_at).toLocaleString()}`}
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5" /> Queued
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">Not sent</span>
-                                )}
+                                {(() => {
+                                  const delivery = p.email ? inviteDelivery[p.email.toLowerCase()] : undefined;
+                                  // Prefer real mail-server outcome when we have one.
+                                  if (delivery) {
+                                    const when = new Date(delivery.created_at).toLocaleString();
+                                    const map: Record<string, { label: string; cls: string; title: string }> = {
+                                      sent:        { label: 'Sent',       cls: 'text-emerald-600',  title: `Accepted by mail server ${when}` },
+                                      pending:     { label: 'Queued',     cls: 'text-amber-600',    title: `Queued for delivery ${when}` },
+                                      rate_limited:{ label: 'Throttled',  cls: 'text-amber-600',    title: `Rate-limited; will retry. ${when}` },
+                                      failed:      { label: 'Failed',     cls: 'text-red-600',      title: `${delivery.error_message || 'Send failed'} (${when})` },
+                                      dlq:         { label: 'Failed',     cls: 'text-red-600',      title: `Dead-lettered after retries. ${delivery.error_message || ''} (${when})` },
+                                      bounced:     { label: 'Bounced',    cls: 'text-red-600',      title: `Bounced ${when}` },
+                                      complained:  { label: 'Complaint',  cls: 'text-red-600',      title: `Marked as spam ${when}` },
+                                      suppressed:  { label: 'Suppressed', cls: 'text-muted-foreground', title: `Address suppressed ${when}` },
+                                    };
+                                    const m = map[delivery.status] || { label: delivery.status, cls: 'text-muted-foreground', title: when };
+                                    return (
+                                      <span className={`inline-flex items-center gap-1 text-xs font-medium ${m.cls}`} title={m.title}>
+                                        {delivery.status === 'sent' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                        {m.label}
+                                      </span>
+                                    );
+                                  }
+                                  // Fall back to the local "we enqueued it" stamp.
+                                  if (p.invite_sent_at) {
+                                    return (
+                                      <span
+                                        className="inline-flex items-center gap-1 text-xs font-medium text-amber-600"
+                                        title={`Enqueued locally ${new Date(p.invite_sent_at).toLocaleString()} — no mail-server log yet`}
+                                      >
+                                        Queued
+                                      </span>
+                                    );
+                                  }
+                                  return <span className="text-xs text-muted-foreground">Not sent</span>;
+                                })()}
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-1">
