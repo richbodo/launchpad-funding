@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useDemoMode, clearDemoModeCache } from '@/hooks/useDemoMode';
 import { setAdminToken, getAdminToken, clearAdminToken } from '@/lib/adminAuth';
+import { resolveFacilitatorEmail } from '@/lib/adminEmail';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -474,7 +475,7 @@ export default function Admin() {
     // participant of their own sessions, so this is transparent for them.
     const { data, error } = await supabase.rpc('get_session_investments', {
       _session_id: sessionId,
-      _email: (sessionUser?.email ?? adminEmail ?? '').toLowerCase(),
+      _email: resolveFacilitatorEmail(sessionUser?.email, adminEmail),
     });
     if (error) {
       console.error('Failed to load investments', error);
