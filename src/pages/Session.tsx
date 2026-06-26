@@ -4,8 +4,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useSessionStages } from '@/hooks/useSessionStages';
 import { useLiveKitToken } from '@/hooks/useLiveKitToken';
-import { LiveKitRoom, RoomAudioRenderer, StartAudio, useLocalParticipant, useTracks } from '@livekit/components-react';
-import { Track, ScreenSharePresets, DisconnectReason } from 'livekit-client';
+import { LiveKitRoom, RoomAudioRenderer, StartAudio, useLocalParticipant, useTracks, useRoomContext } from '@livekit/components-react';
+import { Track, ScreenSharePresets, DisconnectReason, RoomEvent } from 'livekit-client';
 import '@livekit/components-styles';
 import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
@@ -1210,6 +1210,7 @@ export default function SessionPage() {
             className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-primary text-primary-foreground shadow-lg hover:opacity-90"
           />
           <ForceLiveKitSubscriptions />
+          <RoomEventLogger sessionId={id} actorEmail={user.email} />
         </LiveKitRoom>
       ) : (
         sessionContent
@@ -1395,6 +1396,62 @@ function ForceLiveKitSubscriptions() {
 
   return null;
 }
+
+
+
+// ── Room event logger: writes reconnect lifecycle to session_logs ─────
+// Diagnostic instrumentation (Jack's repeated dropouts during Test 4).
+// Single-responsibility: subscribe to RoomEvent lifecycle, persist to
+// session_logs, surface a small non-scary toast on reconnecting.
+
+function RoomEventLogger({ sessionId, actorEmail }: { sessionId: string; actorEmail: string }) {
+  const room = useRoomContext();
+
+  useEffect(() => {
+    if (!room) return;
+
+    const log = async (eventType: string, data: Record<string, unknown>) => {
+      try {
+        await supabase.from('session_logs').insert({
+          session_id: sessionId,
+          event_type: eventType,
+          event_data: { email: actorEmail, ...data },
+          actor_email: actorEmail,
+        });
+      } catch (err) {
+        console.warn('[RoomEventLogger] failed to persist', eventType, err);
+      }
+    };
+
+    const onReconnecting = () => {
+      console.info('[LiveKit] reconnecting');
+      toast.message('Reconnecting…', { duration: 3000 });
+      void log('livekit_reconnecting', { at: new Date().toISOString() });
+    };
+    const onReconnected = () => {
+      console.info('[LiveKit] reconnected');
+      toast.success('Reconnected', { duration: 2000 });
+      void log('livekit_reconnected', { at: new Date().toISOString() });
+    };
+    const onConnStateChanged = (state: unknown) => {
+      console.info('[LiveKit] connection state:', state);
+    };
+
+    room.on(RoomEvent.Reconnecting, onReconnecting);
+    room.on(RoomEvent.Reconnected, onReconnected);
+    room.on(RoomEvent.ConnectionStateChanged, onConnStateChanged);
+    return () => {
+      room.off(RoomEvent.Reconnecting, onReconnecting);
+      room.off(RoomEvent.Reconnected, onReconnected);
+      room.off(RoomEvent.ConnectionStateChanged, onConnStateChanged);
+    };
+  }, [room, sessionId, actorEmail]);
+
+  return null;
+}
+
+
+
 
 // ── Mic toggle button (must be rendered inside LiveKitRoom) ──────────
 

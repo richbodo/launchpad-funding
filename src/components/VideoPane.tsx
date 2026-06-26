@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTracks, VideoTrack, useParticipants } from '@livekit/components-react';
-import { Track } from 'livekit-client';
+import { Track, ConnectionQuality } from 'livekit-client';
 import { Video, VideoOff, Loader2, RefreshCw, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -76,7 +76,13 @@ function LiveVideoPane({
   // stuck-subscription case → watchdog) from "remote participant has not
   // joined the call yet" (waiting on a human action → no watchdog, no
   // misleading Refresh button).
-  const isInRoom = participants.some((p) => p.identity === participantIdentity);
+  const matchedParticipant = participants.find((p) => p.identity === participantIdentity);
+  const isInRoom = !!matchedParticipant;
+  // Non-scary "Reconnecting…" badge: surfaces when a remote participant's
+  // LiveKit connection quality drops to Poor/Lost so the room knows it's
+  // *their* network, not everyone's. Updates live as LiveKit re-evaluates.
+  const quality = matchedParticipant?.connectionQuality;
+  const isStruggling = quality === ConnectionQuality.Poor || quality === ConnectionQuality.Lost;
 
   useEffect(() => {
     const expectedPublications = tracks.filter(
@@ -165,6 +171,14 @@ function LiveVideoPane({
       </div>
 
       <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        {isStruggling && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/90 mr-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <span className="text-[10px] uppercase tracking-wider text-white font-medium">
+              {quality === ConnectionQuality.Lost ? 'Reconnecting…' : 'Weak signal'}
+            </span>
+          </div>
+        )}
         {isScreenShare && (
           <>
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
