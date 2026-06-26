@@ -261,6 +261,12 @@ export default function Admin() {
   const [sendingQueuedEmails, setSendingQueuedEmails] = useState(false);
   const [cancellingQueuedEmails, setCancellingQueuedEmails] = useState(false);
   const [sendingRowId, setSendingRowId] = useState<string | null>(null);
+  // Latest delivery state per recipient email, keyed lowercase. Populated by
+  // the email-logs edge function so the Invite column reflects real mail-server
+  // outcomes (sent / pending / failed / bounced / suppressed) instead of just
+  // the local "we enqueued it" stamp held in invite_sent_at.
+  const [inviteDelivery, setInviteDelivery] = useState<Record<string, { status: string; error_message: string | null; created_at: string }>>({});
+  const [refreshingInviteStatus, setRefreshingInviteStatus] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
@@ -806,6 +812,40 @@ export default function Admin() {
       fetchEmailSettings();
     }
   }, [isAuthenticated]);
+
+  /**
+   * Fetch the latest email_send_log status for every participant of the
+   * currently-selected session, keyed by lowercase recipient email. This
+   * powers the "Invite" column so it reflects real delivery state instead
+   * of the locally-stamped invite_sent_at "we enqueued it" timestamp.
+   */
+  const refreshInviteDelivery = async () => {
+    if (!selectedSession) return;
+    const emails = Array.from(new Set(
+      participants.map(p => (p.email || '').trim().toLowerCase()).filter(Boolean)
+    ));
+    if (emails.length === 0) {
+      setInviteDelivery({});
+      return;
+    }
+    setRefreshingInviteStatus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('email-logs', {
+        body: { recipient_emails: emails, template_name: 'session-invitation' },
+      });
+      if (error || !data?.latest_by_recipient) return;
+      setInviteDelivery(data.latest_by_recipient);
+    } finally {
+      setRefreshingInviteStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshInviteDelivery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSession?.id, participants.length]);
+
+
 
   const createSession = async () => {
     if (!newTimezone) {
@@ -2080,16 +2120,42 @@ export default function Admin() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                {p.invite_sent_at ? (
-                                  <span
-                                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600"
-                                    title={`Queued ${new Date(p.invite_sent_at).toLocaleString()}`}
-                                  >
-                                    <CheckCircle2 className="w-3.5 h-3.5" /> Queued
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">Not sent</span>
-                                )}
+                                {(() => {
+                                  const delivery = p.email ? inviteDelivery[p.email.toLowerCase()] : undefined;
+                                  // Prefer real mail-server outcome when we have one.
+                                  if (delivery) {
+                                    const when = new Date(delivery.created_at).toLocaleString();
+                                    const map: Record<string, { label: string; cls: string; title: string }> = {
+                                      sent:        { label: 'Sent',       cls: 'text-emerald-600',  title: `Accepted by mail server ${when}` },
+                                      pending:     { label: 'Queued',     cls: 'text-amber-600',    title: `Queued for delivery ${when}` },
+                                      rate_limited:{ label: 'Throttled',  cls: 'text-amber-600',    title: `Rate-limited; will retry. ${when}` },
+                                      failed:      { label: 'Failed',     cls: 'text-red-600',      title: `${delivery.error_message || 'Send failed'} (${when})` },
+                                      dlq:         { label: 'Failed',     cls: 'text-red-600',      title: `Dead-lettered after retries. ${delivery.error_message || ''} (${when})` },
+                                      bounced:     { label: 'Bounced',    cls: 'text-red-600',      title: `Bounced ${when}` },
+                                      complained:  { label: 'Complaint',  cls: 'text-red-600',      title: `Marked as spam ${when}` },
+                                      suppressed:  { label: 'Suppressed', cls: 'text-muted-foreground', title: `Address suppressed ${when}` },
+                                    };
+                                    const m = map[delivery.status] || { label: delivery.status, cls: 'text-muted-foreground', title: when };
+                                    return (
+                                      <span className={`inline-flex items-center gap-1 text-xs font-medium ${m.cls}`} title={m.title}>
+                                        {delivery.status === 'sent' && <CheckCircle2 className="w-3.5 h-3.5" />}
+                                        {m.label}
+                                      </span>
+                                    );
+                                  }
+                                  // Fall back to the local "we enqueued it" stamp.
+                                  if (p.invite_sent_at) {
+                                    return (
+                                      <span
+                                        className="inline-flex items-center gap-1 text-xs font-medium text-amber-600"
+                                        title={`Enqueued locally ${new Date(p.invite_sent_at).toLocaleString()} — no mail-server log yet`}
+                                      >
+                                        Queued
+                                      </span>
+                                    );
+                                  }
+                                  return <span className="text-xs text-muted-foreground">Not sent</span>;
+                                })()}
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex items-center justify-end gap-1">
