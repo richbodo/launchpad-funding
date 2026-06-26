@@ -240,18 +240,25 @@ describe('Session — Take Stage', () => {
   });
 
   it('Take Stage button is NOT visible during presentation stage', async () => {
+    const user = userEvent.setup();
     renderSession();
     await waitFor(() => {
       expect(screen.getByTestId('stage-next-btn')).toBeInTheDocument();
     });
+
     // Advance to presentation stage
-    screen.getByTestId('stage-next-btn').click();
+    const nextBtn = screen.getByTestId('stage-next-btn');
+    await user.click(nextBtn);
+
     await waitFor(() => {
       expect(screen.getByText('Startup Presentation')).toBeInTheDocument();
     });
+
     // Even if we were connected, the button won't appear because we're
     // using the default mock (token=null), so isConnected is false.
-    expect(screen.queryByTestId('take-stage-btn-facilitator@test.com')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByTestId('take-stage-btn-facilitator@test.com')).not.toBeInTheDocument();
+    });
   });
 
   it('center pane shows placeholder during intro with no one on stage', async () => {
