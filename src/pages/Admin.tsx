@@ -415,24 +415,12 @@ export default function Admin() {
   };
 
   const handleAdminLogin = async () => {
-    // Find any session where this facilitator exists to verify password
-    const { data: facilitators, error } = await supabase
-      .from('session_participants')
-      .select('id, session_id')
-      .eq('email', adminEmail.toLowerCase())
-      .eq('role', 'facilitator')
-      .limit(1);
-
-    if (error || !facilitators || facilitators.length === 0) {
-      toast.error('No facilitator account found with this email');
-      return;
-    }
-
-    // Verify password server-side; participant-login returns an admin_token
-    // we stash for subsequent admin-action calls.
+    // Verify the facilitator's password server-side. participant-login uses
+    // the service role internally so it works even when this facilitator has
+    // no scheduled/live sessions (the public RLS policy on
+    // session_participants hides completed/draft rows from anon reads).
     const { data, error: loginErr } = await supabase.functions.invoke('participant-login', {
       body: {
-        session_id: facilitators[0].session_id,
         email: adminEmail.toLowerCase(),
         password: adminPassword,
       },
@@ -462,13 +450,22 @@ export default function Admin() {
   };
 
   const fetchParticipants = async (sessionId: string) => {
-    const { data } = await supabase
-      .from('session_participants')
-      .select('*')
-      .eq('session_id', sessionId)
-      .order('role', { ascending: true });
+    // session_participants is publicly readable only for scheduled/live
+    // sessions. Use the security-definer RPC so the admin can also load
+    // rosters for completed/draft sessions (gated on caller being a
+    // participant of the session — admins always are, as facilitators).
+    const callerEmail = resolveFacilitatorEmail(sessionUser?.email, adminEmail);
+    const { data, error } = await supabase.rpc('get_session_participants', {
+      _session_id: sessionId,
+      _email: callerEmail,
+    });
+    if (error) {
+      console.error('Failed to load participants', error);
+      return;
+    }
     if (data) setParticipants(data as ParticipantRow[]);
   };
+
 
   /**
    * Load every soft commitment for the currently-selected session, regardless

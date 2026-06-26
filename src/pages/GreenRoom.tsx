@@ -73,24 +73,44 @@ export default function GreenRoom() {
       .maybeSingle();
     if (sess) setSession(sess as SessionRow);
 
-    const { data: me } = await supabase
-      .from('session_participants')
-      .select('id, role, description, funding_goal, dd_room_link, website_link, image_url, bio')
-      .eq('session_id', id)
-      .eq('email', user.email)
-      .maybeSingle();
-    if (me) setSelfRow(me);
+    // session_participants is hidden from anon reads for completed/draft
+    // sessions, so use the security-definer RPC (gated on caller being a
+    // participant of this session) to load everyone, then derive self + roster.
+    const { data: roster } = await supabase.rpc('get_session_participants', {
+      _session_id: id,
+      _email: user.email,
+    });
+    const rows = (roster ?? []) as any[];
+
+    const me = rows.find((r) => (r.email || '').toLowerCase() === user.email.toLowerCase());
+    if (me) {
+      setSelfRow({
+        id: me.id,
+        role: me.role,
+        description: me.description,
+        funding_goal: me.funding_goal,
+        dd_room_link: me.dd_room_link,
+        website_link: me.website_link,
+        image_url: me.image_url,
+        bio: me.bio,
+      });
+    }
 
     if (user.role === 'facilitator') {
-      const { data: rost } = await supabase
-        .from('session_participants')
-        .select('email, display_name, description, funding_goal, image_url')
-        .eq('session_id', id)
-        .eq('role', 'startup')
-        .order('presentation_order', { ascending: true });
-      if (rost) setStartups(rost as StartupRow[]);
+      const startups = rows
+        .filter((r) => r.role === 'startup')
+        .sort((a, b) => (a.presentation_order ?? 0) - (b.presentation_order ?? 0))
+        .map((r) => ({
+          email: r.email,
+          display_name: r.display_name,
+          description: r.description,
+          funding_goal: r.funding_goal,
+          image_url: r.image_url,
+        }));
+      setStartups(startups as StartupRow[]);
     }
   };
+
 
   useEffect(() => {
     reload();

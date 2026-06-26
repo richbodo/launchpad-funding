@@ -472,6 +472,35 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      get_session_participants: {
+        Args: { _email: string; _session_id: string }
+        Returns: {
+          approved: boolean
+          bio: string | null
+          created_at: string
+          dd_room_link: string | null
+          description: string | null
+          display_name: string | null
+          email: string
+          funding_goal: number | null
+          id: string
+          image_url: string | null
+          investor_class: string | null
+          invite_sent_at: string | null
+          is_logged_in: boolean
+          logged_in_at: string | null
+          presentation_order: number | null
+          role: Database["public"]["Enums"]["participant_role"]
+          session_id: string
+          website_link: string | null
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "session_participants"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string

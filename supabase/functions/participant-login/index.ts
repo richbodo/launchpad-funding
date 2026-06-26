@@ -25,11 +25,16 @@ Deno.serve(async (req) => {
   try {
     const { session_id, email, password } = await req.json();
 
-    if (!session_id || typeof session_id !== "string" || session_id.length > 100) {
-      return new Response(JSON.stringify({ error: "Valid session_id is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // session_id is optional for facilitators — admins may sign in without
+    // having an active session (e.g. all their sessions are completed and
+    // RLS on session_participants hides them from anon reads).
+    if (session_id !== undefined && session_id !== null && session_id !== "") {
+      if (typeof session_id !== "string" || session_id.length > 100) {
+        return new Response(JSON.stringify({ error: "Valid session_id is required" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
     }
     if (!email || typeof email !== "string" || email.length > 255) {
       return new Response(JSON.stringify({ error: "Valid email is required" }), {
@@ -49,13 +54,16 @@ Deno.serve(async (req) => {
 
     const normalizedEmail = email.toLowerCase().trim();
 
-    const { data: participant, error: lookupErr } = await supabase
+    // Look up any facilitator row for this email. If session_id was given,
+    // prefer the matching row so the response participant reflects that session.
+    let participantQuery = supabase
       .from("session_participants")
-      .select("id, email, display_name, role")
-      .eq("session_id", session_id)
+      .select("id, email, display_name, role, session_id")
       .eq("email", normalizedEmail)
-      .eq("role", "facilitator")
-      .maybeSingle();
+      .eq("role", "facilitator");
+    if (session_id) participantQuery = participantQuery.eq("session_id", session_id);
+    const { data: participantRows, error: lookupErr } = await participantQuery.limit(1);
+    const participant = participantRows?.[0];
 
     if (lookupErr || !participant) {
       return new Response(JSON.stringify({ error: "Invalid credentials" }), {
@@ -63,6 +71,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
 
     // Find a credentialed facilitator row for this email — credentials are
     // shared across all sessions a facilitator is invited to. We look up any
