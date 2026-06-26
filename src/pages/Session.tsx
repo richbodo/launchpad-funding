@@ -1448,10 +1448,8 @@ function RoomEventLogger({ sessionId, actorEmail }: { sessionId: string; actorEm
   }, [room, sessionId, actorEmail]);
 
   return null;
-}
 
-  return null;
-}
+
 
 // ── Mic toggle button (must be rendered inside LiveKitRoom) ──────────
 
