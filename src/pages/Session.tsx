@@ -1448,6 +1448,8 @@ function RoomEventLogger({ sessionId, actorEmail }: { sessionId: string; actorEm
   }, [room, sessionId, actorEmail]);
 
   return null;
+}
+
 
 
 
