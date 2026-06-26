@@ -196,6 +196,8 @@ interface PlaceholderProps {
   stale?: boolean;
   /** Optional soft-retry handler invoked from the Refresh button. */
   onRetry?: () => void;
+  /** True when the remote participant exists in the session but hasn't joined the LiveKit room yet. */
+  notJoined?: boolean;
 }
 
 function Placeholder({
@@ -210,10 +212,25 @@ function Placeholder({
   onJoinCall,
   stale = false,
   onRetry,
+  notJoined = false,
 }: PlaceholderProps) {
   const isLive = sessionStatus === 'live';
 
   const renderAction = () => {
+    // Remote participant exists in session but hasn't joined the call yet.
+    // Render a calm waiting state — no spinner, no Refresh loop (which would
+    // do nothing useful when there are no publications to re-subscribe to).
+    if (notJoined && !isSelf) {
+      return (
+        <>
+          <div className="w-16 h-16 rounded-full bg-muted/60 flex items-center justify-center mx-auto mb-3">
+            <UserX className="w-7 h-7 text-muted-foreground" />
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">Hasn't joined yet</p>
+        </>
+      );
+    }
+
     // Connecting state — spinner for everyone
     if (callState === 'connecting') {
       return (
@@ -243,17 +260,28 @@ function Placeholder({
     }
 
 
-    // Self pane — show action buttons
+    // Self pane — show action buttons. When the session is already live and
+    // the facilitator hasn't joined yet, pulse the Join Call button so it's
+    // impossible to miss (Test 4 feedback: facilitators didn't realise they
+    // had to click Join Call when arriving mid-session).
     if (isSelf && selfRole === 'facilitator') {
+      const needsAttention = isLive;
       return (
         <>
           <Button
             onClick={isLive ? onJoinCall : onStartCall}
-            className="bg-green-600 hover:bg-green-700 text-white"
+            className={`bg-green-600 hover:bg-green-700 text-white ${
+              needsAttention ? 'animate-pulse ring-4 ring-green-400/60 shadow-lg shadow-green-500/40' : ''
+            }`}
           >
             <Video className="w-4 h-4 mr-2" />
             {isLive ? 'Join Call' : 'Start Call'}
           </Button>
+          {needsAttention && (
+            <p className="text-[11px] text-amber-500 mt-2 font-medium">
+              Session is live — click to join
+            </p>
+          )}
         </>
       );
     }
