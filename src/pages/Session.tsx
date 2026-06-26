@@ -1394,6 +1394,11 @@ function ForceLiveKitSubscriptions() {
     });
   }, [tracks]);
 
+  return null;
+}
+
+
+
 // ── Room event logger: writes reconnect lifecycle to session_logs ─────
 // Diagnostic instrumentation (Jack's repeated dropouts during Test 4).
 // Single-responsibility: subscribe to RoomEvent lifecycle, persist to
