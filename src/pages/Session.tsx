@@ -1202,10 +1202,14 @@ export default function SessionPage() {
           onError={(err) => console.error('[LiveKit] error:', err)}
         >
           {sessionContent}
-          <RoomAudioRenderer muted={localMuted} />
-          {/* Browsers block audio autoplay until a user gesture. StartAudio
-              renders a button only when the audio element can't auto-play;
-              clicking it unlocks remote audio so participants can hear others. */}
+          <RoomAudioRenderer muted={localMuted} volume={1} />
+          {/* Browsers block audio autoplay until a user gesture. We use a
+              custom button (instead of <StartAudio/>) so it's loud, full-width
+              at the top of the viewport, and reactive to playback-status
+              changes that happen *after* a remote audio track is published
+              (investors hit this most because they never publish a mic and
+              therefore never produce a user gesture during join). */}
+          <EnableAudioBanner />
           <StartAudio
             label="🔊 Click to enable audio"
             className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-primary text-primary-foreground shadow-lg hover:opacity-90"
