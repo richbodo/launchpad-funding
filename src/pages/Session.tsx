@@ -11,6 +11,7 @@ import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
 import VideoPane from '@/components/VideoPane';
 import type { CallState } from '@/components/VideoPane';
+import ConnectionHealthPanel from '@/components/ConnectionHealthPanel';
 import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
@@ -1211,6 +1212,13 @@ export default function SessionPage() {
           />
           <ForceLiveKitSubscriptions />
           <RoomEventLogger sessionId={id} actorEmail={user.email} />
+          {isFacilitator && (
+            <ConnectionHealthPanelMount
+              sessionId={id!}
+              facilitatorEmail={user.email}
+              facilitatorName={user.displayName}
+            />
+          )}
         </LiveKitRoom>
       ) : (
         sessionContent
@@ -1448,6 +1456,32 @@ function RoomEventLogger({ sessionId, actorEmail }: { sessionId: string; actorEm
   }, [room, sessionId, actorEmail]);
 
   return null;
+}
+
+// ── Facilitator-only floating Connection Health pill ─────────────────
+// Mounted inside <LiveKitRoom> so the underlying hook has access to the
+// LiveKit room context. Positioned fixed top-right so it's always one
+// glance away — the facilitator is usually focused on the stage video,
+// not on a settings panel.
+
+function ConnectionHealthPanelMount({
+  sessionId,
+  facilitatorEmail,
+  facilitatorName,
+}: {
+  sessionId: string;
+  facilitatorEmail: string;
+  facilitatorName: string | null;
+}) {
+  return (
+    <div className="fixed top-3 right-3 z-40">
+      <ConnectionHealthPanel
+        sessionId={sessionId}
+        facilitatorEmail={facilitatorEmail}
+        facilitatorName={facilitatorName}
+      />
+    </div>
+  );
 }
 
 

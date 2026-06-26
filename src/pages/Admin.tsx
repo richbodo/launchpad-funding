@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableHeader, TableHead, TableBody, TableRow, TableCell } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check, Upload, Send, Loader2, CheckCircle2, DollarSign } from 'lucide-react';
+import { Plus, Trash2, Calendar, Users, ArrowLeft, Play, X, Eye, EyeOff, Archive, FileText, Download, ArrowUpDown, Settings2, Settings, RefreshCw, Mail, Pencil, Check, Upload, Send, Loader2, CheckCircle2, DollarSign, Activity } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,6 +25,7 @@ import TimePicker from '@/components/TimePicker';
 import TimezonePicker from '@/components/TimezonePicker';
 import EventLandingAdminCard from '@/components/EventLandingAdminCard';
 import ImageUploadField from '@/components/ImageUploadField';
+import ConnectionReport from '@/components/ConnectionReport';
 
 
 import { reportError } from '@/lib/logError';
@@ -1701,6 +1702,7 @@ export default function Admin() {
             <TabsTrigger value="create"><Plus className="w-4 h-4 mr-1" /> New Session</TabsTrigger>
             <TabsTrigger value="settings"><Settings className="w-4 h-4 mr-1" /> Settings</TabsTrigger>
             <TabsTrigger value="email-logs" onClick={() => fetchEmailLogs()}><Mail className="w-4 h-4 mr-1" /> Email Logs</TabsTrigger>
+            <TabsTrigger value="connection-report"><Activity className="w-4 h-4 mr-1" /> Connection Report</TabsTrigger>
           </TabsList>
 
           <TabsContent value="create">
@@ -2619,6 +2621,11 @@ export default function Admin() {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          {/* Connection Report Tab */}
+          <TabsContent value="connection-report">
+            <ConnectionReport />
           </TabsContent>
         </Tabs>
       </div>
