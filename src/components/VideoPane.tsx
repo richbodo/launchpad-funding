@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { useTracks, VideoTrack } from '@livekit/components-react';
+import { useTracks, VideoTrack, useParticipants } from '@livekit/components-react';
 import { Track } from 'livekit-client';
-import { Video, VideoOff, Loader2, RefreshCw } from 'lucide-react';
+import { Video, VideoOff, Loader2, RefreshCw, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export type CallState = 'idle' | 'connecting' | 'connected';
