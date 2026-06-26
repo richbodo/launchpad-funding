@@ -171,6 +171,14 @@ function LiveVideoPane({
       </div>
 
       <div className="absolute top-3 right-3 flex items-center gap-1.5">
+        {isStruggling && (
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/90 mr-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+            <span className="text-[10px] uppercase tracking-wider text-white font-medium">
+              {quality === ConnectionQuality.Lost ? 'Reconnecting…' : 'Weak signal'}
+            </span>
+          </div>
+        )}
         {isScreenShare && (
           <>
             <div className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
