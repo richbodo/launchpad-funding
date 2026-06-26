@@ -1202,10 +1202,14 @@ export default function SessionPage() {
           onError={(err) => console.error('[LiveKit] error:', err)}
         >
           {sessionContent}
-          <RoomAudioRenderer muted={localMuted} />
-          {/* Browsers block audio autoplay until a user gesture. StartAudio
-              renders a button only when the audio element can't auto-play;
-              clicking it unlocks remote audio so participants can hear others. */}
+          <RoomAudioRenderer muted={localMuted} volume={1} />
+          {/* Browsers block audio autoplay until a user gesture. We use a
+              custom button (instead of <StartAudio/>) so it's loud, full-width
+              at the top of the viewport, and reactive to playback-status
+              changes that happen *after* a remote audio track is published
+              (investors hit this most because they never publish a mic and
+              therefore never produce a user gesture during join). */}
+          <EnableAudioBanner />
           <StartAudio
             label="🔊 Click to enable audio"
             className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-primary text-primary-foreground shadow-lg hover:opacity-90"
@@ -1404,6 +1408,50 @@ function ForceLiveKitSubscriptions() {
 
   return null;
 }
+
+/**
+ * Full-width top banner that unblocks audio playback whenever the browser is
+ * preventing autoplay. Investors are the primary victims of this because they
+ * never publish a mic and therefore never produce the user gesture LiveKit's
+ * <StartAudio> relies on. We subscribe to RoomEvent.AudioPlaybackStatusChanged
+ * so the banner reappears if playback is blocked after the initial join (e.g.
+ * when the first remote audio track arrives).
+ */
+function EnableAudioBanner() {
+  const room = useRoomContext();
+  const [blocked, setBlocked] = useState(false);
+
+  useEffect(() => {
+    if (!room) return;
+    const sync = () => setBlocked(!room.canPlaybackAudio);
+    sync();
+    room.on(RoomEvent.AudioPlaybackStatusChanged, sync);
+    return () => {
+      room.off(RoomEvent.AudioPlaybackStatusChanged, sync);
+    };
+  }, [room]);
+
+  if (!blocked) return null;
+
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        try {
+          await room.startAudio();
+          setBlocked(!room.canPlaybackAudio);
+        } catch (err) {
+          console.error('[LiveKit] startAudio failed:', err);
+        }
+      }}
+      className="fixed top-0 inset-x-0 z-[100] w-full px-4 py-3 bg-primary text-primary-foreground font-semibold text-center shadow-lg hover:opacity-90"
+    >
+      🔊 Click anywhere here to enable audio for this call
+    </button>
+  );
+}
+
+
 
 
 
