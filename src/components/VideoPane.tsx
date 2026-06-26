@@ -69,6 +69,14 @@ function LiveVideoPane({
   participantIdentity: string;
 }) {
   const tracks = useTracks([Track.Source.Camera, Track.Source.ScreenShare], { onlySubscribed: false });
+  const participants = useParticipants();
+
+  // Is this identity actually present in the LiveKit room right now?
+  // Distinguishes "remote participant exists but has no track yet" (real
+  // stuck-subscription case → watchdog) from "remote participant has not
+  // joined the call yet" (waiting on a human action → no watchdog, no
+  // misleading Refresh button).
+  const isInRoom = participants.some((p) => p.identity === participantIdentity);
 
   useEffect(() => {
     const expectedPublications = tracks.filter(
@@ -94,22 +102,20 @@ function LiveVideoPane({
   const trackRef = screenTrack || cameraTrack;
   const isScreenShare = !!screenTrack;
 
-  // Issue #33: some participants saw "Joining…" for minutes because the remote
-  // track never arrived. After a 12s watchdog, surface a Refresh button that
-  // performs a *soft* re-subscribe (toggle setSubscribed off→on) rather than a
-  // full window.location.reload — a page reload would drop the in-memory
-  // SessionProvider auth state and log the user out, and tear down every other
-  // pane's WebRTC connection unnecessarily.
+  // Issue #33 / Test 4 follow-up: only arm the "Taking longer than usual…"
+  // watchdog when the participant is genuinely in the room and we're still
+  // waiting on a track. If they haven't joined yet, we render a calm
+  // "Hasn't joined yet" state instead — no spinner, no Refresh loop.
   const [stale, setStale] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
   useEffect(() => {
-    if (trackRef) {
+    if (trackRef || !isInRoom) {
       setStale(false);
       return;
     }
     const t = setTimeout(() => setStale(true), 12_000);
     return () => clearTimeout(t);
-  }, [trackRef, retryNonce]);
+  }, [trackRef, isInRoom, retryNonce]);
 
   const softRetry = () => {
     // Toggle subscription off then back on for this participant's publications.
@@ -136,8 +142,9 @@ function LiveVideoPane({
         label={label}
         sublabel={sublabel}
         isActive={isActive}
-        callState="connecting"
+        callState={isInRoom ? 'connecting' : 'idle'}
         isSelf={false}
+        notJoined={!isInRoom}
         stale={stale}
         onRetry={softRetry}
       />
