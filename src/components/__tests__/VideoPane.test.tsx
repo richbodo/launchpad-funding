@@ -110,22 +110,54 @@ describe('VideoPane', () => {
   it('surfaces Refresh button after 12s when remote track never arrives', async () => {
     vi.useFakeTimers();
     try {
+      // Simulate the participant being present in the LiveKit room but with
+      // no published track yet — this is the genuine stuck-subscription case
+      // the watchdog is designed for.
+      const { useParticipants } = await import('@livekit/components-react');
+      (useParticipants as ReturnType<typeof vi.fn>).mockReturnValue([
+        { identity: 'startup-a@test.com' },
+      ]);
+
       renderVideoPane({
         label: 'AlphaTech',
         participantIdentity: 'startup-a@test.com',
       });
 
-      // Before the watchdog fires we should just see the joining state.
       expect(screen.queryByText(/Taking longer than usual/i)).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /Refresh/i })).not.toBeInTheDocument();
 
-      // Advance past the 12s stale-track watchdog.
       await act(async () => {
         vi.advanceTimersByTime(12_000);
       });
 
       expect(screen.getByText(/Taking longer than usual/i)).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Refresh/i })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+      const { useParticipants } = await import('@livekit/components-react');
+      (useParticipants as ReturnType<typeof vi.fn>).mockReturnValue([]);
+    }
+  });
+
+  it('shows "Hasn\'t joined yet" (no watchdog) when remote facilitator is not in the room', async () => {
+    vi.useFakeTimers();
+    try {
+      renderVideoPane({
+        label: 'Amarit',
+        sublabel: 'Host Stream',
+        participantIdentity: 'amarit@test.com',
+      });
+
+      // Immediately shows the not-joined state — no spinner, no watchdog.
+      expect(screen.getByText(/Hasn't joined yet/i)).toBeInTheDocument();
+
+      await act(async () => {
+        vi.advanceTimersByTime(15_000);
+      });
+
+      // Even after the watchdog window, no misleading Refresh button appears.
+      expect(screen.queryByText(/Taking longer than usual/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /Refresh/i })).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
