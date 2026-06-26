@@ -172,7 +172,7 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
         <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Live Q&A</h3>
       </div>
 
-      <ScrollArea className="flex-1 px-4 py-2">
+      <ScrollArea className="flex-1 px-4 py-2 min-w-0">
         <div className="space-y-3" data-testid="chat-message-list">
           {messages.map((msg) => {
             const commit = parseCommitment(msg.message);
@@ -196,7 +196,7 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
                       {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
                   </div>
-                  <p className="text-sm text-white mt-0.5">
+                  <p className="text-sm text-white mt-0.5 break-words">
                     {commit.pledgeType === 'gift' ? 'pledged a gift of' : 'committed'}{' '}
                     <span className="font-bold mono text-emerald-200">
                       ${commit.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (USD)
@@ -217,7 +217,7 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
                     {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
                 </div>
-                <p className="text-sm text-foreground/90 mt-0.5">{msg.message}</p>
+                <p className="text-sm text-foreground/90 mt-0.5 break-words">{msg.message}</p>
               </div>
             );
           })}
