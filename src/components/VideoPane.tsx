@@ -142,6 +142,22 @@ function LiveVideoPane({
     setRetryNonce((n) => n + 1);
   };
 
+  // Listen for facilitator-triggered "Refresh tile" nudges from the
+  // ConnectionHealthPanel. Filtered by identity so only the targeted pane
+  // re-subscribes; everyone else's video is untouched.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent<{ identity?: string }>).detail;
+      if (detail?.identity && detail.identity === participantIdentity) {
+        softRetry();
+      }
+    };
+    window.addEventListener('lk-soft-retry-tile', handler);
+    return () => window.removeEventListener('lk-soft-retry-tile', handler);
+    // softRetry is stable-enough for this purpose; rebinding per render is harmless.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [participantIdentity]);
+
   if (!trackRef) {
     return (
       <Placeholder
