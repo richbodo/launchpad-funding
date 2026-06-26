@@ -474,7 +474,7 @@ export default function Admin() {
     // participant of their own sessions, so this is transparent for them.
     const { data, error } = await supabase.rpc('get_session_investments', {
       _session_id: sessionId,
-      _email: sessionUser?.email ?? '',
+      _email: (sessionUser?.email ?? adminEmail ?? '').toLowerCase(),
     });
     if (error) {
       console.error('Failed to load investments', error);
