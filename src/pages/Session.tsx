@@ -1210,6 +1210,7 @@ export default function SessionPage() {
             className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-primary text-primary-foreground shadow-lg hover:opacity-90"
           />
           <ForceLiveKitSubscriptions />
+          <RoomEventLogger sessionId={id} actorEmail={user.email} />
         </LiveKitRoom>
       ) : (
         sessionContent
