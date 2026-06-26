@@ -5,6 +5,7 @@ vi.mock('@livekit/components-react', () => ({
   LiveKitRoom: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
   useParticipants: vi.fn(() => []),
   useTracks: vi.fn(() => []),
+  useRoomContext: vi.fn(() => ({ on: vi.fn(), off: vi.fn() })),
   VideoTrack: ({ trackRef }: any) =>
     React.createElement('div', {
       'data-testid': `video-track-${trackRef?.participant?.identity ?? 'unknown'}`,
@@ -16,6 +17,7 @@ vi.mock('@livekit/components-react', () => ({
     },
   })),
   RoomAudioRenderer: () => null,
+  StartAudio: () => null,
 }));
 
 vi.mock('livekit-client', () => ({
