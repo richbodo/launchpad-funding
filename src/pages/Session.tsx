@@ -11,6 +11,7 @@ import FundingMeter from '@/components/FundingMeter';
 import ChatPanel from '@/components/ChatPanel';
 import VideoPane from '@/components/VideoPane';
 import type { CallState } from '@/components/VideoPane';
+import ConnectionHealthPanel from '@/components/ConnectionHealthPanel';
 import SessionTimer from '@/components/SessionTimer';
 import InvestDialog from '@/components/InvestDialog';
 import StageSelector from '@/components/StageSelector';
@@ -1211,6 +1212,13 @@ export default function SessionPage() {
           />
           <ForceLiveKitSubscriptions />
           <RoomEventLogger sessionId={id} actorEmail={user.email} />
+          {isFacilitator && (
+            <ConnectionHealthPanelMount
+              sessionId={id!}
+              facilitatorEmail={user.email}
+              facilitatorName={user.displayName}
+            />
+          )}
         </LiveKitRoom>
       ) : (
         sessionContent
