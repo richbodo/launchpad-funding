@@ -4,6 +4,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useSessionUser } from '@/lib/sessionContext';
 import { useDemoMode, clearDemoModeCache } from '@/hooks/useDemoMode';
 import { setAdminToken, getAdminToken, clearAdminToken } from '@/lib/adminAuth';
+import { resolveFacilitatorEmail } from '@/lib/adminEmail';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
