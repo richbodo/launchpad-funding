@@ -25,11 +25,55 @@ Deno.serve(async (req) => {
 
   let limit = 100
   let messageIdFilter: string | null = null
+  let recipientsFilter: string[] | null = null
+  let templateFilter: string | null = null
   try {
     const body = await req.json()
     if (body.limit) limit = Math.min(body.limit, 500)
     if (body.message_id) messageIdFilter = body.message_id
+    if (Array.isArray(body.recipient_emails)) {
+      recipientsFilter = body.recipient_emails
+        .filter((e: unknown) => typeof e === 'string' && e.includes('@'))
+        .map((e: string) => e.trim().toLowerCase())
+    }
+    if (typeof body.template_name === 'string') templateFilter = body.template_name
   } catch { /* use default */ }
+
+  // Latest-status-per-recipient mode: returns the most recent email_send_log
+  // row per recipient, so the Admin "Invite" column can show actual delivery
+  // state (sent / pending / failed / bounced / suppressed) rather than just
+  // the local invite_sent_at "we enqueued it" stamp.
+  if (recipientsFilter && recipientsFilter.length > 0) {
+    let q = supabase
+      .from('email_send_log')
+      .select('recipient_email, status, error_message, created_at, template_name')
+      .in('recipient_email', recipientsFilter)
+      .order('created_at', { ascending: false })
+      .limit(recipientsFilter.length * 20)
+    if (templateFilter) q = q.eq('template_name', templateFilter)
+    const { data, error } = await q
+    if (error) {
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+    const latest: Record<string, { status: string; error_message: string | null; created_at: string }> = {}
+    for (const row of data ?? []) {
+      const key = row.recipient_email.toLowerCase()
+      if (!latest[key]) {
+        latest[key] = {
+          status: row.status,
+          error_message: row.error_message,
+          created_at: row.created_at,
+        }
+      }
+    }
+    return new Response(
+      JSON.stringify({ latest_by_recipient: latest }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
 
   // If requesting a specific message_id, return ALL rows for that message
   if (messageIdFilter) {
