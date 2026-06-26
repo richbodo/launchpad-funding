@@ -188,22 +188,25 @@ describe('Session — facilitator view', () => {
   });
 
   it('center pane shows intro placeholder at stage 0, startup after advancing', async () => {
+    const user = userEvent.setup();
     renderSession();
     // At stage 0 (Introduction), center pane shows the stage label, not a startup
     await waitFor(() => {
       // "Introduction" appears in both SessionTimer and center pane
       expect(screen.getAllByText('Introduction').length).toBeGreaterThanOrEqual(1);
     });
-    expect(screen.queryByText('Startup Presentation')).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.queryByText('Startup Presentation')).not.toBeInTheDocument();
+    });
 
     // Click Next to advance to the first startup's presentation
     const nextBtn = screen.getByTestId('stage-next-btn');
-    nextBtn.click();
+    await user.click(nextBtn);
 
     await waitFor(() => {
       expect(screen.getAllByText('AlphaTech').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getByText('Startup Presentation')).toBeInTheDocument();
     });
-    expect(screen.getByText('Startup Presentation')).toBeInTheDocument();
   });
 
   it('stage controls visible: Previous, Play/Pause, Next', async () => {
