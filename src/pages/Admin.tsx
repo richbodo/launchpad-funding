@@ -813,6 +813,40 @@ export default function Admin() {
     }
   }, [isAuthenticated]);
 
+  /**
+   * Fetch the latest email_send_log status for every participant of the
+   * currently-selected session, keyed by lowercase recipient email. This
+   * powers the "Invite" column so it reflects real delivery state instead
+   * of the locally-stamped invite_sent_at "we enqueued it" timestamp.
+   */
+  const refreshInviteDelivery = async () => {
+    if (!selectedSession) return;
+    const emails = Array.from(new Set(
+      participants.map(p => (p.email || '').trim().toLowerCase()).filter(Boolean)
+    ));
+    if (emails.length === 0) {
+      setInviteDelivery({});
+      return;
+    }
+    setRefreshingInviteStatus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('email-logs', {
+        body: { recipient_emails: emails, template_name: 'session-invitation' },
+      });
+      if (error || !data?.latest_by_recipient) return;
+      setInviteDelivery(data.latest_by_recipient);
+    } finally {
+      setRefreshingInviteStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshInviteDelivery();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSession?.id, participants.length]);
+
+
+
   const createSession = async () => {
     if (!newTimezone) {
       toast.error('Please pick a timezone first');
