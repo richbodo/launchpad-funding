@@ -81,7 +81,28 @@ const InvestmentCommitmentEmail = ({
           </Text>
 
           <Hr style={hr} />
-          <Text style={footer}>— Your {SITE_NAME} facilitators</Text>
+
+          <Heading as="h2" style={h2}>Important: Do your own due diligence</Heading>
+          <Section style={disclaimerBox}>
+            <Text style={disclaimerText}>
+              A live demo session is <strong>not a replacement for due diligence</strong>.
+              Investors should perform extensive due diligence on the startup prior to
+              investing any funds, and should review any investment documents (SAFE,
+              subscription agreement, etc.) with qualified legal counsel before signing.
+            </Text>
+            <Text style={disclaimerText}>
+              Startups are likewise responsible for confirming that each investor is
+              properly accredited and for complying with all applicable securities laws
+              in their jurisdiction.
+            </Text>
+            <Text style={disclaimerText}>
+              {SITE_NAME} facilitates introductions and records soft commitments only —
+              it does not provide investment, legal, or tax advice and is not a party
+              to any resulting transaction.
+            </Text>
+          </Section>
+
+          <Hr style={hr} />
           {facilitators.length > 0 && (
             <Section>
               {facilitators.map((f) => (
