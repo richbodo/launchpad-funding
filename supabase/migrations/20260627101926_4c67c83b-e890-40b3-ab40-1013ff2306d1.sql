@@ -1,0 +1,1 @@
+UPDATE public.investments SET email_status='sent', email_sent_at=COALESCE(email_sent_at, now()) WHERE session_id='3323a3d8-c8c5-451a-9251-0eed0534d16a' AND email_status='draft';
