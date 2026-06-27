@@ -5,7 +5,12 @@ import {
 } from 'npm:@react-email/components@0.0.22'
 import type { TemplateEntry } from './registry.ts'
 
-const SITE_NAME = 'Pitch Pledge'
+const SITE_NAME = 'FundFlow'
+
+interface FacilitatorContact {
+  name?: string
+  email: string
+}
 
 interface GiftPledgeProps {
   investorName?: string
@@ -15,6 +20,7 @@ interface GiftPledgeProps {
   amount?: number
   sessionName?: string
   welcomeMessage?: string
+  facilitators?: FacilitatorContact[]
 }
 
 const formatAmount = (n?: number) => {
