@@ -526,6 +526,9 @@ export default function Admin() {
       inv.pledge_type === 'gift' ? 'commitment-gift-pledge' : 'investment-commitment';
     const welcomeMessage =
       inv.pledge_type === 'gift' ? welcomeCommitmentGift : welcomeCommitmentEquity;
+    const facilitatorContacts = participants
+      .filter(p => p.role === 'facilitator' && p.email)
+      .map(p => ({ name: p.display_name || undefined, email: p.email }));
     try {
       const { data, error } = await supabase.functions.invoke('send-transactional-email', {
         body: {
@@ -541,6 +544,7 @@ export default function Admin() {
             amount: Number(inv.amount),
             sessionName: selectedSession.name,
             welcomeMessage,
+            facilitators: facilitatorContacts,
           },
         },
       });
