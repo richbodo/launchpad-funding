@@ -36,6 +36,7 @@ const InvestmentCommitmentEmail = ({
   amount = 0,
   sessionName = '',
   welcomeMessage = '',
+  facilitators = [],
 }: InvestmentCommitmentProps) => {
   const investorDisplay = investorName || investorEmail || 'An investor'
   const startupDisplay = startupName || startupEmail || 'the startup'
