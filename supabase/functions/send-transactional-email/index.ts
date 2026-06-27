@@ -79,6 +79,11 @@ Deno.serve(async (req) => {
         .filter((e: unknown) => typeof e === 'string' && e.includes('@'))
         .map((e: string) => e.trim())
     }
+    // Optional caller-provided Reply-To. If not provided, we auto-derive from
+    // templateData.facilitators[0].email below.
+    if (typeof body.replyTo === 'string' || typeof body.reply_to === 'string') {
+      ;(templateData as any).__replyTo = body.replyTo || body.reply_to
+    }
   } catch {
     return new Response(
       JSON.stringify({ error: 'Invalid JSON in request body' }),
@@ -296,12 +301,27 @@ Deno.serve(async (req) => {
     })
 
     // 4. Enqueue — `to` is always a single string, never an array.
+    // Reply-To: prefer caller override, else first facilitator from templateData,
+    // else a friendly support inbox. Helps Gmail classify as conversational
+    // (Primary tab) rather than promotional/no-reply bulk.
+    const facilitatorReplyTo: string | undefined =
+      Array.isArray((templateData as any)?.facilitators) && (templateData as any).facilitators[0]?.email
+        ? (templateData as any).facilitators[0].email
+        : undefined
+    const replyTo: string | undefined =
+      (templateData as any)?.__replyTo || facilitatorReplyTo
+    // RFC 8058 one-click unsubscribe headers — major signal for Gmail Primary
+    // tab placement. The Lovable Email API forwards unknown payload fields
+    // through to the provider; if it ignores these, no harm done.
+    const unsubUrl = `https://${FROM_DOMAIN}/unsubscribe?token=${unsubscribeToken}`
+    const listUnsubscribeHeader = `<${unsubUrl}>, <mailto:unsubscribe@${SENDER_DOMAIN}?subject=unsubscribe>`
     const { error: enqueueError } = await supabase.rpc('enqueue_email', {
       queue_name: 'transactional_emails',
       payload: {
         message_id: perMessageId,
         to: recipient,
         from: `${SITE_NAME} <noreply@${FROM_DOMAIN}>`,
+        ...(replyTo ? { reply_to: replyTo } : {}),
         sender_domain: SENDER_DOMAIN,
         subject: resolvedSubject,
         html,
@@ -310,6 +330,10 @@ Deno.serve(async (req) => {
         label: templateName,
         idempotency_key: perIdempotencyKey,
         unsubscribe_token: unsubscribeToken,
+        headers: {
+          'List-Unsubscribe': listUnsubscribeHeader,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
         queued_at: new Date().toISOString(),
       },
     })

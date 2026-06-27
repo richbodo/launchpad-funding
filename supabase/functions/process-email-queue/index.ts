@@ -251,6 +251,7 @@ Deno.serve(async (req) => {
             run_id: payload.run_id,
             to: payload.to,
             from: payload.from,
+            ...(payload.reply_to ? { reply_to: payload.reply_to } : {}),
             sender_domain: payload.sender_domain,
             subject: payload.subject,
             html: payload.html,
@@ -260,7 +261,8 @@ Deno.serve(async (req) => {
             idempotency_key: payload.idempotency_key,
             unsubscribe_token: payload.unsubscribe_token,
             message_id: payload.message_id,
-          },
+            ...(payload.headers ? { headers: payload.headers } : {}),
+          } as any,
           { apiKey, sendUrl: Deno.env.get('LOVABLE_SEND_URL') }
         )
 
