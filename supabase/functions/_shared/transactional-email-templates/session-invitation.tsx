@@ -1,6 +1,6 @@
 import * as React from 'npm:react@18.3.1'
 import {
-  Body, Container, Head, Heading, Html, Preview, Text, Button, Hr, Link, Section,
+  Body, Container, Head, Heading, Html, Text, Button, Hr, Link, Section,
 } from 'npm:@react-email/components@0.0.22'
 import type { TemplateEntry } from './registry.ts'
 
@@ -88,11 +88,7 @@ const SessionInvitationEmail = ({
   return (
   <Html lang="en" dir="ltr">
     <Head />
-    <Preview>
-      {freshTag
-        ? `Resend (${freshTag}) — your invitation to ${sessionName}`
-        : `You're invited to ${sessionName} — ${SITE_NAME}`}
-    </Preview>
+
     <Body style={main}>
       <Container style={container}>
         {freshTag && (
