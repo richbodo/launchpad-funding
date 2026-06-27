@@ -103,6 +103,7 @@ const InvestmentCommitmentEmail = ({
           </Section>
 
           <Hr style={hr} />
+          <Text style={footer}>— Your {SITE_NAME} facilitators</Text>
           {facilitators.length > 0 && (
             <Section>
               {facilitators.map((f) => (
