@@ -43,7 +43,7 @@ const InvestmentCommitmentEmail = ({
   return (
     <Html lang="en" dir="ltr">
       <Head />
-      <Preview>{investorDisplay} committed {formatAmount(amount)} to {startupDisplay}</Preview>
+
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>Commitment Recorded</Heading>
