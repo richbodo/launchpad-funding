@@ -47,6 +47,7 @@ const InvestmentCommitmentEmail = ({
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>Commitment Recorded</Heading>
+          <Text style={subhead}>For accredited investors regarding accredited investments</Text>
           {welcomeMessage && (
             <Text style={text}>{welcomeMessage}</Text>
           )}
