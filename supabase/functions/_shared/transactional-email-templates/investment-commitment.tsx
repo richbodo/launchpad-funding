@@ -149,3 +149,6 @@ const detailRow = { fontSize: '14px', color: '#166534', margin: '0 0 6px' }
 const hr = { borderColor: '#e5e7eb', margin: '22px 0' }
 const footer = { fontSize: '13px', color: '#555', margin: '0 0 6px' }
 const facilitatorRow = { fontSize: '13px', color: '#666', margin: '0 0 2px' }
+const subhead = { fontSize: '13px', color: '#666', fontStyle: 'italic' as const, margin: '0 0 16px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }
+const disclaimerBox = { backgroundColor: '#fffbeb', borderRadius: '8px', padding: '16px 20px', margin: '6px 0 10px', border: '1px solid #fde68a' }
+const disclaimerText = { fontSize: '13px', color: '#78350f', lineHeight: '1.6', margin: '0 0 10px' }
