@@ -88,7 +88,16 @@ const CommitmentGiftPledgeEmail = ({
           </Text>
 
           <Hr style={hr} />
-          <Text style={footer}>— The {SITE_NAME} Team</Text>
+          <Text style={footer}>— Your {SITE_NAME} facilitators</Text>
+          {facilitators.length > 0 && (
+            <Section>
+              {facilitators.map((f) => (
+                <Text key={f.email} style={facilitatorRow}>
+                  {f.name ? `${f.name} — ` : ''}{f.email}
+                </Text>
+              ))}
+            </Section>
+          )}
         </Container>
       </Body>
     </Html>
