@@ -44,6 +44,7 @@ const CommitmentGiftPledgeEmail = ({
   amount = 0,
   sessionName = '',
   welcomeMessage = '',
+  facilitators = [],
 }: GiftPledgeProps) => {
   const supporterDisplay = investorName || investorEmail || 'A community supporter'
   const startupDisplay = startupName || startupEmail || 'the startup'
