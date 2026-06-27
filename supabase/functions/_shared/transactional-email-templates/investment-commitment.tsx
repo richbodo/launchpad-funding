@@ -124,4 +124,5 @@ const text = { fontSize: '15px', color: '#333', lineHeight: '1.6', margin: '0 0 
 const detailBox = { backgroundColor: '#f0fdf4', borderRadius: '8px', padding: '16px 20px', margin: '6px 0 10px', border: '1px solid #bbf7d0' }
 const detailRow = { fontSize: '14px', color: '#166534', margin: '0 0 6px' }
 const hr = { borderColor: '#e5e7eb', margin: '22px 0' }
-const footer = { fontSize: '12px', color: '#999', margin: '0' }
+const footer = { fontSize: '13px', color: '#555', margin: '0 0 6px' }
+const facilitatorRow = { fontSize: '13px', color: '#666', margin: '0 0 2px' }
