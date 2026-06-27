@@ -112,6 +112,7 @@ export const template = {
     amount: 25000,
     sessionName: 'Q1 Demo Day',
     welcomeMessage: 'Thank you for committing to support this startup.',
+    facilitators: [{ name: 'Jane Facilitator', email: 'jane@example.com' }],
   },
 } satisfies TemplateEntry
 
