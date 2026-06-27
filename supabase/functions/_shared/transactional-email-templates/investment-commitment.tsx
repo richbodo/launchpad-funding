@@ -47,6 +47,7 @@ const InvestmentCommitmentEmail = ({
       <Body style={main}>
         <Container style={container}>
           <Heading style={h1}>Commitment Recorded</Heading>
+          <Text style={subhead}>For accredited investors regarding accredited investments</Text>
           {welcomeMessage && (
             <Text style={text}>{welcomeMessage}</Text>
           )}
@@ -78,6 +79,28 @@ const InvestmentCommitmentEmail = ({
             Both parties have been copied on this email so you can reply-all to start that
             conversation directly.
           </Text>
+
+          <Hr style={hr} />
+
+          <Heading as="h2" style={h2}>Important: Do your own due diligence</Heading>
+          <Section style={disclaimerBox}>
+            <Text style={disclaimerText}>
+              A live demo session is <strong>not a replacement for due diligence</strong>.
+              Investors should perform extensive due diligence on the startup prior to
+              investing any funds, and should review any investment documents (SAFE,
+              subscription agreement, etc.) with qualified legal counsel before signing.
+            </Text>
+            <Text style={disclaimerText}>
+              Startups are likewise responsible for confirming that each investor is
+              properly accredited and for complying with all applicable securities laws
+              in their jurisdiction.
+            </Text>
+            <Text style={disclaimerText}>
+              {SITE_NAME} facilitates introductions and records soft commitments only —
+              it does not provide investment, legal, or tax advice and is not a party
+              to any resulting transaction.
+            </Text>
+          </Section>
 
           <Hr style={hr} />
           <Text style={footer}>— Your {SITE_NAME} facilitators</Text>
@@ -126,3 +149,6 @@ const detailRow = { fontSize: '14px', color: '#166534', margin: '0 0 6px' }
 const hr = { borderColor: '#e5e7eb', margin: '22px 0' }
 const footer = { fontSize: '13px', color: '#555', margin: '0 0 6px' }
 const facilitatorRow = { fontSize: '13px', color: '#666', margin: '0 0 2px' }
+const subhead = { fontSize: '13px', color: '#666', fontStyle: 'italic' as const, margin: '0 0 16px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }
+const disclaimerBox = { backgroundColor: '#fffbeb', borderRadius: '8px', padding: '16px 20px', margin: '6px 0 10px', border: '1px solid #fde68a' }
+const disclaimerText = { fontSize: '13px', color: '#78350f', lineHeight: '1.6', margin: '0 0 10px' }
