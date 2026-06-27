@@ -5,7 +5,12 @@ import {
 } from 'npm:@react-email/components@0.0.22'
 import type { TemplateEntry } from './registry.ts'
 
-const SITE_NAME = 'Pitch Pledge'
+const SITE_NAME = 'FundFlow'
+
+interface FacilitatorContact {
+  name?: string
+  email: string
+}
 
 interface GiftPledgeProps {
   investorName?: string
@@ -15,6 +20,7 @@ interface GiftPledgeProps {
   amount?: number
   sessionName?: string
   welcomeMessage?: string
+  facilitators?: FacilitatorContact[]
 }
 
 const formatAmount = (n?: number) => {
@@ -38,6 +44,7 @@ const CommitmentGiftPledgeEmail = ({
   amount = 0,
   sessionName = '',
   welcomeMessage = '',
+  facilitators = [],
 }: GiftPledgeProps) => {
   const supporterDisplay = investorName || investorEmail || 'A community supporter'
   const startupDisplay = startupName || startupEmail || 'the startup'
@@ -81,7 +88,16 @@ const CommitmentGiftPledgeEmail = ({
           </Text>
 
           <Hr style={hr} />
-          <Text style={footer}>— The {SITE_NAME} Team</Text>
+          <Text style={footer}>— Your {SITE_NAME} facilitators</Text>
+          {facilitators.length > 0 && (
+            <Section>
+              {facilitators.map((f) => (
+                <Text key={f.email} style={facilitatorRow}>
+                  {f.name ? `${f.name} — ` : ''}{f.email}
+                </Text>
+              ))}
+            </Section>
+          )}
         </Container>
       </Body>
     </Html>
@@ -104,6 +120,7 @@ export const template = {
     amount: 75,
     sessionName: 'Q1 Demo Day',
     welcomeMessage: 'Thank you for supporting this startup with a community gift pledge.',
+    facilitators: [{ name: 'Jane Facilitator', email: 'jane@example.com' }],
   },
 } satisfies TemplateEntry
 
@@ -115,4 +132,5 @@ const text = { fontSize: '15px', color: '#333', lineHeight: '1.6', margin: '0 0 
 const detailBox = { backgroundColor: '#fef3c7', borderRadius: '8px', padding: '16px 20px', margin: '6px 0 10px', border: '1px solid #fde68a' }
 const detailRow = { fontSize: '14px', color: '#78350f', margin: '0 0 6px' }
 const hr = { borderColor: '#e5e7eb', margin: '22px 0' }
-const footer = { fontSize: '12px', color: '#999', margin: '0' }
+const footer = { fontSize: '13px', color: '#555', margin: '0 0 6px' }
+const facilitatorRow = { fontSize: '13px', color: '#666', margin: '0 0 2px' }
