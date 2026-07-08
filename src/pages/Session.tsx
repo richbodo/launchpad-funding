@@ -1791,7 +1791,7 @@ export function StartupEditDialog({ open, onOpenChange, sessionId, email, onSave
       image_url: imageUrl || null,
     };
     const { data, error } = await supabase.functions.invoke('startup-update-self', {
-      body: { participant_id: participantId, ...updates },
+      body: { participant_token: user?.token || '', ...updates },
     });
 
     setSaving(false);
