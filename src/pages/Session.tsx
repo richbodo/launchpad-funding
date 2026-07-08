@@ -1871,7 +1871,7 @@ export function StartupEditDialog({ open, onOpenChange, sessionId, email, onSave
               onChange={setImageUrl}
               kind="participant"
               refId={participantId}
-              participantId={participantId}
+              participantToken={user?.token || null}
               helpText="Shown to investors when you join. PNG/JPG/WebP/GIF, max 5MB."
             />
           )}
