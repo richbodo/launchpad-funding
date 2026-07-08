@@ -1904,6 +1904,7 @@ interface FacilitatorEditDialogProps {
 }
 
 function FacilitatorEditDialog({ open, onOpenChange, sessionId, email }: FacilitatorEditDialogProps) {
+  const { user } = useSessionUser();
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [participantId, setParticipantId] = useState<string | null>(null);
