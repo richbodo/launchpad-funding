@@ -1318,7 +1318,7 @@ function StartupWaitingOverlay({
     setNotifying(true);
     try {
       const { data, error } = await supabase.functions.invoke('notify-facilitators-waiting', {
-        body: { participant_id: participantId },
+        body: { participant_token: user?.token || '' },
       });
       if (error || data?.error) {
         toast.error(data?.error || error?.message || 'Could not notify facilitators.');
