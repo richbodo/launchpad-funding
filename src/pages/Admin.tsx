@@ -532,6 +532,7 @@ export default function Admin() {
     try {
       const { data, error } = await supabase.functions.invoke('send-transactional-email', {
         body: {
+          admin_token: getAdminToken(),
           templateName,
           recipientEmail: inv.investor_email,
           additionalRecipients: [inv.startup_email],
@@ -1196,6 +1197,7 @@ export default function Admin() {
 
     const { data, error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
+        admin_token: getAdminToken(),
         templateName: 'session-invitation',
         recipientEmail: email,
         idempotencyKey,
