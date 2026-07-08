@@ -682,7 +682,7 @@ export default function Admin() {
     setArchiving(true);
     try {
       const { data, error } = await supabase.functions.invoke('archive-chat', {
-        body: { session_id: sessionId },
+        body: { admin_token: getAdminToken(), session_id: sessionId },
       });
       if (error) throw error;
       toast.success(data.message || 'Chat archived');
