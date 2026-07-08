@@ -832,7 +832,7 @@ export default function Admin() {
     setRefreshingInviteStatus(true);
     try {
       const { data, error } = await supabase.functions.invoke('email-logs', {
-        body: { recipient_emails: emails, template_name: 'session-invitation' },
+        body: { admin_token: getAdminToken(), recipient_emails: emails, template_name: 'session-invitation' },
       });
       if (error || !data?.latest_by_recipient) return;
       setInviteDelivery(data.latest_by_recipient);
