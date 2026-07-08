@@ -1478,7 +1478,7 @@ function RoomEventLogger({ sessionId, actorEmail }: { sessionId: string; actorEm
         await supabase.rpc('log_session_event', {
           _token: user?.token ?? '',
           _event_type: eventType,
-          _event_data: data,
+          _event_data: data as unknown as never,
         });
       } catch (err) {
         console.warn('[RoomEventLogger] failed to persist', eventType, err);
