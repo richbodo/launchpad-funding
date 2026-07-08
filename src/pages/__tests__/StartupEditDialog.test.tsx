@@ -25,6 +25,19 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
 }));
 
+vi.mock('@/lib/sessionContext', () => ({
+  useSessionUser: () => ({
+    user: {
+      email: 'startup@test.com',
+      role: 'startup',
+      sessionId: 'sess-1',
+      participantId: 'pid-1',
+      token: 'test-token',
+    },
+    logout: vi.fn(),
+  }),
+}));
+
 // Mutable "DB" row shared with the supabase mock via vi.hoisted so it's
 // initialized before the mock factory runs.
 const h = vi.hoisted(() => {
