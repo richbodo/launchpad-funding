@@ -138,6 +138,13 @@ export default function Login() {
         ? ((participant.investor_class as InvestorClass | null) ?? investorClass)
         : undefined;
 
+    // Mint a server-side participant session token so subsequent write RPCs
+    // (submit_investment / post_chat_message / log_session_event) can verify
+    // the caller instead of trusting a client-supplied email. Facilitators
+    // reach this helper only via the demo Shuffle path; production
+    // facilitator auth goes through completeLogin() after password check.
+    const token = await mintTokenByEmail(participant.email, loginRole);
+
     // Set user + navigate IMMEDIATELY so the magic-link recipient lands in the
     // session without waiting on edge-function cold starts. Presence + audit
     // log are fire-and-forget — a slow or failing background call must never
@@ -149,6 +156,7 @@ export default function Login() {
       displayName: participant.display_name || participant.email.split('@')[0],
       sessionId: selectedSession,
       investorClass: resolvedClass,
+      token: token ?? undefined,
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
@@ -164,12 +172,53 @@ export default function Login() {
       body: { participant_id: participant.id, logged_in: true },
     }).catch((e) => console.warn('presence update failed', e));
 
-    supabase.from('session_logs').insert({
-      session_id: selectedSession,
-      event_type: 'login',
-      event_data: { email: participant.email, role: loginRole, investor_class: resolvedClass ?? null },
-      actor_email: participant.email,
-    }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
+    if (token) {
+      supabase.rpc('log_session_event', {
+        _token: token,
+        _event_type: 'login',
+        _event_data: { role: loginRole, investor_class: resolvedClass ?? null },
+      }).then(({ error }) => { if (error) console.warn('session_logs rpc failed', error); });
+    }
+  };
+
+  /**
+   * Mint a participant session token for passwordless roles (investor /
+   * startup). Facilitators must use mintTokenByPassword instead.
+   * Returns null on failure — callers proceed without a token and write RPCs
+   * will surface an "Invalid or expired session" error to the user.
+   */
+  const mintTokenByEmail = async (participantEmail: string, loginRole: UserRole): Promise<string | null> => {
+    if (loginRole === 'facilitator') return null;
+    try {
+      const { data } = await supabase.rpc('mint_participant_token_by_email', {
+        _session_id: selectedSession,
+        _email: participantEmail,
+        _role: loginRole,
+      });
+      return (data as string | null) ?? null;
+    } catch (e) {
+      console.warn('mint_participant_token_by_email failed', e);
+      return null;
+    }
+  };
+
+  /**
+   * Mint a participant session token by verifying the participant's password
+   * server-side. Used by the facilitator login path (and any future
+   * password-protected role).
+   */
+  const mintTokenByPassword = async (participantEmail: string, participantPassword: string): Promise<string | null> => {
+    try {
+      const { data } = await supabase.rpc('mint_participant_token_by_password', {
+        _session_id: selectedSession,
+        _email: participantEmail,
+        _password: participantPassword,
+      });
+      return (data as string | null) ?? null;
+    } catch (e) {
+      console.warn('mint_participant_token_by_password failed', e);
+      return null;
+    }
   };
 
 
@@ -442,6 +491,13 @@ export default function Login() {
         ? ((participant.investor_class as InvestorClass | null) ?? investorClass)
         : undefined;
 
+    // Mint a participant session token so all subsequent write RPCs can
+    // verify the caller server-side. Facilitators get one via password;
+    // investors/startups via email (matching current passwordless flow).
+    const token = resolvedRole === 'facilitator'
+      ? await mintTokenByPassword(participant.email, password)
+      : await mintTokenByEmail(participant.email, resolvedRole);
+
     // Navigate immediately; side effects run in the background so a slow
     // edge function never traps the user on the login screen.
     setUser({
@@ -451,6 +507,7 @@ export default function Login() {
       displayName: participant.display_name || email.split('@')[0],
       sessionId: selectedSession,
       investorClass: resolvedClass,
+      token: token ?? undefined,
     });
 
     const editParam = searchParams.get('edit') === 'true' ? '?edit=true' : '';
@@ -462,12 +519,13 @@ export default function Login() {
       body: { participant_id: participant.id, logged_in: true },
     }).catch((e) => console.warn('presence update failed', e));
 
-    supabase.from('session_logs').insert({
-      session_id: selectedSession,
-      event_type: 'login',
-      event_data: { email, role: resolvedRole, investor_class: resolvedClass ?? null },
-      actor_email: email,
-    }).then(({ error }) => { if (error) console.warn('session_logs insert failed', error); });
+    if (token) {
+      supabase.rpc('log_session_event', {
+        _token: token,
+        _event_type: 'login',
+        _event_data: { role: resolvedRole, investor_class: resolvedClass ?? null },
+      }).then(({ error }) => { if (error) console.warn('session_logs rpc failed', error); });
+    }
   };
 
 

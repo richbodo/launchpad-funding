@@ -599,12 +599,14 @@ export default function SessionPage() {
     if (user && id) {
       // is_logged_in is cleared inside SessionProvider.logout() via the
       // participant-presence edge function. Direct UPDATE on
-      // session_participants is no longer allowed from the browser.
-      await supabase.from('session_logs').insert({
-        session_id: id,
-        event_type: 'logout',
-        event_data: { email: user.email, role: user.role },
-        actor_email: user.email,
+      // session_participants is no longer allowed from the browser, and
+      // direct INSERT on session_logs is now gated to service_role — the
+      // audit entry goes through the SECURITY DEFINER log_session_event RPC
+      // which verifies the caller via the participant session token.
+      await supabase.rpc('log_session_event', {
+        _token: user.token ?? '',
+        _event_type: 'logout',
+        _event_data: { role: user.role },
       });
     }
     logout();
@@ -1462,22 +1464,29 @@ function EnableAudioBanner() {
 
 function RoomEventLogger({ sessionId, actorEmail }: { sessionId: string; actorEmail: string }) {
   const room = useRoomContext();
+  const { user } = useSessionUser();
 
   useEffect(() => {
     if (!room) return;
 
+    // Route through the token-verified SECURITY DEFINER RPC — direct INSERTs
+    // on session_logs are locked to service_role, and the RPC records the
+    // actor from the participant session token rather than a client-supplied
+    // email (prevents cross-participant log spoofing).
     const log = async (eventType: string, data: Record<string, unknown>) => {
       try {
-        await supabase.from('session_logs').insert({
-          session_id: sessionId,
-          event_type: eventType,
-          event_data: { email: actorEmail, ...data },
-          actor_email: actorEmail,
+        await supabase.rpc('log_session_event', {
+          _token: user?.token ?? '',
+          _event_type: eventType,
+          _event_data: data as unknown as never,
         });
       } catch (err) {
         console.warn('[RoomEventLogger] failed to persist', eventType, err);
       }
     };
+    // sessionId / actorEmail retained in the closure for backwards call-site
+    // compatibility even though the RPC derives them from the token.
+    void sessionId; void actorEmail;
 
     const onReconnecting = () => {
       console.info('[LiveKit] reconnecting');

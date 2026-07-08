@@ -16,7 +16,17 @@ export interface SessionUser {
    * accredited investors (equity + gift) from community supporters (gift only).
    */
   investorClass?: InvestorClass;
+  /**
+   * Server-issued participant session token (minted at login by
+   * mint_participant_token_by_password / _by_email). Required by the write
+   * RPCs (submit_investment, post_chat_message, log_session_event) so the
+   * server can verify the caller instead of trusting a client-supplied email.
+   * Optional to keep legacy call sites and tests compiling; write RPCs will
+   * gracefully no-op when absent.
+   */
+  token?: string;
 }
+
 
 interface SessionContextType {
   user: SessionUser | null;

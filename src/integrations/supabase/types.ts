@@ -242,6 +242,44 @@ export type Database = {
           },
         ]
       }
+      participant_sessions: {
+        Row: {
+          created_at: string
+          email: string
+          expires_at: string
+          participant_id: string
+          role: Database["public"]["Enums"]["participant_role"]
+          session_id: string
+          token: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          expires_at?: string
+          participant_id: string
+          role: Database["public"]["Enums"]["participant_role"]
+          session_id: string
+          token: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          expires_at?: string
+          participant_id?: string
+          role?: Database["public"]["Enums"]["participant_role"]
+          session_id?: string
+          token?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "participant_sessions_participant_id_fkey"
+            columns: ["participant_id"]
+            isOneToOne: false
+            referencedRelation: "session_participants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       session_logs: {
         Row: {
           actor_email: string | null
@@ -428,6 +466,15 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      _resolve_participant_token: {
+        Args: { _token: string }
+        Returns: {
+          email: string
+          participant_id: string
+          role: Database["public"]["Enums"]["participant_role"]
+          session_id: string
+        }[]
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean
@@ -502,6 +549,22 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      log_session_event: {
+        Args: { _event_data: Json; _event_type: string; _token: string }
+        Returns: string
+      }
+      mint_participant_token_by_email: {
+        Args: {
+          _email: string
+          _role: Database["public"]["Enums"]["participant_role"]
+          _session_id: string
+        }
+        Returns: string
+      }
+      mint_participant_token_by_password: {
+        Args: { _email: string; _password: string; _session_id: string }
+        Returns: string
+      }
       move_to_dlq: {
         Args: {
           dlq_name: string
@@ -510,6 +573,10 @@ export type Database = {
           source_queue: string
         }
         Returns: number
+      }
+      post_chat_message: {
+        Args: { _message: string; _token: string }
+        Returns: string
       }
       read_email_batch: {
         Args: { batch_size: number; queue_name: string; vt: number }
@@ -526,6 +593,16 @@ export type Database = {
       set_participant_presence: {
         Args: { _logged_in: boolean; _participant_id: string }
         Returns: undefined
+      }
+      submit_investment: {
+        Args: {
+          _amount: number
+          _pledge_type: string
+          _startup_email: string
+          _startup_name: string
+          _token: string
+        }
+        Returns: string
       }
       verify_participant_password: {
         Args: { _participant_id: string; _password: string }
