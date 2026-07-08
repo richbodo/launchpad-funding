@@ -1295,6 +1295,7 @@ function StartupWaitingOverlay({
   endTime: string | null;
   timezone: string | null;
 }) {
+  const { user } = useSessionUser();
   const [notifying, setNotifying] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
