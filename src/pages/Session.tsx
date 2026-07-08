@@ -155,6 +155,7 @@ export default function SessionPage() {
     user?.email || '',
     user?.displayName || '',
     user?.role || '',
+    user?.token || null,
   );
 
   // Fetch session data, participants, investments
@@ -1294,6 +1295,7 @@ function StartupWaitingOverlay({
   endTime: string | null;
   timezone: string | null;
 }) {
+  const { user } = useSessionUser();
   const [notifying, setNotifying] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState<number | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -1317,7 +1319,7 @@ function StartupWaitingOverlay({
     setNotifying(true);
     try {
       const { data, error } = await supabase.functions.invoke('notify-facilitators-waiting', {
-        body: { participant_id: participantId },
+        body: { participant_token: user?.token || '' },
       });
       if (error || data?.error) {
         toast.error(data?.error || error?.message || 'Could not notify facilitators.');
@@ -1682,7 +1684,7 @@ function AdminMuteButton({ identity, roomName }: { identity: string; roomName: s
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('mute-participant', {
-        body: { room_name: roomName, identity, muted: true },
+        body: { admin_token: getAdminToken(), room_name: roomName, identity, muted: true },
       });
       if (error || !data?.success) {
         toast.error('Failed to mute participant');
@@ -1725,6 +1727,7 @@ interface StartupEditDialogProps {
 }
 
 export function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
+  const { user } = useSessionUser();
   const [fundingGoal, setFundingGoal] = useState('');
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
@@ -1789,7 +1792,7 @@ export function StartupEditDialog({ open, onOpenChange, sessionId, email, onSave
       image_url: imageUrl || null,
     };
     const { data, error } = await supabase.functions.invoke('startup-update-self', {
-      body: { participant_id: participantId, ...updates },
+      body: { participant_token: user?.token || '', ...updates },
     });
 
     setSaving(false);
@@ -1868,7 +1871,7 @@ export function StartupEditDialog({ open, onOpenChange, sessionId, email, onSave
               onChange={setImageUrl}
               kind="participant"
               refId={participantId}
-              participantId={participantId}
+              participantToken={user?.token || null}
               helpText="Shown to investors when you join. PNG/JPG/WebP/GIF, max 5MB."
             />
           )}
@@ -1901,6 +1904,7 @@ interface FacilitatorEditDialogProps {
 }
 
 function FacilitatorEditDialog({ open, onOpenChange, sessionId, email }: FacilitatorEditDialogProps) {
+  const { user } = useSessionUser();
   const [bio, setBio] = useState('');
   const [saving, setSaving] = useState(false);
   const [participantId, setParticipantId] = useState<string | null>(null);
@@ -1935,7 +1939,7 @@ function FacilitatorEditDialog({ open, onOpenChange, sessionId, email }: Facilit
     }
     setSaving(true);
     const { data, error } = await supabase.functions.invoke('facilitator-update-self', {
-      body: { participant_id: participantId, bio: bio.trim() || null },
+      body: { participant_token: user?.token || '', bio: bio.trim() || null },
     });
     setSaving(false);
     if (error || data?.error) {

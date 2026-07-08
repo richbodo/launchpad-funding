@@ -2,6 +2,8 @@ import * as React from 'npm:react@18.3.1'
 import { renderAsync } from 'npm:@react-email/components@0.0.22'
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { TEMPLATES } from '../_shared/transactional-email-templates/registry.ts'
+import { authorizeFacilitator } from '../_shared/admin-token.ts'
+import { isServiceRoleRequest } from '../_shared/participant-token.ts'
 
 // Configuration baked in at scaffold time — do NOT change these manually.
 // To update, re-run the email domain setup flow.
@@ -60,16 +62,15 @@ Deno.serve(async (req) => {
   let idempotencyKey: string
   let messageId: string
   let templateData: Record<string, any> = {}
-  // Optional extra recipients added to the To: line (e.g. cc the startup on
-  // the investor's confirmation). Suppression is checked against each address;
-  // if any are suppressed, those are dropped from the To: line.
   let additionalRecipients: string[] = []
+  let adminToken: string | null = null
   try {
     const body = await req.json()
     templateName = body.templateName || body.template_name
     recipientEmail = body.recipientEmail || body.recipient_email
     messageId = crypto.randomUUID()
     idempotencyKey = body.idempotencyKey || body.idempotency_key || messageId
+    adminToken = typeof body.admin_token === 'string' ? body.admin_token : null
     if (body.templateData && typeof body.templateData === 'object') {
       templateData = body.templateData
     }
@@ -79,8 +80,6 @@ Deno.serve(async (req) => {
         .filter((e: unknown) => typeof e === 'string' && e.includes('@'))
         .map((e: string) => e.trim())
     }
-    // Optional caller-provided Reply-To. If not provided, we auto-derive from
-    // templateData.facilitators[0].email below.
     if (typeof body.replyTo === 'string' || typeof body.reply_to === 'string') {
       ;(templateData as any).__replyTo = body.replyTo || body.reply_to
     }
@@ -93,6 +92,34 @@ Deno.serve(async (req) => {
       }
     )
   }
+
+  // Authorize the caller.
+  //
+  // Previously verify_jwt=true alone was the only gate, which meant anyone
+  // holding the public anon key (i.e. any internet visitor) could pick any
+  // template + arbitrary recipients and blast branded emails from our
+  // verified sending domain — an open email relay (security finding:
+  // send_email_relay).
+  //
+  // Now we require ONE of:
+  //   • service-role JWT (used by internal edge-function-to-edge-function
+  //     invocations such as `notify-facilitators-waiting`), OR
+  //   • a valid facilitator admin_token in the body (used by the Admin UI's
+  //     invitation / commitment-email flows).
+  const supabaseAuth = createClient(supabaseUrl, supabaseServiceKey)
+  const isService = isServiceRoleRequest(req)
+  let authorized = isService
+  if (!authorized && adminToken) {
+    const auth = await authorizeFacilitator(adminToken, supabaseAuth, supabaseServiceKey)
+    if (auth) authorized = true
+  }
+  if (!authorized) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
 
   if (!templateName) {
     return new Response(

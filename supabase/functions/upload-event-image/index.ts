@@ -14,6 +14,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { authorizeFacilitator } from "../_shared/admin-token.ts";
+import { resolveParticipantToken } from "../_shared/participant-token.ts";
 
 const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -58,24 +59,24 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return jsonResponse({ error: "Invalid JSON" }, 400); }
 
   // Authorize: either facilitator admin_token, OR participant self-upload
-  // (startup uploading their own logo to their own participant row).
+  // (participant token whose id matches ref_id, uploading their own image).
+  // Previously the self-upload path trusted a client-supplied participant_id
+  // alone, which allowed any visitor to overwrite another participant's
+  // image by guessing their id (security finding: self_update_idor).
   let authorized = false;
   if (body?.admin_token) {
     const auth = await authorizeFacilitator(body.admin_token, supabase, serviceKey);
     if (auth) authorized = true;
   }
-  if (!authorized && body?.participant_id) {
-    if (body.kind === 'participant' && body.participant_id === body.ref_id) {
-      const { data: prow } = await supabase
-        .from('session_participants')
-        .select('id, role')
-        .eq('id', body.participant_id)
-        .maybeSingle();
-      // Startups and facilitators can both self-upload their profile image
-      // to their own participant row. Investors have no profile image.
-      if (prow && (prow.role === 'startup' || prow.role === 'facilitator')) {
-        authorized = true;
-      }
+  if (!authorized && body?.participant_token) {
+    const who = await resolveParticipantToken(supabase, body.participant_token);
+    if (
+      who &&
+      body.kind === 'participant' &&
+      who.participant_id === body.ref_id &&
+      (who.role === 'startup' || who.role === 'facilitator')
+    ) {
+      authorized = true;
     }
   }
   if (!authorized) return jsonResponse({ error: "Unauthorized" }, 401);

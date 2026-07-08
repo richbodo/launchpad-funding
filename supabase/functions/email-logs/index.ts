@@ -1,4 +1,5 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
+import { authorizeFacilitator } from '../_shared/admin-token.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -6,6 +7,14 @@ const corsHeaders = {
     'authorization, x-client-info, apikey, content-type',
 }
 
+/**
+ * Returns transactional email delivery logs to the Admin UI.
+ *
+ * Requires a valid facilitator `admin_token`. Previously this endpoint was
+ * open to anyone with the public anon key, exposing every recipient email
+ * and internal send-provider errors across all sessions (security finding:
+ * email_logs_open).
+ */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -27,8 +36,10 @@ Deno.serve(async (req) => {
   let messageIdFilter: string | null = null
   let recipientsFilter: string[] | null = null
   let templateFilter: string | null = null
+  let adminToken: string | null = null
   try {
     const body = await req.json()
+    adminToken = typeof body?.admin_token === 'string' ? body.admin_token : null
     if (body.limit) limit = Math.min(body.limit, 500)
     if (body.message_id) messageIdFilter = body.message_id
     if (Array.isArray(body.recipient_emails)) {
@@ -39,10 +50,14 @@ Deno.serve(async (req) => {
     if (typeof body.template_name === 'string') templateFilter = body.template_name
   } catch { /* use default */ }
 
-  // Latest-status-per-recipient mode: returns the most recent email_send_log
-  // row per recipient, so the Admin "Invite" column can show actual delivery
-  // state (sent / pending / failed / bounced / suppressed) rather than just
-  // the local invite_sent_at "we enqueued it" stamp.
+  const auth = await authorizeFacilitator(adminToken, supabase, supabaseServiceKey)
+  if (!auth) {
+    return new Response(
+      JSON.stringify({ error: 'Unauthorized' }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    )
+  }
+
   if (recipientsFilter && recipientsFilter.length > 0) {
     let q = supabase
       .from('email_send_log')
@@ -75,7 +90,6 @@ Deno.serve(async (req) => {
     )
   }
 
-  // If requesting a specific message_id, return ALL rows for that message
   if (messageIdFilter) {
     const { data, error } = await supabase
       .from('email_send_log')
@@ -96,7 +110,6 @@ Deno.serve(async (req) => {
     )
   }
 
-  // Summary view: deduplicate by message_id, keep latest
   const { data, error } = await supabase
     .from('email_send_log')
     .select('id, message_id, template_name, recipient_email, status, error_message, metadata, created_at')

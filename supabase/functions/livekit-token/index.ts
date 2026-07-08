@@ -1,5 +1,17 @@
+/**
+ * livekit-token
+ * -------------
+ * Issues a LiveKit room-join JWT.
+ *
+ * Requires a per-participant session token (`participant_token`) minted at
+ * login. The caller's session/identity/role are read from the resolved token,
+ * NOT from the request body — this prevents anyone with the public roster
+ * from calling this endpoint with another user's email to obtain a
+ * publish-capable video/audio token (security finding: livekit_identity_spoof).
+ */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SignJWT } from "https://esm.sh/jose@5";
+import { resolveParticipantToken } from "../_shared/participant-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -24,40 +36,33 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { session_id, identity, name, role } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { participant_token, name } = body || {};
 
-    if (!session_id || !identity || !role) {
+    if (!participant_token || typeof participant_token !== "string") {
       return new Response(
-        JSON.stringify({ error: "session_id, identity, and role are required" }),
+        JSON.stringify({ error: "participant_token is required" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Verify participant exists in this session
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    const { data: participant, error: partErr } = await supabase
-      .from("session_participants")
-      .select("id")
-      .eq("session_id", session_id)
-      .eq("email", identity)
-      .eq("role", role)
-      .maybeSingle();
-
-    if (partErr || !participant) {
+    const who = await resolveParticipantToken(supabase, participant_token);
+    if (!who) {
       return new Response(
-        JSON.stringify({ error: "Participant not found in session" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Invalid or expired session" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // Room name scoped to session
-    const roomName = `session-${session_id}`;
+    const identity = who.email;
+    const role = who.role;
+    const roomName = `session-${who.session_id}`;
 
-    // Build LiveKit JWT
     const secret = new TextEncoder().encode(apiSecret);
     const token = await new SignJWT({
       sub: identity,
@@ -83,7 +88,7 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ error: (err as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }

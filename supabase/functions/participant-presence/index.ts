@@ -1,20 +1,21 @@
 /**
  * participant-presence
  * --------------------
- * Updates a participant's `is_logged_in` flag using the service role,
- * so the client never needs a SECURITY DEFINER RPC or a permissive
- * UPDATE policy on `session_participants`.
+ * Updates a participant's `is_logged_in` flag.
  *
- * Anyone can call this (no auth in this app) — same trust model as the
- * previous public RPC. The only inputs are a participant UUID and a
- * boolean; we validate shape with Zod before writing.
+ * Requires a per-participant session token (`participant_token`) minted at
+ * login. The token is resolved server-side to the participant row, so no
+ * client-supplied `participant_id` is trusted. This closes IDOR paths where
+ * any visitor could flip another participant's login state (security
+ * finding: self_update_idor).
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
+import { resolveParticipantToken } from "../_shared/participant-token.ts";
 
 const BodySchema = z.object({
-  participant_id: z.string().uuid(),
+  participant_token: z.string().min(16).max(128),
   logged_in: z.boolean(),
 });
 
@@ -38,14 +39,21 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { participant_id, logged_in } = parsed.data;
-    const update: Record<string, unknown> = { is_logged_in: logged_in };
-    if (logged_in) update.logged_in_at = new Date().toISOString();
+    const who = await resolveParticipantToken(supabase, parsed.data.participant_token);
+    if (!who) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const update: Record<string, unknown> = { is_logged_in: parsed.data.logged_in };
+    if (parsed.data.logged_in) update.logged_in_at = new Date().toISOString();
 
     const { error } = await supabase
       .from("session_participants")
       .update(update)
-      .eq("id", participant_id);
+      .eq("id", who.participant_id);
 
     if (error) {
       return new Response(JSON.stringify({ error: error.message }), {

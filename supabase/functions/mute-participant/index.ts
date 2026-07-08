@@ -1,4 +1,6 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SignJWT } from "https://esm.sh/jose@5";
+import { authorizeFacilitator } from "../_shared/admin-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -7,10 +9,14 @@ const corsHeaders = {
 };
 
 /**
- * Mute or unmute a participant's microphone track server-side via LiveKit's
- * Twirp API. Only facilitators should call this (enforced client-side).
+ * Mute (or unmute) a participant's microphone via LiveKit's Twirp API.
  *
- * Request body: { room_name: string, identity: string, muted: boolean }
+ * Requires a valid facilitator `admin_token`. Previously this endpoint had
+ * NO authorization at all — any visitor could mute any participant in any
+ * live session by guessing the room name and identity (security finding:
+ * mute_participant_open).
+ *
+ * Request body: { admin_token, room_name, identity, muted }
  */
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -29,7 +35,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { room_name, identity, muted } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { admin_token, room_name, identity, muted } = body || {};
 
     if (!room_name || !identity || typeof muted !== "boolean") {
       return new Response(
@@ -38,9 +45,18 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build an admin JWT for the LiveKit server API
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey);
+    const auth = await authorizeFacilitator(admin_token, supabase, serviceKey);
+    if (!auth) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const secret = new TextEncoder().encode(apiSecret);
-    const adminToken = await new SignJWT({
+    const adminJwt = await new SignJWT({
       video: { roomAdmin: true, room: room_name },
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
@@ -49,23 +65,19 @@ Deno.serve(async (req) => {
       .setExpirationTime("1m")
       .sign(secret);
 
-    // Derive the HTTP base URL from the WebSocket URL.
-    // Edge Functions run inside Docker, so localhost won't reach the host.
-    // Replace localhost/127.0.0.1 with host.docker.internal for Docker-to-host access.
     const httpBase = wsUrl
       .replace(/^ws:/, "http:")
       .replace(/^wss:/, "https:")
       .replace("localhost", "host.docker.internal")
       .replace("127.0.0.1", "host.docker.internal");
 
-    // Step 1: List participants to find the target and their mic track SID
     const listRes = await fetch(
       `${httpBase}/twirp/livekit.RoomService/ListParticipants`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
+          Authorization: `Bearer ${adminJwt}`,
         },
         body: JSON.stringify({ room: room_name }),
       },
@@ -89,7 +101,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Find the microphone track
     const micTrack = target.tracks?.find(
       (t: any) => t.source === "MICROPHONE" || t.source === 1,
     );
@@ -101,14 +112,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Step 2: Mute/unmute the track
     const muteRes = await fetch(
       `${httpBase}/twirp/livekit.RoomService/MutePublishedTrack`,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${adminToken}`,
+          Authorization: `Bearer ${adminJwt}`,
         },
         body: JSON.stringify({
           room: room_name,
@@ -133,7 +143,7 @@ Deno.serve(async (req) => {
     );
   } catch (err) {
     return new Response(
-      JSON.stringify({ error: err.message }),
+      JSON.stringify({ error: (err as Error).message }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }

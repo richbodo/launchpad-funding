@@ -7,11 +7,19 @@ interface TokenResult {
   room: string;
 }
 
+/**
+ * Fetches a LiveKit room-join token from the `livekit-token` edge function.
+ *
+ * Server derives session/identity/role from the participant session token
+ * minted at login — we intentionally do NOT send session_id / identity /
+ * role from the client anymore (security finding: livekit_identity_spoof).
+ */
 export function useLiveKitToken(
-  sessionId: string,
-  identity: string,
+  _sessionId: string,
+  _identity: string,
   name: string,
-  role: string
+  _role: string,
+  participantToken: string | null | undefined,
 ) {
   const [result, setResult] = useState<TokenResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,7 +27,7 @@ export function useLiveKitToken(
   const cancelledRef = useRef(false);
 
   const fetchToken = useCallback(async () => {
-    if (!sessionId || !identity || !role) return;
+    if (!participantToken) return;
 
     cancelledRef.current = false;
     setLoading(true);
@@ -27,7 +35,7 @@ export function useLiveKitToken(
 
     try {
       const { data, error: fnErr } = await supabase.functions.invoke('livekit-token', {
-        body: { session_id: sessionId, identity, name, role },
+        body: { participant_token: participantToken, name },
       });
 
       if (cancelledRef.current) return;
@@ -45,7 +53,7 @@ export function useLiveKitToken(
     } finally {
       if (!cancelledRef.current) setLoading(false);
     }
-  }, [sessionId, identity, name, role]);
+  }, [name, participantToken]);
 
   const reset = useCallback(() => {
     cancelledRef.current = true;

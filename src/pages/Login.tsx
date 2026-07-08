@@ -168,9 +168,11 @@ export default function Login() {
     navigate(needsGreenRoom ? `/session/${selectedSession}/ready` : `/session/${selectedSession}${editParam}`);
 
     // Background side effects — failures are logged but don't block entry.
-    supabase.functions.invoke('participant-presence', {
-      body: { participant_id: participant.id, logged_in: true },
-    }).catch((e) => console.warn('presence update failed', e));
+    if (token) {
+      supabase.functions.invoke('participant-presence', {
+        body: { participant_token: token, logged_in: true },
+      }).catch((e) => console.warn('presence update failed', e));
+    }
 
     if (token) {
       supabase.rpc('log_session_event', {
@@ -515,9 +517,11 @@ export default function Login() {
     const needsGreenRoom = (resolvedRole === 'startup' || resolvedRole === 'facilitator') && !editParam;
     navigate(needsGreenRoom ? `/session/${selectedSession}/ready` : `/session/${selectedSession}${editParam}`);
 
-    supabase.functions.invoke('participant-presence', {
-      body: { participant_id: participant.id, logged_in: true },
-    }).catch((e) => console.warn('presence update failed', e));
+    if (token) {
+      supabase.functions.invoke('participant-presence', {
+        body: { participant_token: token, logged_in: true },
+      }).catch((e) => console.warn('presence update failed', e));
+    }
 
     if (token) {
       supabase.rpc('log_session_event', {

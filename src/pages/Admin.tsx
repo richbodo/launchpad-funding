@@ -388,7 +388,7 @@ export default function Admin() {
   const fetchEmailLogs = async () => {
     setEmailLogsLoading(true);
     const { data, error } = await supabase.functions.invoke('email-logs', {
-      body: { limit: 100 },
+      body: { admin_token: getAdminToken(), limit: 100 },
     });
     if (error) {
       toast.error('Failed to load email logs');
@@ -403,7 +403,7 @@ export default function Admin() {
     setTimelineLoading(true);
     const messageId = log.message_id || log.id;
     const { data, error } = await supabase.functions.invoke('email-logs', {
-      body: { message_id: messageId },
+      body: { admin_token: getAdminToken(), message_id: messageId },
     });
     if (error) {
       toast.error('Failed to load delivery timeline');
@@ -532,6 +532,7 @@ export default function Admin() {
     try {
       const { data, error } = await supabase.functions.invoke('send-transactional-email', {
         body: {
+          admin_token: getAdminToken(),
           templateName,
           recipientEmail: inv.investor_email,
           additionalRecipients: [inv.startup_email],
@@ -682,7 +683,7 @@ export default function Admin() {
     setArchiving(true);
     try {
       const { data, error } = await supabase.functions.invoke('archive-chat', {
-        body: { session_id: sessionId },
+        body: { admin_token: getAdminToken(), session_id: sessionId },
       });
       if (error) throw error;
       toast.success(data.message || 'Chat archived');
@@ -832,7 +833,7 @@ export default function Admin() {
     setRefreshingInviteStatus(true);
     try {
       const { data, error } = await supabase.functions.invoke('email-logs', {
-        body: { recipient_emails: emails, template_name: 'session-invitation' },
+        body: { admin_token: getAdminToken(), recipient_emails: emails, template_name: 'session-invitation' },
       });
       if (error || !data?.latest_by_recipient) return;
       setInviteDelivery(data.latest_by_recipient);
@@ -1196,6 +1197,7 @@ export default function Admin() {
 
     const { data, error } = await supabase.functions.invoke('send-transactional-email', {
       body: {
+        admin_token: getAdminToken(),
         templateName: 'session-invitation',
         recipientEmail: email,
         idempotencyKey,

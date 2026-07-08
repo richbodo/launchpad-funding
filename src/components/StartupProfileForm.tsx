@@ -18,6 +18,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import ImageUploadField from '@/components/ImageUploadField';
+import { useSessionUser } from '@/lib/sessionContext';
 
 export interface StartupProfileSnapshot {
   description: string | null;
@@ -42,6 +43,7 @@ const normalizeUrl = (raw: string): string | null => {
 };
 
 export default function StartupProfileForm({ sessionId, email, onSaved }: Props) {
+  const { user } = useSessionUser();
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [fundingGoal, setFundingGoal] = useState('');
   const [ddRoomLink, setDdRoomLink] = useState('');
@@ -89,7 +91,7 @@ export default function StartupProfileForm({ sessionId, email, onSaved }: Props)
       image_url: imageUrl || null,
     };
     const { data, error } = await supabase.functions.invoke('startup-update-self', {
-      body: { participant_id: participantId, ...updates },
+      body: { participant_token: user?.token || '', ...updates },
     });
     setSaving(false);
     const errMsg = error?.message || (typeof data?.error === 'string' ? data.error : null) ||
@@ -157,7 +159,7 @@ export default function StartupProfileForm({ sessionId, email, onSaved }: Props)
           onChange={setImageUrl}
           kind="participant"
           refId={participantId}
-          participantId={participantId}
+          participantToken={user?.token || null}
           helpText="Shown to investors when you join. PNG/JPG/WebP/GIF, max 5MB."
         />
       )}
