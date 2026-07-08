@@ -18,11 +18,13 @@ interface Props {
   refId: string;
   helpText?: string;
   /**
-   * When set, authenticates as the participant (startup self-upload) instead
-   * of as an admin/facilitator. Server enforces that participant_id matches
-   * ref_id and that the participant has role='startup'.
+   * When set, authenticates as the participant (startup / facilitator
+   * self-upload) using their server-issued session token instead of the
+   * admin token. The server verifies the token maps to a participant whose
+   * id equals refId — this closes the previous IDOR path where any client
+   * could self-upload as any participant just by knowing their id.
    */
-  participantId?: string;
+  participantToken?: string | null;
 }
 
 /**
@@ -35,7 +37,7 @@ interface Props {
  * facilitator (admin_token-authorized) and returns the public URL.
  */
 export default function ImageUploadField({
-  label, value, onChange, kind, refId, helpText, participantId,
+  label, value, onChange, kind, refId, helpText, participantToken,
 }: Props) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -83,8 +85,9 @@ export default function ImageUploadField({
       });
       const { data, error } = await supabase.functions.invoke('upload-event-image', {
         body: {
-          // Either admin (facilitator) auth OR participant self-upload auth.
-          ...(participantId ? { participant_id: participantId } : { admin_token: getAdminToken() }),
+          // Either admin (facilitator) auth OR participant self-upload auth
+          // via server-verified session token (security fix: self-upload IDOR).
+          ...(participantToken ? { participant_token: participantToken } : { admin_token: getAdminToken() }),
           file_base64,
           content_type: file.type,
           kind,

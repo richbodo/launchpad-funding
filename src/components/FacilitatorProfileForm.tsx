@@ -12,6 +12,7 @@ import { Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 import ImageUploadField from '@/components/ImageUploadField';
+import { useSessionUser } from '@/lib/sessionContext';
 
 export interface FacilitatorProfileSnapshot {
   bio: string | null;
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export default function FacilitatorProfileForm({ sessionId, email, onSaved }: Props) {
+  const { user } = useSessionUser();
   const [participantId, setParticipantId] = useState<string | null>(null);
   const [bio, setBio] = useState('');
   const [imageUrl, setImageUrl] = useState('');
@@ -63,7 +65,7 @@ export default function FacilitatorProfileForm({ sessionId, email, onSaved }: Pr
       image_url: imageUrl || null,
     };
     const { data, error } = await supabase.functions.invoke('facilitator-update-self', {
-      body: { participant_id: participantId, ...updates },
+      body: { participant_token: user?.token || '', ...updates },
     });
     setSaving(false);
     if (error || (data as any)?.error) {
@@ -98,7 +100,7 @@ export default function FacilitatorProfileForm({ sessionId, email, onSaved }: Pr
           onChange={setImageUrl}
           kind="participant"
           refId={participantId}
-          participantId={participantId}
+          participantToken={user?.token || null}
           helpText="Shown to attendees on the event page and in the session. PNG/JPG/WebP/GIF, max 5MB."
         />
       )}
