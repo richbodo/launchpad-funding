@@ -43,8 +43,11 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 
   const clearLoginFlag = useCallback(async (u: SessionUser) => {
-    // Presence updates go through an edge function so the client never
-    // needs a SECURITY DEFINER RPC or an UPDATE policy on session_participants.
+    // Presence updates go through the participant-presence edge function.
+    // The function requires the participant session token (server verifies
+    // it and derives the participant_id server-side) — if we don't have one
+    // there's nothing safe to send.
+    if (!u.token) return;
     await fetch(presenceUrl, {
       method: 'POST',
       headers: {
@@ -52,7 +55,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         apikey: apiKey,
         Authorization: `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({ participant_id: u.participantId, logged_in: false }),
+      body: JSON.stringify({ participant_token: u.token, logged_in: false }),
     }).catch(() => {/* noop */});
   }, [presenceUrl, apiKey]);
 
@@ -66,9 +69,9 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   // Best-effort cleanup on tab/browser close.
   useEffect(() => {
     const handleBeforeUnload = () => {
-      if (!user) return;
+      if (!user || !user.token) return;
       const body = JSON.stringify({
-        participant_id: user.participantId,
+        participant_token: user.token,
         logged_in: false,
       });
 
