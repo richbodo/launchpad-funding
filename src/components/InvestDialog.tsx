@@ -51,45 +51,25 @@ export default function InvestDialog({
     if (isGift && amt > GIFT_MAX_USD) return;
     setSubmitting(true);
 
-
-    const { error: insertError } = await supabase.from('investments').insert({
-      session_id: sessionId,
-      investor_email: user.email,
-      investor_name: user.displayName,
-      startup_email: startupEmail,
-      startup_name: startupName,
-      amount: amt,
-      pledge_type: pledgeType,
+    // Single server-verified RPC: the DB function inserts the investment row,
+    // the commit chat banner, and the audit log in one transaction using the
+    // caller identity resolved from the participant session token (not from
+    // a client-supplied email). See migration
+    // 20260708_security_hardening for the SECURITY DEFINER definition.
+    const { error: rpcError } = await supabase.rpc('submit_investment', {
+      _token: user.token ?? '',
+      _startup_email: startupEmail,
+      _startup_name: startupName,
+      _amount: amt,
+      _pledge_type: pledgeType,
     });
-    if (insertError) {
+    if (rpcError) {
       setSubmitting(false);
-      // Surface server-side cap rejection (or other DB error) to the user.
       alert(isGift
-        ? `Pledge rejected: community gift pledges are capped at $${GIFT_MAX_USD}.`
-        : `Pledge could not be recorded: ${insertError.message}`);
+        ? `Pledge rejected: ${rpcError.message}`
+        : `Pledge could not be recorded: ${rpcError.message}`);
       return;
     }
-
-    // Surface commitment as a highlighted message in the live chat for social
-    // proof / momentum (issue #40). The sentinel prefix is detected by
-    // ChatPanel to render the row in green. Sender role stays the user's role
-    // to satisfy the participant_role enum. Pledge type appended so ChatPanel
-    // can render slightly different wording for gifts (issue #41).
-    await supabase.from('chat_messages').insert({
-      session_id: sessionId,
-      sender_email: user.email,
-      sender_name: user.displayName,
-      sender_role: user.role,
-      message: `__COMMIT__::${amt}::${startupName}::${pledgeType}`,
-    });
-
-    // Log the event
-    await supabase.from('session_logs').insert({
-      session_id: sessionId,
-      event_type: 'investment',
-      event_data: { investor: user.email, startup: startupEmail, amount: amt, pledge_type: pledgeType },
-      actor_email: user.email,
-    });
 
     setSubmitting(false);
     setSubmitted(true);

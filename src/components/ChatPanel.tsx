@@ -128,12 +128,12 @@ export default function ChatPanel({ sessionId }: { sessionId: string }) {
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !user) return;
-    await supabase.from('chat_messages').insert({
-      session_id: sessionId,
-      sender_email: user.email,
-      sender_name: user.displayName,
-      sender_role: user.role,
-      message: newMessage.trim(),
+    // Server-verified RPC: the sender identity comes from the participant
+    // session token (minted at login), never from a client-supplied email.
+    // Direct INSERT on chat_messages is no longer permitted from the browser.
+    await supabase.rpc('post_chat_message', {
+      _token: user.token ?? '',
+      _message: newMessage.trim(),
     });
     setNewMessage('');
   };
