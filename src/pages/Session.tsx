@@ -155,6 +155,7 @@ export default function SessionPage() {
     user?.email || '',
     user?.displayName || '',
     user?.role || '',
+    user?.token || null,
   );
 
   // Fetch session data, participants, investments
