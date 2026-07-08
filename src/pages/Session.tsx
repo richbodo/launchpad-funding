@@ -1684,7 +1684,7 @@ function AdminMuteButton({ identity, roomName }: { identity: string; roomName: s
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('mute-participant', {
-        body: { room_name: roomName, identity, muted: true },
+        body: { admin_token: getAdminToken(), room_name: roomName, identity, muted: true },
       });
       if (error || !data?.success) {
         toast.error('Failed to mute participant');
