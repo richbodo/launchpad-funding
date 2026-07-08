@@ -1939,7 +1939,7 @@ function FacilitatorEditDialog({ open, onOpenChange, sessionId, email }: Facilit
     }
     setSaving(true);
     const { data, error } = await supabase.functions.invoke('facilitator-update-self', {
-      body: { participant_id: participantId, bio: bio.trim() || null },
+      body: { participant_token: user?.token || '', bio: bio.trim() || null },
     });
     setSaving(false);
     if (error || data?.error) {
