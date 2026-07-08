@@ -1727,6 +1727,7 @@ interface StartupEditDialogProps {
 }
 
 export function StartupEditDialog({ open, onOpenChange, sessionId, email, onSaved }: StartupEditDialogProps) {
+  const { user } = useSessionUser();
   const [fundingGoal, setFundingGoal] = useState('');
   const [ddRoomLink, setDdRoomLink] = useState('');
   const [websiteLink, setWebsiteLink] = useState('');
