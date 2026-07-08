@@ -388,7 +388,7 @@ export default function Admin() {
   const fetchEmailLogs = async () => {
     setEmailLogsLoading(true);
     const { data, error } = await supabase.functions.invoke('email-logs', {
-      body: { limit: 100 },
+      body: { admin_token: getAdminToken(), limit: 100 },
     });
     if (error) {
       toast.error('Failed to load email logs');
@@ -403,7 +403,7 @@ export default function Admin() {
     setTimelineLoading(true);
     const messageId = log.message_id || log.id;
     const { data, error } = await supabase.functions.invoke('email-logs', {
-      body: { message_id: messageId },
+      body: { admin_token: getAdminToken(), message_id: messageId },
     });
     if (error) {
       toast.error('Failed to load delivery timeline');
