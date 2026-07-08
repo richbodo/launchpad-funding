@@ -1,20 +1,19 @@
 /**
  * notify-facilitators-waiting
  * ---------------------------
- * Lets a startup who is sitting on the pre-session waiting screen ping every
- * facilitator on the session by email, saying "I'm here, please start the
- * session." Designed for the (very common) case where the facilitator is late
- * and the presenters land in an empty room.
+ * Lets a startup on the waiting screen ping every facilitator on the
+ * session ("I'm here, please start the session").
  *
- * Trust model matches `participant-presence` / `startup-update-self`: we
- * accept a participant_id from the client and verify server-side that the row
- * is actually a startup on this session before sending anything.
+ * Requires the startup's per-participant session token; the acting
+ * participant is resolved server-side rather than trusting a client-supplied
+ * `participant_id`, which prevents impersonation-based email spam (security
+ * finding: self_update_idor).
  *
- * Rate-limit: at most one notification per (participant_id) every 60 seconds,
- * tracked in-memory per edge worker. Best-effort; the UI also disables the
- * button after a click.
+ * Rate-limit: at most one notification per participant every 60 seconds
+ * (per edge worker), plus the UI disables the button after a click.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveParticipantToken } from "../_shared/participant-token.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -63,16 +62,35 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const participant_id = String(body?.participant_id || "");
-    if (!participant_id) {
-      return new Response(JSON.stringify({ error: "participant_id is required" }), {
+    const participant_token = typeof body?.participant_token === "string" ? body.participant_token : "";
+    if (!participant_token) {
+      return new Response(JSON.stringify({ error: "participant_token is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const who = await resolveParticipantToken(supabase, participant_token);
+    if (!who) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (who.role !== "startup") {
+      return new Response(JSON.stringify({ error: "Only startups can use this." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const now = Date.now();
-    const last = recentNotifies.get(participant_id) || 0;
+    const last = recentNotifies.get(who.participant_id) || 0;
     if (now - last < COOLDOWN_MS) {
       const wait = Math.ceil((COOLDOWN_MS - (now - last)) / 1000);
       return new Response(
@@ -81,26 +99,15 @@ Deno.serve(async (req) => {
       );
     }
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    const { data: me, error: meErr } = await supabase
+    const { data: me } = await supabase
       .from("session_participants")
       .select("id, session_id, role, email, display_name")
-      .eq("id", participant_id)
+      .eq("id", who.participant_id)
       .maybeSingle();
 
-    if (meErr || !me) {
+    if (!me) {
       return new Response(JSON.stringify({ error: "Participant not found" }), {
         status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (me.role !== "startup") {
-      return new Response(JSON.stringify({ error: "Only startups can use this." }), {
-        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -131,7 +138,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    recentNotifies.set(participant_id, now);
+    recentNotifies.set(who.participant_id, now);
 
     const sessionTime = formatSessionTime(
       session.start_time as any,
@@ -145,9 +152,7 @@ Deno.serve(async (req) => {
           body: {
             templateName: "startup-waiting",
             recipientEmail: f.email,
-            // One ping per (startup, facilitator, minute) — re-clicks within the
-            // minute are de-duped by the email infra.
-            idempotencyKey: `startup-waiting-${participant_id}-${f.email}-${Math.floor(now / 60000)}`,
+            idempotencyKey: `startup-waiting-${who.participant_id}-${f.email}-${Math.floor(now / 60000)}`,
             templateData: {
               facilitatorName: f.display_name || null,
               startupName: me.display_name || me.email,
