@@ -1,24 +1,23 @@
 /**
  * facilitator-update-self
  * -----------------------
- * Lets a facilitator participant update their own bio and profile image
- * (image_url) without granting the anon role direct UPDATE on
- * `session_participants`.
+ * Lets a facilitator update their own bio and profile image.
  *
- * Trust model matches `startup-update-self`/`participant-presence`: this app
- * has no Supabase Auth, so we accept a participant_id from the client and
- * verify server-side that the row is actually a facilitator before writing.
- * Mutable columns: `bio` (≤500 chars; nullable), `image_url` (uploaded via
- * upload-event-image, nullable).
+ * Requires a per-participant session token (`participant_token`) minted at
+ * login via `mint_participant_token_by_password`. The token is resolved
+ * server-side to the acting participant row and its `role` must be
+ * `facilitator`. The client-supplied `participant_id` is ignored so
+ * attackers can't overwrite another facilitator's profile via a guessed id
+ * (security finding: self_update_idor).
  */
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { z } from "npm:zod@3";
+import { resolveParticipantToken } from "../_shared/participant-token.ts";
 
 const BodySchema = z.object({
-  participant_id: z.string().uuid(),
+  participant_token: z.string().min(16).max(128),
   bio: z.string().max(500).nullable().optional(),
-  // Public URL of an uploaded profile photo (from upload-event-image).
   image_url: z.string().url().max(1000).nullable().optional(),
 });
 
@@ -42,31 +41,24 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { participant_id, ...fields } = parsed.data;
-
-    // Verify the target row is a facilitator; refuse to mutate anything else.
-    const { data: row, error: lookupErr } = await supabase
-      .from("session_participants")
-      .select("id, role")
-      .eq("id", participant_id)
-      .maybeSingle();
-
-    if (lookupErr || !row) {
-      return new Response(JSON.stringify({ error: "Participant not found" }), {
-        status: 404,
+    const who = await resolveParticipantToken(supabase, parsed.data.participant_token);
+    if (!who) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (row.role !== "facilitator") {
+    if (who.role !== "facilitator") {
       return new Response(JSON.stringify({ error: "Only facilitators can self-update" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    const { bio, image_url } = parsed.data;
     const updates: Record<string, unknown> = {};
-    if ("bio" in fields) updates.bio = fields.bio ?? null;
-    if ("image_url" in fields) updates.image_url = fields.image_url ?? null;
+    if ("bio" in parsed.data) updates.bio = bio ?? null;
+    if ("image_url" in parsed.data) updates.image_url = image_url ?? null;
 
     if (Object.keys(updates).length === 0) {
       return new Response(JSON.stringify({ ok: true, updated: false }), {
@@ -77,7 +69,7 @@ Deno.serve(async (req) => {
     const { error: updateErr } = await supabase
       .from("session_participants")
       .update(updates)
-      .eq("id", participant_id);
+      .eq("id", who.participant_id);
 
     if (updateErr) {
       return new Response(JSON.stringify({ error: updateErr.message }), {
